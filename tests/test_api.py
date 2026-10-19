@@ -40,6 +40,16 @@ def test_analysis_job_and_comparison():
     assert client.post("/api/aggregate", json={"estimates": [], "group_by": ["bad"]}).status_code == 400
 
 
+def test_one_stage_comparison():
+    wanted = {"SYN-C01", "SYN-C03", "SYN-C04", "SYN-C05"}
+    samples = [s for s in client.get("/api/example").json()["samples"] if s["specimen_id"] in wanted]
+    result = client.post("/api/analyze", json={"samples": samples, "options": {"models": ["logistic"],
+                                                                             "monte_carlo_draws": 50}}).json()
+    body = {"estimates": result["estimates"], "group_by": ["site"], "bayes": "one_stage", "results": result["results"]}
+    bayes = client.post("/api/aggregate", json=body).json()["tests"]["bayes"]
+    assert bayes["method"] == "one-stage" and len(bayes["specimens"]) == 4 and bayes["rhat_max"] < 1.1
+
+
 def test_simulation_job_and_calibration():
     body = {"scenario": {"n_specimens": 3}, "options": {"models": ["logistic"], "monte_carlo_draws": 0}}
     assert wait_for(client.post("/api/jobs/simulate", json=body).json())["status"] == "done"

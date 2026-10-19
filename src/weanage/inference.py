@@ -153,7 +153,10 @@ def bayes_summary(df, milestone, seed):
             "tau_ci_low": tau_low, "tau_ci_high": tau_high, "rhat_max": rhat, "draws": int(tau.size)}
 
 
-def compare_groups(rows, group_by, milestone="completion", model=None, bayes=True, seed=0):
+def compare_groups(rows, group_by, milestone="completion", model=None, bayes=True, seed=0, results=None,
+                   threshold=0.05):
+    """bayes: True or "two_stage" (pool the specimen estimates), "one_stage" (fit the raw
+    δ15N values of every specimen together; needs the analysis `results`), or False."""
     out = {"milestone": milestone, "model": model or "best (AICc)", "group_by": list(group_by), "groups": [],
            "q_between": None, "q_df": 0, "q_p": None, "pairwise": [], "permutation_p": None, "bayes": None, "notes": []}
     df = select_estimates(rows, milestone, model, list(group_by))
@@ -185,7 +188,14 @@ def compare_groups(rows, group_by, milestone="completion", model=None, bayes=Tru
         if any(g["n"] < 3 for g in groups):
             out["notes"].append("Some groups have fewer than 3 specimens; their means are poorly constrained")
 
-    if bayes and len(df) >= 3:
+    if bayes == "one_stage":
+        from .joint import joint_summary  # imported here: joint.py itself uses this module
+
+        out["bayes"] = joint_summary(results or [], list(group_by), milestone, threshold, seed)
+        if out["bayes"]:
+            out["notes"].append("One-stage model: a logistic curve is fitted to every specimen's raw δ15N values")
+            out["notes"] += [f"Left out of the one-stage model: {s}" for s in out["bayes"]["skipped"]]
+    elif bayes and len(df) >= 3:
         out["bayes"] = bayes_summary(df, milestone, seed)
         if out["bayes"]["rhat_max"] > 1.05:
             out["notes"].append(f"Bayesian chains have not fully converged (R̂ = {out['bayes']['rhat_max']:.2f})")

@@ -13,11 +13,13 @@ import numpy as np
 from pydantic import BaseModel, Field
 
 from .aggregate import error_metrics, interval_coverage, plain, to_frame
-from .analysis import analyze, estimate_rows
+from .analysis import analyze, estimate_rows, slice_positions
 from .config import find_growth_table
 from .growth import position_to_age
+from .models import MODELS
 from .schema import AnalysisOptions, IsotopeSample, LinearGrowthOverride
 
+Shape = Literal["logistic", "piecewise", "exponential", "two_phase", "mixed"]
 SweepParam = Literal["sampling_interval_mm", "increment_width_mm", "noise_sd", "missing_fraction",
                      "growth_layer_offset_mm", "n_specimens"]
 
@@ -38,7 +40,28 @@ class SimulationScenario(BaseModel):
     scale_range_months: tuple[float, float] = (0.4, 1.0)
     adult_d15N: float = 5.5
     drop_permil_range: tuple[float, float] = (2.0, 3.5)
+    # The shape of the true curves. Testing with logistic truths alone would favour the
+    # logistic model, so other shapes (or a random mix) can be used instead.
+    true_shape: Shape = "logistic"
     seed: int = 1
+
+
+def true_curve(shape, post, drop, middle, scale, rng, q):
+    """Parameters for a true curve of the given shape, centred on `middle` (months).
+
+    Every shape takes about as long to go from 5 % to 95 % of the drop as a logistic
+    curve of width `scale`, so the shapes are directly comparable.
+    """
+    span = 2 * scale * math.log((1 - q) / q)  # time from onset to completion of the logistic
+    if shape == "piecewise":
+        return [post, drop, middle - span / 2, span]
+    if shape == "exponential":
+        tau = span / math.log(1 / q)
+        return [post, drop, middle - tau * math.log(2), tau]
+    if shape == "two_phase":  # some of the drop first, the rest 1.5-4 months later
+        gap = rng.uniform(1.5, 4.0)
+        return [post, drop, rng.uniform(0.3, 0.7), middle - gap / 2, gap, scale]
+    return [post, drop, middle, scale]
 
 
 def simulate_samples(sc, threshold=0.05):
@@ -54,15 +77,18 @@ def simulate_samples(sc, threshold=0.05):
         t_mid = rng.uniform(*sc.midpoint_range_months)
         scale = rng.uniform(*sc.scale_range_months)
         drop = rng.uniform(*sc.drop_permil_range)
+        shape = rng.choice(["logistic", "piecewise", "exponential", "two_phase"]) if sc.true_shape == "mixed" \
+            else sc.true_shape
+        params = true_curve(shape, sc.adult_d15N, drop, t_mid, scale, rng, threshold)
+        curve = MODELS[shape]["curve"]
         shift = rng.normal(0, sc.age_model_error_sd) if sc.age_model_error_sd else 0.0  # this animal vs the table
-        truth[sid] = t_mid + scale * math.log((1 - threshold) / threshold)
+        truth[sid] = float(MODELS[shape]["ages"](np.array(params), threshold)["completion"])
         centres = np.arange(sc.increment_width_mm / 2, length, sc.sampling_interval_mm)
         for p in centres[rng.random(len(centres)) >= sc.missing_fraction]:
             # A slice holds dentine from its own height plus angled later layers; average the true curve over it.
-            start = max(p - sc.increment_width_mm / 2, 0)
-            end = p + sc.increment_width_mm / 2 + sc.growth_layer_offset_mm
-            ages, _ = position_to_age(np.linspace(start, end, 15), table, sc.growth_override)
-            value = np.mean(sc.adult_d15N + drop / (1 + np.exp((ages + shift - t_mid) / scale)))
+            positions = slice_positions(p, sc.increment_width_mm, sc.growth_layer_offset_mm)
+            ages, _ = position_to_age(positions, table, sc.growth_override)
+            value = np.mean(curve(ages + shift, *params))
             samples.append(IsotopeSample(
                 specimen_id=sid, site="Simulated", species=sc.species, tooth=sc.tooth, position_mm=float(p),
                 d15N=float(np.clip(value + rng.normal(0, sc.noise_sd), -10, 30)), cn_ratio=3.2,

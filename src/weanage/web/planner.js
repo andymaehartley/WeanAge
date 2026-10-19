@@ -50,6 +50,7 @@ function scenario() {
     midpoint_range_months: [v("#pl-mid-lo"), v("#pl-mid-hi")],
     scale_range_months: [v("#pl-scale-lo"), v("#pl-scale-hi")],
     drop_permil_range: [v("#pl-drop-lo"), v("#pl-drop-hi")],
+    true_shape: $("#pl-shape").value,
     seed: v("#pl-seed") || 1,
   };
 }

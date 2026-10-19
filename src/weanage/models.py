@@ -192,6 +192,23 @@ def add_milestones(result, best_guess, draws, age_sd, rng):
         result[key] = {"estimate": float(estimate), "ci_low": low, "ci_high": high}
 
 
+def drop_warnings(drop, options):
+    """Is the nursing-to-adult δ15N drop believable?
+
+    Suckling young feed one step up the food chain from their mother, which raises
+    δ15N by about 3-4‰ (DeNiro & Epstein 1981; Minagawa & Wada 1984). Observed nursing
+    enrichment is usually 2-3‰ (e.g. cattle dentine: Balasse et al. 2001; infants:
+    Fuller et al. 2006). Much smaller drops are noise; much larger ones need another cause.
+    """
+    if drop < options.min_weaning_drop_permil:
+        return [f"δ15N drop of {drop:.2f}‰ is below the {options.min_weaning_drop_permil:.2f}‰ minimum: "
+                "no clear weaning signal"]
+    if drop > options.max_plausible_drop_permil:
+        return [f"δ15N drop of {drop:.2f}‰ is larger than one food-chain step ({options.max_plausible_drop_permil:.1f}‰; "
+                "nursing usually adds 2-3‰): check for a diet change, mixed-up samples or teeth"]
+    return []
+
+
 def fit_model(name, ages, d15n, options=None, age_sd=0.0, windows=None, weights=None,
               post_range=None, baseline=None):
     """Fit one model to one specimen and work out its weaning ages.
@@ -211,6 +228,9 @@ def fit_model(name, ages, d15n, options=None, age_sd=0.0, windows=None, weights=
         result = fit_curve(name, t, y, options, age_sd, windows, weights, post_range)
     if baseline is not None and result["nursing_d15N"] is not None:
         result["enrichment_permil"] = result["nursing_d15N"] - baseline
+        if result["enrichment_permil"] > options.max_plausible_drop_permil:
+            result["warnings"].append(f"Nursing δ15N is {result['enrichment_permil']:.1f}‰ above the adult females, "
+                                      "more than one food-chain step: check the baseline and the samples")
     return result
 
 
@@ -300,9 +320,7 @@ def fit_curve(name, t, y, options, age_sd, windows, weights, post_range):
     if draws is None:
         result["warnings"].append("Parameter uncertainty unavailable: no confidence intervals")
 
-    if p[1] < options.min_weaning_drop_permil:
-        result["warnings"].append(f"δ15N drop of {p[1]:.2f}‰ is below the {options.min_weaning_drop_permil:.2f}‰ "
-                                  "minimum: no clear weaning signal")
+    result["warnings"] += drop_warnings(p[1], options)
     if best_guess["onset"] < t.min():
         result["warnings"].append("Weaning onset falls before the first sample (nursing plateau not captured)")
     if best_guess["completion"] > t.max():
@@ -388,9 +406,7 @@ def fit_elbow(t, y, options, age_sd, degree=4):
     slope = float(np.polyval(np.polyder(coef), grid[elbow] - centre))
     if slope > 0:
         result["warnings"].append(f"Curve is rising at the elbow (slope {slope:+.2f}‰/month): possible false estimate")
-    if result["drop_permil"] < options.min_weaning_drop_permil:
-        result["warnings"].append(f"δ15N drop of {result['drop_permil']:.2f}‰ is below the "
-                                  f"{options.min_weaning_drop_permil:.2f}‰ minimum: no clear weaning signal")
+    result["warnings"] += drop_warnings(result["drop_permil"], options)
     if elbow >= len(grid) - 2:
         result["warnings"].append("Elbow falls at the last sample: weaning may not be complete within the series")
     if curve.max() > y.max() + 0.5 or curve.min() < y.min() - 0.5:

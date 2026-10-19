@@ -7,7 +7,7 @@ Two front doors use these same functions:
 Bad requests raise ValueError; each front door turns that into an error message.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -34,7 +34,9 @@ class AggregateIn(BaseModel):
     group_by: list[str] = ["site", "species"]
     milestone: str = "completion"
     model: str | None = None
-    bayes: bool = True
+    bayes: bool | Literal["two_stage", "one_stage"] = True
+    results: list[dict[str, Any]] | None = None  # needed by the one-stage model
+    transition_threshold: float = Field(default=0.05, gt=0, lt=0.5)
 
 
 class CalibrateIn(BaseModel):
@@ -130,5 +132,6 @@ def compare(body: AggregateIn):
         "summary": records(aggregate(body.estimates, body.group_by, body.milestone, body.model)),
         "disagreement": records(model_disagreement(body.estimates, body.milestone)),
         "validation": records(validate(body.estimates, body.milestone)),
-        "tests": compare_groups(body.estimates, body.group_by, body.milestone, body.model, body.bayes),
+        "tests": compare_groups(body.estimates, body.group_by, body.milestone, body.model, body.bayes,
+                                results=body.results, threshold=body.transition_threshold),
     }

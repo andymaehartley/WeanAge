@@ -15,7 +15,7 @@ from .growth import position_to_age
 from .models import compare_fits, fit_model, model_average, seasonal_test
 from .qc import passes_qc, qc_flags
 
-SLICE_STEPS = 15  # points used to describe the age range inside one slice
+SLICE_STEPS = 8  # points across a slice's height, and again across its depth (8 x 8 = 64 points)
 
 
 def group_by_specimen(samples):
@@ -28,14 +28,33 @@ def group_by_specimen(samples):
 def slice_ages(row, table, override, options):
     """The ages of the dentine mixed into one slice (for time averaging).
 
-    The slice covers its own height, plus some later inner dentine because the
-    growth layers run at an angle (growth_layer_offset_mm).
+    A slice is a horizontal disc of dentine: it has a height (the slice width) and a
+    depth (from the enamel inwards to the pulp). Growth layers run at an angle, so the
+    dentine at depth d was laid down when the growth front had reached
+    `growth_layer_offset_mm × d` further along the tooth (d = 0 at the enamel, 1 at the pulp).
+    This follows the geometry of Tsutaya (2020) and MDSS, with straight growth layers.
+    We take an 8 x 8 grid over height and depth and return the age of each point.
     """
     width = row.increment_width_mm or options.increment_width_mm
-    start = max(row.position_mm - width / 2, 0.0)
-    end = row.position_mm + width / 2 + options.growth_layer_offset_mm
-    ages, _ = position_to_age(np.linspace(start, end, SLICE_STEPS), table, override)
+    positions = slice_positions(row.position_mm, width, options.growth_layer_offset_mm)
+    ages, _ = position_to_age(positions, table, override)
     return ages
+
+
+def slice_positions(position, width, offset):
+    """The 8 x 8 grid of growth-front positions (mm) mixed into one slice; see slice_ages."""
+    heights = np.linspace(max(position - width / 2, 0.0), position + width / 2, SLICE_STEPS)
+    depths = np.linspace(0, 1, SLICE_STEPS)
+    return (heights[:, None] + depths[None, :] * offset).ravel()
+
+
+def slice_weights(options):
+    """How much dentine each grid point stands for. Inner dentine sits on a smaller circle
+    around the pulp, so there is less of it: the weight falls from 1 at the enamel to
+    `inner_dentine_weight` at the pulp (the ratio of inner to outer radius)."""
+    depths = np.linspace(0, 1, SLICE_STEPS)
+    per_depth = 1 - depths * (1 - options.inner_dentine_weight)
+    return np.tile(per_depth, SLICE_STEPS)  # the same for every height
 
 
 def rising_profile_warning(t, y):
@@ -113,6 +132,7 @@ def analyze_specimen(samples, options):
         "points": [], "fits": [], "best_model": None, "model_average": {}, "diagnostics": {}, "warnings": [],
         "known_weaning_age_months": first.known_weaning_age_months,
         "published_weaning_age_months": first.published_weaning_age_months, "adult_baseline": None,
+        "age_sd_months": 0.0,
     }
     warnings = result["warnings"]
 
@@ -133,6 +153,7 @@ def analyze_specimen(samples, options):
             return result
         age_models[tooth] = (table, override)
     result["growth_table"] = "; ".join(labels)
+    result["age_sd_months"] = age_sd
     if result["growth_placeholder"]:
         warnings.append("Ages use a PLACEHOLDER growth table (TBD-LAB); estimates are illustrative only")
     if len(teeth) > 1:
@@ -182,7 +203,7 @@ def analyze_specimen(samples, options):
     used_windows = None
     if options.time_averaging:
         used_windows = np.array([w for w, p in zip(windows, points) if p["used_in_fit"]])
-    weights = np.linspace(1.0, options.inner_dentine_weight, SLICE_STEPS)
+    weights = slice_weights(options)
     fits = [fit_model(name, t, y, options, age_sd, used_windows, weights, post_range,
                       baseline.mean if baseline else None) for name in options.models]
     result["best_model"] = compare_fits(fits)

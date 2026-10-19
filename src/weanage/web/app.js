@@ -171,6 +171,7 @@ const FIELDS = {
   reported_milestone: ["#opt-milestone", "text"],
   analytical_sd_permil: ["#opt-sd", "number"],
   min_weaning_drop_permil: ["#opt-mindrop", "number"],
+  max_plausible_drop_permil: ["#opt-maxdrop", "number"],
   monte_carlo_draws: ["#opt-draws", "number"],
   uncertainty: ["#opt-uncertainty", "text"],
   bootstrap_draws: ["#opt-boot", "number"],
@@ -376,7 +377,14 @@ function chooseSpecimen(id) {
 // ───────────── 4. compare ─────────────
 function compareRequest() {
   const group_by = $$('input[name="group"]:checked').map((box) => box.value);
-  return { estimates: state.estimates, group_by, milestone: $("#cmp-milestone").value, model: $("#cmp-model").value || null };
+  const body = { estimates: state.estimates, group_by, milestone: $("#cmp-milestone").value, model: $("#cmp-model").value || null,
+    bayes: $("#cmp-bayes").value, transition_threshold: state.options.transition_threshold };
+  if (body.bayes === "one_stage") {
+    // The one-stage model needs each specimen's samples and logistic fit (but not the drawn curves).
+    body.results = state.results.map((r) => ({ ...r, fits: r.fits.filter((f) => f.model === "logistic")
+      .map(({ curve_age, curve_d15N, ...fit }) => fit) }));
+  }
+  return body;
 }
 
 async function refreshCompare() {
@@ -384,6 +392,7 @@ async function refreshCompare() {
   const body = compareRequest();
   if (!body.group_by.length) return toast("Choose at least one grouping.");
   const { group_by, milestone, model } = body;
+  if (body.bayes === "one_stage") $("#bayes-body").innerHTML = '<p class="muted">Fitting the one-stage model (this can take a minute)…</p>';
   try {
     const out = await api.aggregate(body);
     const groupName = (row) => group_by.map((g) => row[g] ?? "—").join(" · ");
@@ -446,7 +455,7 @@ function renderTests(t) {
 
   const b = t.bayes;
   if (!b) return ($("#bayes-body").innerHTML = '<p class="muted">Needs at least three specimens.</p>');
-  $("#bayes-body").innerHTML = `<p class="muted small">Shared between-animal SD τ = ${num(b.tau_mean)} months (95% CrI ${num(b.tau_ci_low)}–${num(b.tau_ci_high)}) ·
+  $("#bayes-body").innerHTML = `<p class="muted small">${b.method === "one-stage" ? "One-stage model on the raw δ¹⁵N values · " : ""}Shared between-animal SD τ = ${num(b.tau_mean)} months (95% CrI ${num(b.tau_ci_low)}–${num(b.tau_ci_high)}) ·
       max R̂ ${num(b.rhat_max, 3)} ${help("rhat")} · ${b.draws} posterior draws${b.rhat_max > 1.05 ? ' · <span class="warn-text">not fully converged</span>' : ""}</p>
     <div class="grid-2"><div class="table-wrap"><table id="b-groups"></table></div><div class="table-wrap"><table id="b-pairs"></table></div></div>
     <details><summary>Specimen estimates after partial pooling</summary><div class="table-wrap"><table id="b-specimens"></table></div></details>`;
@@ -618,7 +627,7 @@ function bind() {
     const options = { visible: state.visible, milestone: state.options.reported_milestone, xRange: state.zoom, showD13C: $("#opt-show13c").checked, palette: "light" };
     download(`${res.specimen_id}_weaning_curve.svg`, new Blob([offscreen((box) => curveChart(box, curveOptions(res, options)))], { type: "image/svg+xml" }));
   });
-  for (const input of $$('input[name="group"], #cmp-milestone, #cmp-model')) input.addEventListener("change", refreshCompare);
+  for (const input of $$('input[name="group"], #cmp-milestone, #cmp-model, #cmp-bayes')) input.addEventListener("change", refreshCompare);
 
   on("#btn-save", "click", () => download(`weanage_project_${new Date().toISOString().slice(0, 10)}.weanage.json`, new Blob([JSON.stringify(project(), null, 1)])));
   on("#project-input", "change", async (e) => {

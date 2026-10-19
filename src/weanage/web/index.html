@@ -153,6 +153,9 @@
             <label data-tbd="lab:min_weaning_drop_permil">Minimum weaning drop (‰) <span data-helpslot="min_drop"></span>
               <input id="opt-mindrop" type="number" min="0" step="0.1">
             </label>
+            <label>Largest believable drop (‰) <span data-helpslot="max_drop"></span>
+              <input id="opt-maxdrop" type="number" min="0.5" step="0.1">
+            </label>
           </div>
 
           <h3>Uncertainty</h3>
@@ -317,6 +320,12 @@
               <option value="average">Model average</option>
             </select>
           </label>
+          <label>Bayesian model <span data-helpslot="onestage"></span>
+            <select id="cmp-bayes">
+              <option value="two_stage">Two-stage: pool the specimen estimates (fast)</option>
+              <option value="one_stage">One-stage: fit all raw δ¹⁵N values together</option>
+            </select>
+          </label>
         </div>
         <div id="cmp-chart" class="chart-box"></div>
         <div class="table-wrap"><table id="cmp-table"></table></div>
@@ -366,6 +375,15 @@
           </div>
           <h3>True weaning curves (drawn at random within these ranges)</h3>
           <div class="form-grid">
+            <label>Shape of the true curves <span data-helpslot="true_shape"></span>
+              <select id="pl-shape">
+                <option value="logistic">Logistic</option>
+                <option value="mixed">A random mix of shapes</option>
+                <option value="piecewise">Piecewise linear</option>
+                <option value="exponential">Exponential</option>
+                <option value="two_phase">Two-phase (staged)</option>
+              </select>
+            </label>
             <label>Midpoint from (months)<input id="pl-mid-lo" type="number" step="0.5" value="4"></label>
             <label>Midpoint to (months)<input id="pl-mid-hi" type="number" step="0.5" value="9"></label>
             <label>Steepness (scale) from<input id="pl-scale-lo" type="number" step="any" min="0.05" value="0.4"></label>
