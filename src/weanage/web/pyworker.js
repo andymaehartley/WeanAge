@@ -25,7 +25,9 @@ async function start() {
   status("Loading numpy, scipy and pandas…");
   await pyodide.loadPackage(["numpy", "scipy", "pandas", "pydantic", "micropip"]);
   status("Loading WeanAge…");
-  const code = await (await fetch("weanage.zip")).arrayBuffer();
+  const download = await fetch("weanage.zip");
+  if (!download.ok) throw new Error(`could not download WeanAge's code (weanage.zip: ${download.status})`);
+  const code = await download.arrayBuffer();
   pyodide.unpackArchive(code, "zip", { extractDir: "/home/pyodide/lib" });
   pyodide.FS.mkdirTree(SAVED_TABLES);
   pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, SAVED_TABLES);
@@ -48,7 +50,10 @@ let ready = null; // started by the first request
 self.onmessage = async ({ data }) => {
   const { id, name, request, content } = data;
   try {
-    ready ??= start().finally(() => status(null));
+    ready ??= start().finally(() => status(null)).catch((err) => {
+      ready = null; // try again on the next request (e.g. once the connection is back)
+      throw err;
+    });
     const weanage = await ready;
     if (name === "analyze" || name === "simulate") await syncFiles(true); // growth tables saved by another engine
     const progress = (done, total) => postMessage({ id, progress: [done, total] });

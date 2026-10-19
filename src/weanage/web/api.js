@@ -100,6 +100,8 @@ async function startEngine(index) {
     showStatus(null);
     for (const job of waiting.values()) job.reject(new Error(event.message || "the analysis engine stopped"));
     waiting.clear();
+    worker.terminate();
+    engines[index] = undefined; // the next request starts a fresh engine
   };
   return { worker, waiting };
 }

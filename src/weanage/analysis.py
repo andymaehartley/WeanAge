@@ -41,19 +41,24 @@ def slice_ages(row, table, override, options):
     return ages
 
 
+def depth_steps(offset):
+    """Points across the dentine depth. With no offset every depth has the same age, so one is enough."""
+    return SLICE_STEPS if offset > 0 else 1
+
+
 def slice_positions(position, width, offset):
-    """The 8 x 8 grid of growth-front positions (mm) mixed into one slice; see slice_ages."""
+    """The grid of growth-front positions (mm) mixed into one slice; see slice_ages."""
     heights = np.linspace(max(position - width / 2, 0.0), position + width / 2, SLICE_STEPS)
-    depths = np.linspace(0, 1, SLICE_STEPS)
+    depths = np.linspace(0, 1, depth_steps(offset))
     return (heights[:, None] + depths[None, :] * offset).ravel()
 
 
-def slice_weights(options):
+def slice_weights(offset, inner_dentine_weight):
     """How much dentine each grid point stands for. Inner dentine sits on a smaller circle
     around the pulp, so there is less of it: the weight falls from 1 at the enamel to
     `inner_dentine_weight` at the pulp (the ratio of inner to outer radius)."""
-    depths = np.linspace(0, 1, SLICE_STEPS)
-    per_depth = 1 - depths * (1 - options.inner_dentine_weight)
+    depths = np.linspace(0, 1, depth_steps(offset))
+    per_depth = 1 - depths * (1 - inner_dentine_weight)
     return np.tile(per_depth, SLICE_STEPS)  # the same for every height
 
 
@@ -203,7 +208,7 @@ def analyze_specimen(samples, options):
     used_windows = None
     if options.time_averaging:
         used_windows = np.array([w for w, p in zip(windows, points) if p["used_in_fit"]])
-    weights = slice_weights(options)
+    weights = slice_weights(options.growth_layer_offset_mm, options.inner_dentine_weight)
     fits = [fit_model(name, t, y, options, age_sd, used_windows, weights, post_range,
                       baseline.mean if baseline else None) for name in options.models]
     result["best_model"] = compare_fits(fits)

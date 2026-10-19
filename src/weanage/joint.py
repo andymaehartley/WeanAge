@@ -74,8 +74,8 @@ def starting_values(spec):
     """Where each chain starts: the specimen's own logistic fit if there is one,
     otherwise a rough curve from its early and late levels and where δ15N crosses halfway."""
     fit = spec.get("logistic")
-    if fit and fit["drop"] > 0:
-        return {"post": fit["post"], "drop": fit["drop"], "middle": fit["t_mid"], "s": max(fit["scale"], 0.05)}
+    if fit and fit["drop"] > 0:  # keep the start inside the prior's range (0-20‰), or the chain could never move
+        return {"post": fit["post"], "drop": min(fit["drop"], 15.0), "middle": fit["t_mid"], "s": max(fit["scale"], 0.05)}
     t, y = spec["ages"], spec["d15N"]
     order = np.argsort(t)
     t, y = t[order], y[order]
@@ -171,11 +171,13 @@ def joint_bayes(specimens, milestone="completion", q=0.05, chains=4, warmup=2000
         mean = ((mu[:, group_of] - recorded) / tau[:, None] ** 2) / precision
         shift = np.where(age_sd > 0, rng.normal(mean, 1 / np.sqrt(precision)), 0.0)
         m = recorded + shift
-        # 4. Group means drawn exactly (normal).
+        # 4. Group means drawn exactly (normal). Each chain uses only its own values, so the
+        #    chains stay independent (which the R̂ check assumes).
+        centre = m.mean(axis=1)
         for g in range(len(names)):
             members = m[:, group_of == g]
             precision_g = members.shape[1] / tau ** 2 + 1 / prior_sd ** 2
-            mean_g = (members.sum(axis=1) / tau ** 2 + m.mean() / prior_sd ** 2) / precision_g
+            mean_g = (members.sum(axis=1) / tau ** 2 + centre / prior_sd ** 2) / precision_g
             mu[:, g] = rng.normal(mean_g, 1 / np.sqrt(precision_g))
         # 5. τ (spread between animals) by a Metropolis step on its logarithm.
         spread = ((m - mu[:, group_of]) ** 2).sum(axis=1)
@@ -196,10 +198,11 @@ def joint_bayes(specimens, milestone="completion", q=0.05, chains=4, warmup=2000
 
 
 def joint_summary(results, group_by, milestone="completion", q=0.05, seed=0):
-    """Same layout as the two-stage summary (inference.bayes_summary), so the app shows it the same way."""
+    """Same layout as the two-stage summary (inference.bayes_summary), so the app shows it the same way.
+    Returns (summary or None if fewer than 3 specimens can be used, list of specimens left out and why)."""
     specimens, skipped = specimens_from_results(results, group_by, milestone, q)
     if len(specimens) < 3:
-        return None
+        return None, skipped
     names, group_of, m, mu, tau = joint_bayes(specimens, milestone, q, seed=seed)
     m_flat, mu_flat = m.reshape(-1, len(specimens)), mu.reshape(-1, len(names))
     groups = []
@@ -222,6 +225,6 @@ def joint_summary(results, group_by, milestone="completion", q=0.05, seed=0):
     tau_low, tau_high = middle95(tau.ravel())
     rhat = max([split_rhat(tau)] + [split_rhat(mu[:, :, g]) for g in range(len(names))]
                + [split_rhat(m[:, :, i]) for i in range(len(specimens))])
-    return {"method": "one-stage", "skipped": skipped, "groups": groups, "pairs": pairs, "specimens": rows,
+    return {"method": "one-stage", "groups": groups, "pairs": pairs, "specimens": rows,
             "tau_mean": float(tau.mean()), "tau_ci_low": tau_low, "tau_ci_high": tau_high,
-            "rhat_max": rhat, "draws": int(tau.size)}
+            "rhat_max": rhat, "draws": int(tau.size)}, skipped

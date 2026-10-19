@@ -13,7 +13,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 
 from .aggregate import error_metrics, interval_coverage, plain, to_frame
-from .analysis import analyze, estimate_rows, slice_positions
+from .analysis import analyze, estimate_rows, slice_positions, slice_weights
 from .config import find_growth_table
 from .growth import position_to_age
 from .models import MODELS
@@ -64,7 +64,7 @@ def true_curve(shape, post, drop, middle, scale, rng, q):
     return [post, drop, middle, scale]
 
 
-def simulate_samples(sc, threshold=0.05):
+def simulate_samples(sc, threshold=0.05, inner_dentine_weight=1.0):
     """Made-up samples, and each animal's true weaning (completion) age."""
     table = None if sc.growth_override else find_growth_table(sc.species, sc.tooth)
     if table is None and sc.growth_override is None:
@@ -84,11 +84,12 @@ def simulate_samples(sc, threshold=0.05):
         shift = rng.normal(0, sc.age_model_error_sd) if sc.age_model_error_sd else 0.0  # this animal vs the table
         truth[sid] = float(MODELS[shape]["ages"](np.array(params), threshold)["completion"])
         centres = np.arange(sc.increment_width_mm / 2, length, sc.sampling_interval_mm)
+        weights = slice_weights(sc.growth_layer_offset_mm, inner_dentine_weight)
         for p in centres[rng.random(len(centres)) >= sc.missing_fraction]:
             # A slice holds dentine from its own height plus angled later layers; average the true curve over it.
             positions = slice_positions(p, sc.increment_width_mm, sc.growth_layer_offset_mm)
             ages, _ = position_to_age(positions, table, sc.growth_override)
-            value = np.mean(curve(ages + shift, *params))
+            value = np.average(curve(ages + shift, *params), weights=weights)
             samples.append(IsotopeSample(
                 specimen_id=sid, site="Simulated", species=sc.species, tooth=sc.tooth, position_mm=float(p),
                 d15N=float(np.clip(value + rng.normal(0, sc.noise_sd), -10, 30)), cn_ratio=3.2,
@@ -107,7 +108,7 @@ def run_simulation(sc, options=None, progress=None):
     if options.time_averaging:
         options.increment_width_mm = sc.increment_width_mm
         options.growth_layer_offset_mm = sc.growth_layer_offset_mm
-    samples, _ = simulate_samples(sc, options.transition_threshold)
+    samples, _ = simulate_samples(sc, options.transition_threshold, options.inner_dentine_weight)
     df = to_frame(estimate_rows(analyze(samples, options, progress=progress)))
     scores = []
     for model in options.models + ["average"]:

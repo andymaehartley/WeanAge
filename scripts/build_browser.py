@@ -56,6 +56,7 @@ def serve(port=8000):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--serve", action="store_true", help="preview the result in a browser")
+    args = parser.parse_args()  # first, so --help does not rebuild anything
     build()
-    if parser.parse_args().serve:
+    if args.serve:
         serve()

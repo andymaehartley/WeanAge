@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from weanage.analysis import analyze, slice_positions, slice_weights
-from weanage.joint import joint_bayes, specimens_from_results
+from weanage.joint import joint_bayes, specimens_from_results, starting_values
 from weanage.models import MODELS, drop_warnings
 from weanage.schema import AnalysisOptions
 from weanage.simulate import SimulationScenario, simulate_samples, true_curve
@@ -28,6 +28,11 @@ def test_one_stage_model_recovers_group_ages(make_samples):
     assert np.mean(b < a) > 0.9  # B weaned earlier (only 3 animals per group, so not certain)
 
 
+def test_one_stage_starts_inside_the_prior():
+    spec = {"logistic": {"post": 5.0, "drop": 30.0, "t_mid": 6.0, "scale": 1.0}}
+    assert starting_values(spec)["drop"] < 20
+
+
 def test_drop_plausibility():
     options = AnalysisOptions()
     assert "no clear weaning signal" in drop_warnings(0.5, options)[0]
@@ -38,8 +43,9 @@ def test_drop_plausibility():
 def test_slice_geometry():
     grid = slice_positions(10.0, 1.0, 4.0)
     assert len(grid) == 64 and grid.min() == 9.5 and grid.max() == 14.5  # height + full depth offset
-    weights = slice_weights(AnalysisOptions(inner_dentine_weight=0.5))
+    weights = slice_weights(4.0, 0.5)
     assert weights[0] == 1.0 and weights[7] == 0.5  # enamel side to pulp side
+    assert len(slice_positions(10.0, 1.0, 0.0)) == len(slice_weights(0.0, 0.5)) == 8  # no offset: one depth is enough
 
 
 @pytest.mark.parametrize("shape", ["logistic", "piecewise", "exponential", "two_phase"])

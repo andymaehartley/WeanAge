@@ -191,12 +191,12 @@ def compare_groups(rows, group_by, milestone="completion", model=None, bayes=Tru
     if bayes == "one_stage":
         from .joint import joint_summary  # imported here: joint.py itself uses this module
 
-        out["bayes"] = joint_summary(results or [], list(group_by), milestone, threshold, seed)
-        if out["bayes"]:
-            out["notes"].append("One-stage model: a logistic curve is fitted to every specimen's raw δ15N values")
-            out["notes"] += [f"Left out of the one-stage model: {s}" for s in out["bayes"]["skipped"]]
+        out["bayes"], skipped = joint_summary(results or [], list(group_by), milestone, threshold, seed)
+        out["notes"] += [f"Left out of the one-stage model: {s}" for s in skipped]
+        if any(p.get("age_min") is not None for r in results or [] for p in r["points"]):
+            out["notes"].append("The one-stage model fits each sample at its centre age (time averaging is not applied)")
     elif bayes and len(df) >= 3:
         out["bayes"] = bayes_summary(df, milestone, seed)
-        if out["bayes"]["rhat_max"] > 1.05:
-            out["notes"].append(f"Bayesian chains have not fully converged (R̂ = {out['bayes']['rhat_max']:.2f})")
+    if out["bayes"] and out["bayes"]["rhat_max"] > 1.05:
+        out["notes"].append(f"Bayesian chains have not fully converged (R̂ = {out['bayes']['rhat_max']:.2f})")
     return out
