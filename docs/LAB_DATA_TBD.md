@@ -13,12 +13,13 @@ When you fill one in, set `"placeholder": false`. The highlight then disappears 
 ## 1. Tooth growth tables: `src/weanage/data/growth_tables.json`
 
 These convert position along the tooth (mm from the cusp apex) into age at dentine
-formation. **The current knots are illustrative only.**
+formation. The cattle crown start and end **ages** come from Brown et al. (1960);
+the crown **heights** and all pig and horse values are still illustrative.
 
 | species | tooth | what is needed |
 |---|---|---|
-| cattle | M2 | crown-initiation age, crown height, extension rate (and any slowing towards the cervix) |
-| cattle | M1 | as above (initiates prenatally) |
+| cattle | M2 | crown height (45 mm is a guess), evenness of growth along the crown, root ages. Ages 1 → 12.5 months are cited (Brown et al. 1960) |
+| cattle | M1 | start age before birth (−2 months is a guess), crown height, root ages. Completion at 2.5 months is cited |
 | pig | M1 | as above |
 | horse | M1 | as above (hypsodont; extension rate likely non-linear) |
 
@@ -34,7 +35,8 @@ way (1 mm increments, from the apex).
 ## 2. Collagen QC thresholds: `src/weanage/data/qc_thresholds.json`
 
 The defaults are common literature values: C:N 2.9–3.6 (DeNiro 1985); %C ≥ 13,
-%N ≥ 4.8 and yield ≥ 1 % (van Klinken 1999). Confirm them against the protocol
+%N ≥ 4.8 and yield ≥ 1 % (van Klinken 1999). For modern reference animals use the
+"modern" preset, C:N 3.00–3.28 (Guiry & Szpak 2020). Confirm them against the protocol
 actually used: 0.5 M HCl demineralisation, gelatinisation at pH 3 and 70 °C, then
 lyophilisation.
 
@@ -45,7 +47,7 @@ lyophilisation.
 | `analytical_sd_permil` | EA-IRMS δ¹⁵N precision (1 SD of replicate standards / check samples). Used to weight curve fits. |
 | `min_weaning_drop_permil` | smallest nursing-to-adult δ¹⁵N drop accepted as a real weaning signal |
 | `transition_threshold` | fraction of the drop that defines onset and completion for smooth curves (default 5 % / 95 %) |
-| `reference_dataset` | CSV of known-age animals with `known_weaning_age_months`, for validation |
+| `reference_dataset` | CSV of known-age animals with `known_weaning_age_months`, for validation (see `docs/VALIDATION.md`) |
 | `growth_layer_offset_mm` | extra growth (mm) each horizontal section captures because dentine growth layers are oblique. Used by the optional time-averaging model. MDSS values are for human teeth only, so measure from livestock thin sections |
 | `inner_dentine_weight` | how much the innermost (latest) dentine in a slice counts compared with the earliest (1 = equal). Estimate from livestock thin-section geometry |
 | `adult_baselines` | mean ± SD δ¹⁵N of adult females (bone collagen) for each site and species, entered in Settings. Gives nursing enrichment and can constrain the adult plateau |

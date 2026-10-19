@@ -20,7 +20,7 @@ def opts(**settings):
 def make_samples():
     def make(specimen_id="T1", site="Site A", species="cattle", tooth="M2", n=40, **curve):
         positions = np.arange(0.5, n, 1.0)
-        _, y = logistic_series(ages=1 + positions / 3, **curve)  # placeholder cattle M2: age = 1 + position/3
+        _, y = logistic_series(ages=1 + positions * 11.5 / 45, **curve)  # cattle M2 table: 1 to 12.5 months over 45 mm
         return [IsotopeSample(specimen_id=specimen_id, site=site, species=species, tooth=tooth,
                               position_mm=float(p), d15N=float(v), cn_ratio=3.2) for p, v in zip(positions, y)]
 

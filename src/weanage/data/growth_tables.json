@@ -1,43 +1,61 @@
 {
-  "_README": "Tooth growth tables map position along the tooth (mm from cusp apex) to age at dentine formation (months after birth). Ages between knots are linearly interpolated. EVERY TABLE BELOW IS AN ILLUSTRATIVE PLACEHOLDER: replace the knots, uncertainty and source with published or lab-derived tooth formation data, then set placeholder=false. Search the codebase for TBD-LAB to find every value still waiting on lab work or literature review.",
+  "_README": "Tooth growth tables map position along the tooth (mm from cusp apex) to age at dentine formation (months after birth). Ages between knots are joined by straight lines. Cattle crown start/end ages are cited from Brown et al. (1960); everything marked TBD-LAB (crown heights, pig and horse tables) is still a placeholder. Set placeholder=false once a table is fully based on published or lab data.",
   "tables": [
     {
       "species": "cattle",
       "tooth": "M2",
       "label": "Cattle - mandibular M2",
       "knots": [
-        {"position_mm": 0, "age_months": 1},
-        {"position_mm": 15, "age_months": 6},
-        {"position_mm": 30, "age_months": 11},
-        {"position_mm": 45, "age_months": 16}
+        {
+          "position_mm": 0,
+          "age_months": 1
+        },
+        {
+          "position_mm": 45,
+          "age_months": 12.5
+        }
       ],
       "age_uncertainty_months": 1.0,
-      "source": "TBD-LAB: placeholder values - insert published M2 formation chronology and/or known-age reference calibration",
+      "source": "Ages: Brown, Christofferson, Massler & Weiss 1960, Postnatal tooth development in cattle, Am. J. Vet. Res. 21:7-34 (M2 crown starts at ~1 month, complete at 12-13 months). Crown height: TBD-LAB",
       "placeholder": true,
-      "tbd_note": "Replace with crown-initiation age, crown height and extension-rate data for cattle M2 (incl. any non-linear slowing towards the cervix)."
+      "tbd_note": "Start and end ages are from Brown et al. (1960). Still needed: the crown height of unworn cattle M2 (45 mm here is a guess), whether growth is really even along the crown, and root dentine ages (samples past the crown are flagged as extrapolated)."
     },
     {
       "species": "cattle",
       "tooth": "M1",
       "label": "Cattle - mandibular M1",
       "knots": [
-        {"position_mm": 0, "age_months": -2},
-        {"position_mm": 20, "age_months": 3},
-        {"position_mm": 40, "age_months": 8}
+        {
+          "position_mm": 0,
+          "age_months": -2
+        },
+        {
+          "position_mm": 40,
+          "age_months": 2.5
+        }
       ],
       "age_uncertainty_months": 1.0,
-      "source": "TBD-LAB: placeholder values",
+      "source": "End age: Brown, Christofferson, Massler & Weiss 1960, Postnatal tooth development in cattle, Am. J. Vet. Res. 21:7-34 (M1 crown starts before birth, complete at 2-3 months). Start age and crown height: TBD-LAB",
       "placeholder": true,
-      "tbd_note": "Replace with cattle M1 formation chronology (prenatal initiation)."
+      "tbd_note": "Crown completion (2.5 months) is from Brown et al. (1960). Still needed: the start age before birth (-2 months here is a guess), crown height (40 mm here is a guess) and root dentine ages."
     },
     {
       "species": "pig",
       "tooth": "M1",
       "label": "Pig - mandibular M1",
       "knots": [
-        {"position_mm": 0, "age_months": 0},
-        {"position_mm": 8, "age_months": 2},
-        {"position_mm": 16, "age_months": 5}
+        {
+          "position_mm": 0,
+          "age_months": 0
+        },
+        {
+          "position_mm": 8,
+          "age_months": 2
+        },
+        {
+          "position_mm": 16,
+          "age_months": 5
+        }
       ],
       "age_uncertainty_months": 0.5,
       "source": "TBD-LAB: placeholder values",
@@ -49,9 +67,18 @@
       "tooth": "M1",
       "label": "Horse - M1 (cheek tooth)",
       "knots": [
-        {"position_mm": 0, "age_months": 0},
-        {"position_mm": 30, "age_months": 8},
-        {"position_mm": 60, "age_months": 16}
+        {
+          "position_mm": 0,
+          "age_months": 0
+        },
+        {
+          "position_mm": 30,
+          "age_months": 8
+        },
+        {
+          "position_mm": 60,
+          "age_months": 16
+        }
       ],
       "age_uncertainty_months": 1.5,
       "source": "TBD-LAB: placeholder values",

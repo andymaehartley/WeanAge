@@ -8,6 +8,11 @@ const REFERENCES = [
   "Tsutaya, T., & Yoneda, M. (2013). Quantitative reconstruction of weaning ages in archaeological human populations using bone collagen nitrogen isotope ratios and approximate Bayesian computation. PLoS ONE 8, e72327.",
   "Tsutaya, T. (2020). Blurred time resolution of tooth dentin serial sections. American Journal of Physical Anthropology 173, 748–759.",
   "Ganiatsou, E., Souleles, A., & Papageorgopoulou, C. (2023). WEaning Age FiNder (WEAN): a tool for estimating weaning age from stable isotope ratios of dentinal collagen. Archaeological and Anthropological Sciences 15, 50.",
+  "Brown, W. A. B., Christofferson, P. V., Massler, M., & Weiss, M. B. (1960). Postnatal tooth development in cattle. American Journal of Veterinary Research 21, 7–34.",
+  "Balasse, M., Bocherens, H., Mariotti, A., & Ambrose, S. H. (2001). Detection of dietary changes by intra-tooth carbon and nitrogen isotopic analysis: an experimental study of dentine collagen of cattle (Bos taurus). Journal of Archaeological Science 28, 235–245.",
+  "Guiry, E. J., & Szpak, P. (2020). Quality control for modern bone collagen stable carbon and nitrogen isotope measurements. Methods in Ecology and Evolution 11, 1049–1060.",
+  "Beaumont, J., & Montgomery, J. (2016). The Great Irish Famine: identifying starvation in the tissues of victims using stable isotope analysis of bone and incremental dentine collagen. PLoS ONE 11, e0160065.",
+  "Balasse, M., et al. (2021). Seasonal calving in European prehistoric cattle and its impacts on milk availability and cheesemaking. Scientific Reports 11, 8185.",
   "Burnham, K. P., & Anderson, D. R. (2002). Model Selection and Multimodel Inference (2nd ed.). Springer.",
   "DerSimonian, R., & Laird, N. (1986). Meta-analysis in clinical trials. Controlled Clinical Trials 7, 177–188.",
 ];

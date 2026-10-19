@@ -172,6 +172,9 @@
         <article class="card" data-tbd="qc:thresholds">
           <h2>Collagen quality control <span data-helpslot="qc"></span></h2>
           <p class="hint">Samples outside these limits are flagged (and by default left out of the fit).</p>
+          <label>Start from a published set of limits
+            <select id="qc-preset"><option value="">Choose…</option></select>
+          </label>
           <div class="form-grid">
             <label>Min C:N<input id="qc-cn_min" type="number" step="0.01"></label>
             <label>Max C:N<input id="qc-cn_max" type="number" step="0.01"></label>

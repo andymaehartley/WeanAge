@@ -8,6 +8,10 @@ straight lines between the table's points, continued past the ends with those
 samples flagged. A simple linear model can be used instead:
 `age = initiation_age + position / extension_rate`.
 
+* The cattle tables use the crown start and end ages of Brown et al. (1960): M1 is
+  complete at about 2–3 months; M2 starts at about 1 month and is complete at 12–13
+  months. Crown heights, and whether growth is even along the crown, are still
+  `TBD-LAB`.
 * Positions measured from the cervix are converted with `crown_height_mm`.
 * When several teeth share an `individual_id`, each is converted with its own table,
   and the teeth are then fitted as one timeline.
@@ -20,6 +24,16 @@ samples flagged. A simple linear model can be used instead:
 A sample is flagged if its atomic C:N, %C, %N or yield is outside the limits in
 `qc_thresholds.json`. By default flagged samples are plotted but not fitted. If %C and
 %N are given and C:N is not, C:N is computed as `(%C / %N) × (14.007 / 12.011)`.
+
+Two published sets of limits can be chosen in Settings:
+
+| preset | C:N | use for |
+|---|---|---|
+| Archaeological (DeNiro 1985; van Klinken 1999) | 2.9–3.6 | archaeological teeth |
+| Modern, mammals (Guiry & Szpak 2020) | 3.00–3.28 | modern known-age reference animals |
+
+Guiry & Szpak showed that the wider archaeological range lets through modern collagen
+whose isotope values are already skewed.
 
 ## 3. Curve models
 
@@ -89,9 +103,17 @@ estimates across models (thesis question 1).
 
 * No clear weaning signal: the drop is below `min_weaning_drop_permil`.
 * Onset before the first sample, or completion after the last (extrapolated).
-* **Rising profile**: δ¹⁵N increases with age (Spearman ρ > 0.3, p < 0.05).
+* **Rising profile**: δ¹⁵N increases with age (Spearman ρ > 0.3, p < 0.05). Stress and
+  starvation can raise δ¹⁵N (Beaumont & Montgomery 2016).
+* **δ¹³C across weaning**: the mean δ¹³C after weaning ends minus the mean before it
+  starts (at least 2 samples each side, using the best model's onset and completion).
+  In known-age calves δ¹³C rose as δ¹⁵N fell (Balasse et al. 2001), so for cattle a
+  fall of 0.5‰ or more is flagged: the δ¹⁵N decline may be another diet change. For
+  other species the value is only reported, because the expected direction is not
+  yet established.
 * **Seasonality**: an F-test for a yearly sine wave in the best fit's residuals, and
-  in δ¹³C after removing a linear trend. A warning appears when p < 0.05 and the cycle
+  in δ¹³C after removing a linear trend and the shape of the fitted weaning curve (so a
+  one-off δ¹³C step at weaning is not mistaken for a season). A warning appears when p < 0.05 and the cycle
   is at least 0.2‰ (residuals) or 0.3‰ (δ¹³C). The test needs at least ¾ of a year of
   data, and its false-alarm rate on pure noise was checked to be about 5 %.
 
@@ -118,6 +140,9 @@ This is a two-stage model: it pools the specimen estimates rather than the raw �
 values.
 
 ## 8. Validation
+
+See [`VALIDATION.md`](VALIDATION.md) for how to run it (`weanage validate`) and which
+published series to use.
 
 When `known_weaning_age_months` is present (known-age animals), the following are
 reported for each model: bias, MAE, RMSE, Pearson r and 95 % interval coverage. When

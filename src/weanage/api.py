@@ -107,6 +107,7 @@ def get_config():
         "growth_tables": [{**t.model_dump(), "saved": key in saved} for key, t in config.growth_tables().items()],
         "user_tables_path": str(config.user_tables_path()),
         "qc_flags": FLAG_DESCRIPTIONS,
+        "qc_presets": config.qc_config().get("presets", {}),
         "tbd": config.tbd_items(),
     }
 

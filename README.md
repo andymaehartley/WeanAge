@@ -51,6 +51,7 @@ Without the app:
 
 ```bash
 weanage analyze my_data.csv -o estimates.csv      # CSV or .xlsx
+weanage validate reference.csv                    # accuracy on known-age animals
 weanage --host 0.0.0.0 --no-browser               # shared server on a lab machine
 ```
 
@@ -87,6 +88,19 @@ file / form ─► check the data (pydantic) ─► collagen QC (C:N, %C, %N, yi
 
 [`docs/METHODS.md`](docs/METHODS.md) gives the equations.
 [`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md) compares WeanAge with WARN, MDSS and WEAN.
+[`docs/VALIDATION.md`](docs/VALIDATION.md) explains how to test it on known-age animals.
+
+### Research the method builds on
+
+| finding | where it is used |
+|---|---|
+| Cattle M1/M2 crown start and end ages (Brown et al. 1960) | cattle growth tables |
+| δ¹⁵N falls while δ¹³C rises at weaning in known-age calves (Balasse et al. 2001) | δ¹³C weaning check; validation |
+| Modern collagen needs C:N 3.00–3.28 (Guiry & Szpak 2020) | "modern" QC preset |
+| Coarse slices blur and delay the weaning signal (Tsutaya 2020; MDSS) | time averaging |
+| Stress and starvation raise δ¹⁵N (Beaumont & Montgomery 2016) | rising-profile warning |
+| Prehistoric cattle calved seasonally (Balasse et al. 2021) | seasonal term and checks |
+| Weaning-age curves and elbow (WARN, WEAN) | curve models, adult-female baseline |
 
 ## Code layout
 

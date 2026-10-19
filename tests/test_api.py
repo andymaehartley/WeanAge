@@ -21,6 +21,7 @@ def wait_for(job):
 def test_config():
     body = client.get("/api/config").json()
     assert body["tbd"] and {m["name"] for m in body["models"]} == {"logistic", "piecewise", "exponential", "two_phase", "elbow"}
+    assert body["qc_presets"]["modern"]["cn_max"] == 3.28  # Guiry & Szpak (2020)
 
 
 def test_upload_and_records():

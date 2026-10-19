@@ -1,5 +1,5 @@
 {
-  "_README": "Collagen quality criteria applied to every sample. Defaults are common literature values (C:N 2.9-3.6 after DeNiro 1985; %C >= 13, %N >= 4.8 and yield >= 1% after van Klinken 1999). TBD-LAB: confirm or replace with the Durham lab's accepted criteria, then set placeholder=false.",
+  "_README": "Collagen quality criteria applied to every sample. The defaults are the usual limits for archaeological collagen. 'presets' are offered in Settings: use 'modern' for modern known-age reference animals. TBD-LAB: confirm against the lab's accepted criteria, then set placeholder=false.",
   "cn_min": 2.9,
   "cn_max": 3.6,
   "pct_C_min": 13.0,
@@ -8,5 +8,23 @@
   "exclude_failed": true,
   "source": "DeNiro 1985; van Klinken 1999 (literature defaults)",
   "placeholder": true,
-  "tbd_note": "Confirm QC thresholds against the lab protocol used for these samples."
+  "tbd_note": "Confirm QC thresholds against the lab protocol used for these samples.",
+  "presets": {
+    "archaeological": {
+      "label": "Archaeological collagen (DeNiro 1985; van Klinken 1999)",
+      "cn_min": 2.9,
+      "cn_max": 3.6,
+      "pct_C_min": 13.0,
+      "pct_N_min": 4.8,
+      "collagen_yield_min": 1.0
+    },
+    "modern": {
+      "label": "Modern reference animals, mammals (Guiry & Szpak 2020)",
+      "cn_min": 3.0,
+      "cn_max": 3.28,
+      "pct_C_min": 13.0,
+      "pct_N_min": 4.8,
+      "collagen_yield_min": 1.0
+    }
+  }
 }

@@ -41,18 +41,26 @@ def slice_ages(row, table, override, options):
 
 
 def rising_profile_warning(t, y):
-    """Weaning makes δ15N fall; a clear rise needs a different explanation (cf. WEAN)."""
+    """Weaning makes δ15N fall; a clear rise needs a different explanation.
+
+    WEAN (Ganiatsou et al. 2023) saw rising profiles in malnourished people, and
+    Beaumont & Montgomery (2016) showed that stress and starvation raise δ15N.
+    """
     if len(t) < 5 or np.ptp(y) == 0:
         return None
     rho, p = stats.spearmanr(t, y)
     if rho > 0.3 and p < 0.05:
         return (f"δ15N rises with age (Spearman ρ = {rho:.2f}), unlike a typical weaning decline: "
-                "consider physiological stress, a diet change or sampling order before interpreting")
+                "consider physiological stress (Beaumont & Montgomery 2016), a diet change or sampling order before interpreting")
     return None
 
 
-def seasonality_checks(t, d15n, residuals, d13c, period):
-    """Look for a yearly cycle (seasonal pasture/fodder) that could be mistaken for weaning."""
+def seasonality_checks(t, d15n, residuals, d13c, period, weaning_curve=None):
+    """Look for a yearly cycle (seasonal pasture/fodder) that could be mistaken for weaning.
+
+    δ13C can also step up or down at weaning (Balasse et al. 2001), so the fitted
+    weaning curve is allowed for before looking for a yearly cycle in δ13C.
+    """
     warnings, found = [], {}
     if residuals is not None:
         test = seasonal_test(t, residuals, period, detrend=0)
@@ -60,10 +68,12 @@ def seasonality_checks(t, d15n, residuals, d13c, period):
             found["residual_seasonal_amplitude"], found["residual_seasonal_p"] = test
             if test[1] < 0.05 and test[0] >= 0.2:
                 warnings.append(f"Residuals show an annual cycle ({test[0]:.2f}‰, p = {test[1]:.3f}): consider "
-                                "enabling the seasonal term, as seasonal diet change may be distorting the weaning estimate")
+                                "enabling the seasonal term, as seasonal diet change may be distorting the weaning estimate "
+                                "(prehistoric cattle calved and foraged seasonally: Balasse et al. 2021)")
     has_c = np.isfinite(d13c)
     if has_c.sum() >= 6:
-        test = seasonal_test(t[has_c], d13c[has_c], period, detrend=1)
+        shape = weaning_curve[has_c] if weaning_curve is not None else None
+        test = seasonal_test(t[has_c], d13c[has_c], period, detrend=1, shape=shape)
         if test:
             found["d13C_seasonal_amplitude"], found["d13C_seasonal_p"] = test
             if test[1] < 0.05 and test[0] >= 0.3:
@@ -72,6 +82,27 @@ def seasonality_checks(t, d15n, residuals, d13c, period):
         if np.ptp(d13c[has_c]) > 0 and np.ptp(d15n[has_c]) > 0:
             found["d13C_d15N_spearman"] = float(stats.spearmanr(d13c[has_c], d15n[has_c])[0])
     return warnings, found
+
+
+def carbon_weaning_check(t, d13c, fit, species):
+    """Compare δ13C before weaning starts with δ13C after it ends.
+
+    In known-age calves, δ13C rose at the same time as δ15N fell (Balasse et al. 2001),
+    so a clear δ13C fall in cattle suggests the δ15N decline may not be weaning.
+    Returns (warning or None, shift in ‰ or None).
+    """
+    onset, end = (fit.get("onset") or {}).get("estimate"), (fit.get("completion") or {}).get("estimate")
+    has_c = np.isfinite(d13c)
+    if onset is None or end is None:
+        return None, None
+    before, after = d13c[has_c & (t < onset)], d13c[has_c & (t > end)]
+    if len(before) < 2 or len(after) < 2:
+        return None, None
+    shift = float(after.mean() - before.mean())
+    if species == "cattle" and shift <= -0.5:
+        return (f"δ13C falls by {-shift:.1f}‰ across weaning, whereas in known-age calves it rose as δ15N fell "
+                "(Balasse et al. 2001): check whether this δ15N decline reflects weaning or another diet change"), shift
+    return None, shift
 
 
 def analyze_specimen(samples, options):
@@ -142,7 +173,8 @@ def analyze_specimen(samples, options):
     if rising:
         warnings.append(rising)
     if options.time_averaging:
-        warnings.append("Time averaging on: curves show the underlying diet signal, which is sharper than the sampled values")
+        warnings.append("Time averaging on: curves show the underlying diet signal, which is sharper than the sampled "
+                        "values (Tsutaya 2020)")
 
     # 3. Fit every model and compare them.
     baseline = options.baseline_for(first.site, first.species)
@@ -162,10 +194,14 @@ def analyze_specimen(samples, options):
     # 4. Check for seasonal cycles, using what the best curve leaves unexplained.
     best = next((f for f in fits if f["model"] == result["best_model"]), None)
     if best and best["curve_age"]:
-        leftover = None if options.seasonal_term else y - np.interp(t, best["curve_age"], best["curve_d15N"])
+        fitted = np.interp(t, best["curve_age"], best["curve_d15N"])
+        leftover = None if options.seasonal_term else y - fitted
         d13c = np.array([np.nan if p["d13C"] is None else p["d13C"] for p in used])
-        extra_warnings, result["diagnostics"] = seasonality_checks(t, y, leftover, d13c, options.season_period_months)
+        extra_warnings, result["diagnostics"] = seasonality_checks(t, y, leftover, d13c, options.season_period_months, fitted)
         warnings += extra_warnings
+        carbon_warning, result["diagnostics"]["d13C_weaning_shift"] = carbon_weaning_check(t, d13c, best, first.species)
+        if carbon_warning:
+            warnings.append(carbon_warning)
 
     for f in fits:
         del f["_draws"]  # only needed for the model average

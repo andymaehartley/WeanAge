@@ -192,6 +192,13 @@ function initSettings() {
       </label>`)
     .join("");
   for (const m of state.config.models) $("#cmp-model").insertAdjacentHTML("beforeend", `<option value="${m.name}">${esc(m.label)}</option>`);
+  // Published QC limits: choosing one fills in the boxes, which can still be edited.
+  const presets = state.config.qc_presets || {};
+  for (const [key, p] of Object.entries(presets)) $("#qc-preset").insertAdjacentHTML("beforeend", `<option value="${key}">${esc(p.label)}</option>`);
+  $("#qc-preset").addEventListener("change", (e) => {
+    const { label, ...limits } = presets[e.target.value] || {};
+    if (label) applySettings({ qc: limits });
+  });
   applySettings(state.config.defaults);
 }
 
@@ -317,7 +324,9 @@ function renderResults() {
     d.d13C_seasonal_p != null && `annual cycle in δ¹³C: ${num(d.d13C_seasonal_amplitude)}‰ (p ${pval(d.d13C_seasonal_p)})`,
     d.d13C_d15N_spearman != null && `δ¹³C–δ¹⁵N correlation ρ = ${num(d.d13C_d15N_spearman)}`,
   ].filter(Boolean);
-  $("#res-diagnostics").innerHTML = checks.length ? `<p class="muted small">Seasonality checks ${help("seasonal")}: ${checks.join(" · ")}</p>` : "";
+  const carbon = d.d13C_weaning_shift == null ? "" :
+    `<p class="muted small">δ¹³C after weaning minus before ${help("carbon")}: ${d.d13C_weaning_shift > 0 ? "+" : ""}${num(d.d13C_weaning_shift)}‰</p>`;
+  $("#res-diagnostics").innerHTML = (checks.length ? `<p class="muted small">Seasonality checks ${help("seasonal")}: ${checks.join(" · ")}</p>` : "") + carbon;
 
   const averageRow = hasAverage ? [{ model: "average", label: "Model average", converged: true, isAverage: true, ...res.model_average }] : [];
   table($("#fit-table"), [

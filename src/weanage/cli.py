@@ -3,6 +3,7 @@
     weanage                       start the app and open it in the browser
     weanage --no-browser          start the server only (e.g. on a shared lab machine)
     weanage analyze data.csv -o results.csv
+    weanage validate reference.csv    how accurate each model is on known-age animals
 """
 
 import argparse
@@ -36,23 +37,42 @@ def serve(host, port, open_browser):
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
-def analyze_file(path, output):
+def estimates_for(path):
+    """Read a CSV or Excel file, print any problems, and return one row per specimen and model."""
     from .analysis import analyze, estimate_rows
     from .config import default_options
     from .ingest import ingest_csv
 
-    report = ingest_csv(path)
+    report = ingest_csv(path)  # also reads .xlsx
     for problem in report["issues"]:
         where = f"row {problem['row']}: " if problem["row"] else ""
         print(f"[{problem['severity']}] {where}{problem['message']}")
     if not report["samples"]:
         raise SystemExit("No valid samples to analyse.")
-    table = pd.DataFrame(estimate_rows(analyze(report["samples"], default_options())))
+    return estimate_rows(analyze(report["samples"], default_options()))
+
+
+def analyze_file(path, output):
+    table = pd.DataFrame(estimates_for(path))
     if output:
         table.to_csv(output, index=False)
         print(f"Wrote {len(table)} estimates to {output}")
     else:
         print(table.to_string(index=False))
+
+
+def validate_file(path):
+    """Score every model against known (or published) weaning ages; see docs/VALIDATION.md."""
+    from .aggregate import validate
+    from .config import lab_parameters
+
+    path = path or lab_parameters()["reference_dataset"]["value"]
+    if not path:
+        raise SystemExit("Give a reference CSV, or set reference_dataset in lab_parameters.json (see docs/VALIDATION.md).")
+    table = validate(estimates_for(path))
+    if table.empty:
+        raise SystemExit("No known_weaning_age_months or published_weaning_age_months values found in the file.")
+    print(table.round(2).to_string(index=False))
 
 
 def main(argv=None):
@@ -64,9 +84,13 @@ def main(argv=None):
     analyse = commands.add_parser("analyze", help="analyse a CSV without the app")
     analyse.add_argument("csv")
     analyse.add_argument("-o", "--output")
+    check = commands.add_parser("validate", help="score the models on known-age reference animals")
+    check.add_argument("csv", nargs="?", help="defaults to reference_dataset in lab_parameters.json")
     args = parser.parse_args(argv)
     if args.command == "analyze":
         analyze_file(args.csv, args.output)
+    elif args.command == "validate":
+        validate_file(args.csv)
     else:
         serve(args.host, args.port, not args.no_browser)
 

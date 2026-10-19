@@ -36,8 +36,9 @@ def two_phase(t1, t2, scale, post, drop, first_fraction):
 
 # (specimen, individual, site, species, tooth, n_mm, months/mm, start age, δ15N curve,
 #  seasonal amplitude ‰ for δ15N and δ13C)
-CATTLE_M2 = (1 / 3, 1)  # placeholder cattle M2: age = 1 + position / 3
-CATTLE_M1 = (1 / 4, -2)  # placeholder cattle M1: age = -2 + position / 4
+# These match src/weanage/data/growth_tables.json (straight line from the first to the last knot).
+CATTLE_M2 = (11.5 / 45, 1)  # cattle M2: 1 month at the apex to 12.5 months at 45 mm
+CATTLE_M1 = (4.5 / 40, -2)  # cattle M1: -2 months at the apex to 2.5 months at 40 mm
 SPECIMENS = [
     ("SYN-C01", None, "Site A", "cattle", "M2", 40, *CATTLE_M2, logistic(7.0, 0.8, 5.5, 3.0), 0, 0),
     ("SYN-C02", None, "Site A", "cattle", "M2", 40, *CATTLE_M2, logistic(8.0, 0.9, 5.0, 2.8), 0, 0),
@@ -53,6 +54,11 @@ SPECIMENS = [
     ("SYN-H01", None, "Site B", "horse", "M1", 55, 0.2667, 0, logistic(7.5, 1.0, 4.0, 2.5), 0.35, 0.8),
 ]
 
+# δ13C change (‰) over weaning. Calves' δ13C rose as δ15N fell (Balasse et al. 2001);
+# SYN-C06 falls instead, to show the warning this triggers.
+CARBON_SHIFT = {"cattle": 1.0}
+CARBON_SHIFT_SPECIMEN = {"SYN-C06": -1.0}
+
 
 def main(seed: int = 2027) -> None:
     rng = np.random.default_rng(seed)
@@ -62,7 +68,9 @@ def main(seed: int = 2027) -> None:
         ages = a0 + positions * rate
         season = np.sin(2 * np.pi * ages / 12)
         d15n = curve(ages) + s15 * season + rng.normal(0, 0.15, ages.size)
-        d13c = -22 + s13 * season + rng.normal(0, 0.15, ages.size)
+        weaned = (curve(-100) - curve(ages)) / (curve(-100) - curve(100))  # 0 while nursing, 1 once weaned
+        shift = CARBON_SHIFT_SPECIMEN.get(sid, CARBON_SHIFT.get(species, 0.0))
+        d13c = -22 + shift * weaned + s13 * season + rng.normal(0, 0.15, ages.size)
         for i, (p, d, c) in enumerate(zip(positions, d15n, d13c), start=1):
             pct_c = rng.normal(42, 1.5)
             cn = rng.normal(3.25, 0.06)

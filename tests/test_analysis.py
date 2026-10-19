@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from weanage.aggregate import aggregate, interval_coverage, model_disagreement, validate
-from weanage.analysis import analyze, estimate_rows, seasonality_checks
+from weanage.analysis import analyze, carbon_weaning_check, estimate_rows, seasonality_checks
 from weanage.inference import compare_groups, holm, random_effects
 from weanage.schema import IsotopeSample
 from weanage.simulate import SimulationScenario, run_simulation, sweep
@@ -44,7 +44,7 @@ def test_time_averaging_removes_lag():
     """Slices that mix in later dentine shift the curve; modelling the mixing fixes that."""
     positions = np.arange(0.5, 40, 1.0)
     steps = np.linspace(0, 1, 15)
-    blurred = [np.mean(5 + 3 / (1 + np.exp((1 + ((p - 0.5) + steps * 5) / 3 - 7) / 0.4))) for p in positions]
+    blurred = [np.mean(5 + 3 / (1 + np.exp((1 + ((p - 0.5) + steps * 5) * 11.5 / 45 - 7) / 0.4))) for p in positions]
     samples = [IsotopeSample(specimen_id="X", site="S", species="cattle", tooth="M2", position_mm=p, d15N=v, cn_ratio=3.2)
                for p, v in zip(positions, blurred)]
     plain = analyze(samples, opts(models=["logistic"], monte_carlo_draws=0))[0]
@@ -67,6 +67,10 @@ def test_rising_and_seasonal_warnings():
     t = np.linspace(0, 14, 40)
     warnings, found = seasonality_checks(t, np.zeros_like(t), None, -22 + 0.8 * np.sin(2 * np.pi * t / 12), 12)
     assert any("δ13C oscillates" in w for w in warnings) and found["d13C_seasonal_p"] < 0.05
+    # A single δ13C step at weaning is not a yearly cycle once the weaning curve is allowed for.
+    curve = 5 + 3 / (1 + np.exp(t - 7))
+    step = -22 + (8 - curve) / 3 + np.random.default_rng(1).normal(0, 0.1, t.size)
+    assert not seasonality_checks(t, curve, None, step, 12, weaning_curve=curve)[0]
     samples = [IsotopeSample(specimen_id="R", site="S", species="cattle", tooth="M2", position_mm=p, d15N=5 + p / 10,
                              cn_ratio=3.2) for p in np.arange(0.5, 40, 1.0)]
     assert any("rises with age" in w for w in analyze(samples, opts(models=["logistic"]))[0]["warnings"])
@@ -125,3 +129,25 @@ def test_sampling_planner():
     clean = run_simulation(SimulationScenario(n_specimens=20, seed=5), logistic_only)["scores"][0]["mae"]
     noisy = run_simulation(SimulationScenario(n_specimens=20, seed=5, age_model_error_sd=1.5), logistic_only)["scores"][0]["mae"]
     assert noisy > clean + 0.4
+
+
+def test_carbon_shift_at_weaning():
+    t = np.arange(0, 12, 0.5)
+    fit = {"onset": {"estimate": 4}, "completion": {"estimate": 8}}
+    rising = np.where(t < 6, -22.0, -21.0)  # δ13C up by 1‰, as in Balasse et al. (2001)
+    assert carbon_weaning_check(t, rising, fit, "cattle") == (None, 1.0)
+    warning, shift = carbon_weaning_check(t, -rising - 43, fit, "cattle")  # δ13C down by 1‰
+    assert shift == -1.0 and "Balasse" in warning
+    assert carbon_weaning_check(t, -rising - 43, fit, "pig")[0] is None  # only reported for other species
+    assert carbon_weaning_check(t, np.full(t.size, np.nan), fit, "cattle") == (None, None)
+
+
+def test_validate_command(make_samples, tmp_path, capsys):
+    import pandas as pd
+
+    from weanage.cli import main
+
+    rows = [s.model_dump() | {"known_weaning_age_months": 9.4} for s in make_samples()]
+    pd.DataFrame(rows).to_csv(tmp_path / "reference.csv", index=False)
+    main(["validate", str(tmp_path / "reference.csv")])
+    assert "known" in capsys.readouterr().out.lower()

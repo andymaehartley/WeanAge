@@ -437,18 +437,22 @@ def model_average(fits, seed=42, n_draws=4000):
     return average
 
 
-def seasonal_test(t, values, period=12.0, detrend=1):
+def seasonal_test(t, values, period=12.0, detrend=1, shape=None):
     """Is there a yearly up-and-down cycle in `values`? Returns (size of the cycle, p-value).
 
     Compares a straight-line trend with the same trend plus a sine wave (an F-test).
+    `shape` (optional) is another pattern to allow for first, e.g. the weaning curve,
+    so that a one-off step at weaning is not mistaken for a yearly cycle.
     Returns None if the series is too short or covers less than 3/4 of a year.
     """
     t, v = np.asarray(t, dtype=float), np.asarray(values, dtype=float)
     keep = np.isfinite(t) & np.isfinite(v)
     t, v = t[keep], v[keep]
-    if len(t) < detrend + 6 or np.ptp(t) < 0.75 * period:
-        return None
     trend = np.vander(t - t.mean(), detrend + 1)
+    if shape is not None and np.ptp(np.asarray(shape)[keep]) > 0:
+        trend = np.column_stack([trend, np.asarray(shape, dtype=float)[keep]])
+    if len(t) < trend.shape[1] + 5 or np.ptp(t) < 0.75 * period:
+        return None
     angle = 2 * math.pi * t / period
     with_wave = np.column_stack([trend, np.sin(angle), np.cos(angle)])
     leftover_trend = np.sum((v - trend @ np.linalg.lstsq(trend, v, rcond=None)[0]) ** 2)
