@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WeanAge</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232f6fdf%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Georgia%27%3E%CE%B4%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%230072B2%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Georgia%27%3E%CE%B4%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
     <div class="brand">
       <span class="logo" aria-hidden="true">δ</span>
@@ -18,11 +19,18 @@
       </div>
     </div>
     <nav class="steps" aria-label="Workflow steps">
-      <button class="step active" data-view="data"><span>1</span> Data</button>
-      <button class="step" data-view="settings"><span>2</span> Settings</button>
-      <button class="step" data-view="results" disabled><span>3</span> Results</button>
-      <button class="step" data-view="compare" disabled><span>4</span> Compare</button>
+      <button class="step active" data-view="data" aria-current="page"><span aria-hidden="true">1</span> Data</button>
+      <button class="step" data-view="settings"><span aria-hidden="true">2</span> Settings</button>
+      <button class="step" data-view="results" disabled><span aria-hidden="true">3</span> Results</button>
+      <button class="step" data-view="compare" disabled><span aria-hidden="true">4</span> Compare</button>
+      <button class="step" data-view="plan"><span aria-hidden="true">✦</span> Plan sampling</button>
     </nav>
+    <div class="actions">
+      <label class="button ghost" title="Open a saved project file">Open<input id="project-input" type="file" accept=".json,.weanage" hidden></label>
+      <button id="btn-save" class="ghost" title="Save data, settings and results to a file">Save</button>
+      <button id="btn-report" class="ghost" disabled title="Download a reproducible HTML report">Report</button>
+      <button id="btn-help" class="ghost" aria-label="Help: start the guided tour">Help</button>
+    </div>
   </header>
 
   <!-- Highlighted list of every value still waiting on lab work (TBD-LAB). -->
@@ -31,19 +39,26 @@
       Results are illustrative until these are filled in.</summary>
     <ul id="tbd-list"></ul>
   </details>
+  <div id="restore-banner" class="info-banner" hidden role="region" aria-label="Restore previous work">
+    <span>Your previous session (<span id="restore-when"></span>) was saved in this browser.</span>
+    <button id="btn-restore" class="tiny">Restore it</button>
+    <button id="btn-discard" class="ghost tiny">Start fresh</button>
+  </div>
 
-  <main>
+  <main id="main" tabindex="-1">
     <!-- ───────────── 1. DATA ───────────── -->
-    <section id="view-data" class="view active">
+    <section id="view-data" class="view active" aria-labelledby="h-data">
+      <h2 id="h-data" class="sr-only">Data</h2>
       <div class="grid-2">
         <article class="card">
           <h2>Load isotope data</h2>
-          <p class="hint">One row per dentine increment. Required columns:
-            <code>specimen_id, site, species, tooth, position_mm, d15N</code>.
-            <code>position_mm</code> is the distance from the cusp apex to the middle of the increment.</p>
+          <p class="hint">One row per dentine increment, as CSV or Excel. Required columns:
+            <code>specimen_id, site, species, tooth, position_mm, d15N</code>
+            <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
+            <code>position_reference</code> + <code>crown_height_mm</code> (if measured from the cervix).</p>
           <label id="dropzone" class="dropzone">
-            <input id="csv-input" type="file" accept=".csv,.tsv,.txt" hidden>
-            <strong>Drop a CSV here</strong> or click to choose a file
+            <input id="csv-input" type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls" hidden>
+            <strong>Drop a CSV or Excel file here</strong> or click to choose one
           </label>
           <div class="row gap">
             <button id="btn-example" class="secondary">Load synthetic example</button>
@@ -57,6 +72,7 @@
           <p class="hint">Specimen details are kept between entries, and position steps forward by the sampling interval.</p>
           <form id="manual-form" class="form-grid" novalidate>
             <label>Specimen ID<input name="specimen_id" required></label>
+            <label>Animal ID (optional)<input name="individual_id"></label>
             <label>Site<input name="site" required></label>
             <label>Species
               <select name="species">
@@ -74,7 +90,7 @@
             <label>Sampling interval (mm)<input name="step" type="number" step="0.1" value="1"></label>
             <div class="form-actions">
               <button type="submit">Add sample</button>
-              <span id="manual-msg" class="inline-msg" role="status"></span>
+              <span id="manual-msg" class="inline-msg" role="status" aria-live="polite"></span>
             </div>
           </form>
         </article>
@@ -99,14 +115,15 @@
     </section>
 
     <!-- ───────────── 2. SETTINGS ───────────── -->
-    <section id="view-settings" class="view">
+    <section id="view-settings" class="view" aria-labelledby="h-settings">
+      <h2 id="h-settings" class="sr-only">Settings</h2>
       <div class="grid-2">
         <article class="card">
           <h2>Curve models</h2>
           <p class="hint">Each model is fitted to every specimen so you can see how much the choice of method changes the estimate.</p>
           <div id="model-options" class="checklist"></div>
 
-          <h3>Which age to report</h3>
+          <h3>Which age to report <span data-helpslot="milestone"></span></h3>
           <div class="form-grid">
             <label>Weaning milestone
               <select id="opt-milestone">
@@ -115,23 +132,36 @@
                 <option value="onset">Onset (weaning begins)</option>
               </select>
             </label>
-            <label data-tbd="lab:transition_threshold">Transition threshold (% of drop)
+            <label data-tbd="lab:transition_threshold">Transition threshold (% of drop) <span data-helpslot="threshold"></span>
               <input id="opt-threshold" type="number" min="1" max="49" step="1">
             </label>
-            <label data-tbd="lab:analytical_sd_permil">Analytical precision, 1 SD (‰)
+            <label data-tbd="lab:analytical_sd_permil">Analytical precision, 1 SD (‰) <span data-helpslot="analytical_sd"></span>
               <input id="opt-sd" type="number" min="0" step="0.01" placeholder="TBD-LAB">
             </label>
-            <label data-tbd="lab:min_weaning_drop_permil">Minimum weaning drop (‰)
+            <label data-tbd="lab:min_weaning_drop_permil">Minimum weaning drop (‰) <span data-helpslot="min_drop"></span>
               <input id="opt-mindrop" type="number" min="0" step="0.1">
             </label>
-            <label>Monte Carlo draws (uncertainty)
+          </div>
+
+          <h3>Uncertainty</h3>
+          <div class="form-grid">
+            <label>Method <span data-helpslot="bootstrap"></span>
+              <select id="opt-uncertainty">
+                <option value="covariance">Parameter covariance (fast)</option>
+                <option value="bootstrap">Residual bootstrap (robust, slower)</option>
+              </select>
+            </label>
+            <label>Monte Carlo draws <span data-helpslot="montecarlo"></span>
               <input id="opt-draws" type="number" min="0" max="20000" step="100">
+            </label>
+            <label>Bootstrap refits
+              <input id="opt-boot" type="number" min="20" max="5000" step="50">
             </label>
           </div>
         </article>
 
         <article class="card" data-tbd="qc:thresholds">
-          <h2>Collagen quality control</h2>
+          <h2>Collagen quality control <span data-helpslot="qc"></span></h2>
           <p class="hint">Samples outside these limits are flagged (and by default left out of the fit).</p>
           <div class="form-grid">
             <label>Min C:N<input id="qc-cn_min" type="number" step="0.01"></label>
@@ -146,27 +176,34 @@
 
       <div class="grid-2">
         <article class="card">
-          <h2>Time averaging</h2>
+          <h2>Time averaging <span data-helpslot="time_averaging"></span></h2>
           <p class="hint">Each 1 mm section mixes dentine formed over weeks, and oblique growth layers add
             later-formed dentine to every section (Tsutaya 2020; MDSS). With this on, each sample is fitted as
-            the <em>average</em> of the curve across its age window, so the estimate refers to the underlying diet
-            change rather than the blurred sampled signal.</p>
+            the <em>average</em> of the curve across its age window.</p>
           <label class="check"><input id="opt-timeavg" type="checkbox"> Model time averaging</label>
           <div class="form-grid">
             <label>Increment height (mm)
               <input id="opt-incwidth" type="number" min="0.1" step="0.1">
             </label>
-            <label data-tbd="lab:growth_layer_offset_mm">Growth-layer offset (mm)
+            <label data-tbd="lab:growth_layer_offset_mm">Growth-layer offset (mm) <span data-helpslot="layer_offset"></span>
               <input id="opt-layeroffset" type="number" min="0" step="0.1">
             </label>
+            <label data-tbd="lab:inner_dentine_weight">Inner dentine weight <span data-helpslot="inner_weight"></span>
+              <input id="opt-innerweight" type="number" min="0.05" max="1" step="0.05">
+            </label>
           </div>
-          <h3>Elbow method (WEAN-style)</h3>
+          <h3>Seasonality <span data-helpslot="seasonal"></span></h3>
+          <label class="check"><input id="opt-seasonal" type="checkbox"> Add an annual seasonal term to every curve</label>
+          <div class="form-grid">
+            <label>Cycle length (months)<input id="opt-period" type="number" min="1" step="0.5"></label>
+          </div>
+          <h3>Elbow method (WEAN-style) <span data-helpslot="elbow"></span></h3>
           <label class="check"><input id="opt-elbownorm" type="checkbox">
             Rescale both axes before finding the elbow (unit-independent; WEAN uses raw units)</label>
         </article>
 
         <article class="card" data-tbd="lab:adult_baselines">
-          <h2>Adult-female baseline</h2>
+          <h2>Adult-female baseline <span data-helpslot="baseline"></span></h2>
           <p class="hint">Mean δ¹⁵N of adult females (the mothers' population) at each site, as used by WARN.
             Used to report nursing enrichment and, optionally, to hold the adult plateau near this value.
             Leave blank if unknown.</p>
@@ -177,24 +214,27 @@
       </div>
 
       <article class="card">
-        <h2>Age models (tooth growth)</h2>
-        <p class="hint">Converts position along the tooth into age at formation. Use the bundled table,
-          or enter a simple linear model (age at crown initiation + growth rate) for any species/tooth.</p>
+        <h2>Age models (tooth growth) <span data-helpslot="growth_table"></span></h2>
+        <p class="hint">Convert position along the tooth into age at formation. Edit a table's points, calibrate one
+          from known-age reference data, or switch to a simple linear model. Saved tables are stored in your user folder
+          and used every time.</p>
         <div id="growth-list" class="growth-list"></div>
       </article>
 
       <div class="run-bar">
-        <span id="run-msg" class="inline-msg" role="status"></span>
+        <div id="run-progress" class="progress-wrap" hidden></div>
+        <span id="run-msg" class="inline-msg" role="status" aria-live="polite"></span>
         <button id="btn-run" class="primary">Run analysis</button>
       </div>
     </section>
 
     <!-- ───────────── 3. RESULTS ───────────── -->
-    <section id="view-results" class="view">
+    <section id="view-results" class="view" aria-labelledby="h-results">
+      <h2 id="h-results" class="sr-only">Results</h2>
       <div class="results-layout">
-        <aside class="card specimen-list">
+        <aside class="card specimen-list" aria-label="Specimens">
           <h2>Specimens</h2>
-          <ul id="result-list"></ul>
+          <ul id="result-list" role="listbox" aria-label="Choose a specimen"></ul>
         </aside>
         <div class="results-main">
           <article class="card">
@@ -203,9 +243,14 @@
                 <h2 id="res-title"></h2>
                 <p id="res-meta" class="muted"></p>
               </div>
-              <div id="curve-toggles" class="toggles" aria-label="Show curves"></div>
+              <div id="curve-toggles" class="toggles" role="group" aria-label="Show curves"></div>
             </div>
-            <p id="res-summary" class="summary"></p>
+            <p id="res-summary" class="summary" aria-live="polite"></p>
+            <div class="row gap chart-tools">
+              <label class="check"><input id="opt-show13c" type="checkbox"> Show δ¹³C</label>
+              <button id="btn-zoom-reset" class="ghost tiny" hidden>Reset zoom</button>
+              <span class="muted small">Drag across the chart to zoom into an age range; double-click to reset.</span>
+            </div>
             <div id="res-chart" class="chart-box"></div>
             <div class="legend">
               <span><i class="dot"></i> sample</span>
@@ -215,10 +260,12 @@
               <span><i class="dash"></i> reported milestone ± 95% interval</span>
             </div>
             <ul id="res-warnings" class="issues"></ul>
+            <div id="res-diagnostics" class="diagnostics"></div>
           </article>
           <article class="card">
-            <h2>Model comparison</h2>
-            <p class="hint">Ages in months. Lower ΔAICc = better supported; the weight is the relative support among the models fitted.</p>
+            <h2>Model comparison <span data-helpslot="aicc"></span></h2>
+            <p class="hint">Ages in months. Lower ΔAICc = better supported; the weight <span data-helpslot="weight"></span> is the relative support among
+              the models fitted. The model average <span data-helpslot="average"></span> combines all of them.</p>
             <div class="table-wrap"><table id="fit-table"></table></div>
             <div class="row gap export">
               <button id="btn-export-csv" class="secondary">Export all estimates (CSV)</button>
@@ -231,7 +278,8 @@
     </section>
 
     <!-- ───────────── 4. COMPARE ───────────── -->
-    <section id="view-compare" class="view">
+    <section id="view-compare" class="view" aria-labelledby="h-compare">
+      <h2 id="h-compare" class="sr-only">Compare</h2>
       <article class="card">
         <h2>Compare sites and species</h2>
         <div class="row gap wrap controls">
@@ -248,12 +296,25 @@
               <option value="onset">Onset</option>
             </select>
           </label>
-          <label>Model
-            <select id="cmp-model"><option value="">Best per specimen (AICc)</option></select>
+          <label>Estimates from
+            <select id="cmp-model">
+              <option value="">Best model per specimen (AICc)</option>
+              <option value="average">Model average</option>
+            </select>
           </label>
         </div>
         <div id="cmp-chart" class="chart-box"></div>
         <div class="table-wrap"><table id="cmp-table"></table></div>
+      </article>
+
+      <article class="card">
+        <h2>Are the differences real?</h2>
+        <p class="hint">These tests use each specimen's own uncertainty. Random-effects means <span data-helpslot="random_effects"></span>
+          allow animals to genuinely differ (τ <span data-helpslot="tau"></span>); pairwise p-values are Holm-corrected <span data-helpslot="holm"></span>;
+          the permutation test <span data-helpslot="permutation"></span> makes no distributional assumptions.</p>
+        <div id="tests-body"></div>
+        <h3>Hierarchical Bayesian model <span data-helpslot="bayes"></span></h3>
+        <div id="bayes-body"></div>
       </article>
 
       <article class="card">
@@ -264,12 +325,67 @@
       </article>
 
       <article class="card">
-        <h2>Validation against known ages and published estimates</h2>
+        <h2>Validation against known ages and published estimates <span data-helpslot="coverage"></span></h2>
         <div id="val-body"></div>
+      </article>
+    </section>
+
+    <!-- ───────────── PLAN ───────────── -->
+    <section id="view-plan" class="view" aria-labelledby="h-plan">
+      <h2 id="h-plan" class="sr-only">Plan sampling</h2>
+      <article class="card">
+        <h2>Plan your sampling <span data-helpslot="simulation"></span></h2>
+        <p class="hint">Simulates teeth with known weaning ages, samples them as your protocol would, runs the full
+          analysis and reports how close the estimates are to the truth. Try different sampling intervals, sample
+          sizes or noise levels before any teeth are cut.</p>
+        <form id="plan-form" novalidate>
+          <div class="form-grid">
+            <label>Species / tooth (age model)<select id="pl-target"></select></label>
+            <label>Number of specimens<input id="pl-n" type="number" min="2" max="500" value="20"></label>
+            <label>Sampling interval (mm)<input id="pl-interval" type="number" min="0.1" step="0.1" value="1"></label>
+            <label>Slice height (mm)<input id="pl-width" type="number" min="0.1" step="0.1" value="1"></label>
+            <label>Measurement noise, 1 SD (‰)<input id="pl-noise" type="number" min="0" step="0.01" value="0.15"></label>
+            <label>Missing / failed samples (%)<input id="pl-missing" type="number" min="0" max="80" step="1" value="0"></label>
+            <label>Growth-layer offset (mm)<input id="pl-offset" type="number" min="0" step="0.1" value="0"></label>
+            <label>Age-model error, 1 SD (months)<input id="pl-agesd" type="number" min="0" step="0.1" value="0"></label>
+          </div>
+          <h3>True weaning curves (drawn at random within these ranges)</h3>
+          <div class="form-grid">
+            <label>Midpoint from (months)<input id="pl-mid-lo" type="number" step="0.5" value="4"></label>
+            <label>Midpoint to (months)<input id="pl-mid-hi" type="number" step="0.5" value="9"></label>
+            <label>Steepness (scale) from<input id="pl-scale-lo" type="number" step="any" min="0.05" value="0.4"></label>
+            <label>Steepness (scale) to<input id="pl-scale-hi" type="number" step="any" min="0.05" value="1"></label>
+            <label>δ¹⁵N drop from (‰)<input id="pl-drop-lo" type="number" step="0.1" value="2"></label>
+            <label>δ¹⁵N drop to (‰)<input id="pl-drop-hi" type="number" step="0.1" value="3.5"></label>
+          </div>
+          <h3>Analysis</h3>
+          <div id="pl-models" class="checklist inline-list"></div>
+          <div class="form-grid">
+            <label class="check"><input id="pl-timeavg" type="checkbox"> Model time averaging</label>
+            <label>Monte Carlo draws<input id="pl-draws" type="number" min="0" step="50" value="200"></label>
+            <label>Random seed<input id="pl-seed" type="number" value="1"></label>
+          </div>
+          <h3>Compare settings</h3>
+          <div class="form-grid">
+            <label>Setting to vary<select id="pl-sweep"></select></label>
+            <label>Values to try<input id="pl-values" placeholder="e.g. 0.5, 1, 2"></label>
+          </div>
+          <div class="run-bar">
+            <div id="pl-progress" class="progress-wrap" hidden></div>
+            <button id="pl-run" class="primary" type="submit">Run simulation</button>
+          </div>
+        </form>
+      </article>
+      <article class="card" id="pl-results" hidden>
+        <h2>Simulation results</h2>
+        <p id="pl-summary" class="summary"></p>
+        <label>Chart<select id="pl-metric"></select></label>
+        <div id="pl-chart" class="chart-box"></div>
+        <div class="table-wrap"><table id="pl-table"></table></div>
       </article>
     </section>
   </main>
 
-  <div id="toast" class="toast" role="alert" hidden></div>
+  <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
 </body>
 </html>

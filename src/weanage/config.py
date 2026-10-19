@@ -115,6 +115,7 @@ def default_options() -> AnalysisOptions:
         "min_weaning_drop_permil",
         "transition_threshold",
         "growth_layer_offset_mm",
+        "inner_dentine_weight",
     ):
         value = lab.get(name, {}).get("value")
         if value is not None:

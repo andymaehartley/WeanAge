@@ -29,5 +29,10 @@
     "value": null,
     "placeholder": true,
     "tbd_note": "Mean and SD of adult-female δ15N for each site and species (bone collagen), after WARN's maternal baseline. Used to report nursing enrichment and optionally to constrain the adult plateau."
+  },
+  "inner_dentine_weight": {
+    "value": 1.0,
+    "placeholder": true,
+    "tbd_note": "Relative volume of the latest-formed (innermost) dentine in a horizontal section compared with the earliest (1 = equal). Estimate from thin-section geometry of livestock teeth (cf. MDSS volume weighting)."
   }
 }
