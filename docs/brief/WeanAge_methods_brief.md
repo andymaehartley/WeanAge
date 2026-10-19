@@ -2,6 +2,7 @@
 title: "WeanAge"
 subtitle: "Open-source weaning-age estimation for livestock from incremental dentine δ¹⁵N"
 author: "Annabelle Hartley · version 0.2 · MIT licence"
+lang: en-GB
 ---
 
 <div class="lede">
@@ -31,10 +32,11 @@ cut along a tooth record this fall month by month (Balasse et al. 2001; Beaumont
 <figure>
 <img src="example_curve.png" alt="Weaning curve for a synthetic cattle second molar">
 <figcaption>A synthetic cattle M2 in WeanAge. Dots are dentine slices (the hollow point failed
-collagen QC and is not fitted). Three of the five models are shown: logistic (blue,
-solid), piecewise (green, dashed) and two-phase (orange, dash-dot). Vertical lines mark
-each model's weaning completion with shaded 95 % intervals. The top axis gives the
-position on the tooth.</figcaption>
+collagen QC and is not fitted). Two of the five models are shown: logistic (blue, solid)
+and two-phase (orange, dash-dot). Dashed vertical lines mark each model's weaning
+completion with its shaded 95 % interval; the top axis gives the position on the tooth.
+The two-phase completion falls after the last slice, so the app flags it as an
+extrapolation: the logistic estimate (9.3 months) is the better supported one here.</figcaption>
 </figure>
 
 ## Methods, and why they are built this way
@@ -78,7 +80,7 @@ results are illustrative until they are measured. Contributions that would help 
 <img class="qr" src="qr_repository.svg" alt="QR code linking to the WeanAge repository">
 <div>
 
-**Code, guide and documentation:** github.com/andymaehartley/repotest
+**Code, guide and documentation:** <https://github.com/andymaehartley/repotest>
 
 **Cite:** Hartley, A. WeanAge: weaning-age estimation from incremental dentine δ¹⁵N
 (version 0.2). See `CITATION.cff` in the repository.
