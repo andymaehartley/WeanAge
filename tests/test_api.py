@@ -8,7 +8,7 @@ client = TestClient(app)
 def test_config_lists_tbd_items():
     body = client.get("/api/config").json()
     assert body["tbd"], "placeholders should be reported until lab values are filled in"
-    assert {m["name"] for m in body["models"]} == {"logistic", "piecewise", "exponential"}
+    assert {m["name"] for m in body["models"]} == {"logistic", "piecewise", "exponential", "elbow"}
 
 
 def test_full_round_trip():

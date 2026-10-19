@@ -44,10 +44,15 @@ lyophilisation.
 | `min_weaning_drop_permil` | smallest nursing-to-adult δ¹⁵N drop accepted as a real weaning signal |
 | `transition_threshold` | fraction of the drop that defines onset and completion for smooth curves (default 5 % / 95 %) |
 | `reference_dataset` | CSV of known-age animals with `known_weaning_age_months`, for validation |
+| `growth_layer_offset_mm` | extra growth (mm) each horizontal section captures because dentine growth layers are oblique. Used by the optional time-averaging model. MDSS values are for human teeth only, so measure from livestock thin sections |
+| `adult_baselines` | mean ± SD δ¹⁵N of adult females (bone collagen) for each site and species, entered in Settings. Gives nursing enrichment and can constrain the adult plateau |
 
 ## 4. Isotope data: `src/weanage/data/templates/isotope_template.csv`
 
-Compile the sequential δ¹⁵N values and tooth-position metadata into this format. The
+Compile the sequential δ¹⁵N values and tooth-position metadata into this format.
+Optional columns: `increment_width_mm` (if sections differ from 1 mm), and
+`published_weaning_age_months` (when re-analysing published series, to compare with
+the published estimates). The
 bundled `examples/synthetic_example.csv` is **simulated**, not real.
 
 ## 5. Sampling conventions to confirm
@@ -56,5 +61,6 @@ bundled `examples/synthetic_example.csv` is **simulated**, not real.
   increment. If the lab measures from the cervix, convert the values before import
   (or ask for a `position_reference` option to be added).
 * Each 1 mm increment averages several weeks of growth, which smooths the true dietary
-  transition. A forward-model correction may be needed once the tooth extension rates
-  are known (see `docs/METHODS.md`, *Limitations*).
+  transition. The optional time-averaging model (Settings → Time averaging; see
+  `docs/METHODS.md` §3a) corrects for this once `growth_layer_offset_mm` and the
+  extension rates are known.

@@ -61,7 +61,9 @@ One row per dentine increment. Common header spellings are recognised
 | `d15N` | ✔ | δ¹⁵N, ‰ AIR |
 | `d13C`, `pct_C`, `pct_N`, `cn_ratio`, `collagen_yield_pct` | | used for collagen QC (C:N is derived from %C/%N if missing) |
 | `sample_index`, `period`, `notes` | | |
+| `increment_width_mm` | | height of each section if not 1 mm (used by time averaging) |
 | `known_weaning_age_months` | | known-age reference animals only, used for validation |
+| `published_weaning_age_months` | | weaning age from a published study, for comparison |
 
 ## How it works
 
@@ -69,14 +71,16 @@ One row per dentine increment. Common header spellings are recognised
 CSV / form ──► ingest (Pydantic validation, column aliasing)
            ──► QC flags (C:N, %C, %N, yield)
            ──► age model (position → age via species/tooth growth table)
-           ──► curve fits (SciPy curve_fit, multi-start, 3 models)
+           ──► [optional] time-averaging windows per sample (after MDSS)
+           ──► curve fits (SciPy: logistic, piecewise, exponential; WEAN-style elbow)
            ──► milestones + Monte Carlo 95 % intervals, AICc model weights
            ──► aggregation (pandas groupby by site/species/period)
-           ──► validation metrics vs. known ages (bias, MAE, RMSE, coverage)
+           ──► validation vs. known ages and published estimates (bias, MAE, RMSE, coverage)
 ```
 
 See [`docs/METHODS.md`](docs/METHODS.md) for the model equations and how the
-milestones are defined.
+milestones are defined. [`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md) compares
+WeanAge with WARN, MDSS and WEAN and lists what was adopted from each.
 
 ## Project layout
 
@@ -86,7 +90,7 @@ src/weanage/
   ingest.py        CSV / form ingestion and dataset checks
   qc.py            collagen quality-control flags
   growth.py        position → age conversion
-  models.py        logistic, piecewise-linear, exponential curve models + fitting
+  models.py        logistic, piecewise-linear, exponential, WEAN-style elbow + fitting
   analysis.py      per-specimen pipeline
   aggregate.py     site/species summaries, between-model disagreement
   validation.py    accuracy metrics against known-age animals

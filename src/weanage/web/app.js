@@ -1,7 +1,7 @@
 import { api } from "./api.js";
 import { curveChart, forestChart, svgToBlob } from "./chart.js";
 
-const MODEL_COLORS = { logistic: "#2f6fdf", piecewise: "#0f9d8a", exponential: "#b5459b" };
+const MODEL_COLORS = { logistic: "#2f6fdf", piecewise: "#0f9d8a", exponential: "#b5459b", elbow: "#c2571a" };
 const MILESTONES = ["onset", "midpoint", "completion"];
 
 const state = {
@@ -10,6 +10,7 @@ const state = {
   samples: [],
   report: null,
   overrides: {}, // "species:tooth" -> {initiation_age_months, extension_rate_mm_per_month}
+  baselines: {}, // "site:species" -> {mean, sd}
   results: null,
   estimates: null,
   current: null,
@@ -68,7 +69,10 @@ const tbdBadge = '<span class="tbd-badge" title="Placeholder awaiting lab work">
 function show(view) {
   $$(".step").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
-  if (view === "settings") renderGrowthList();
+  if (view === "settings") {
+    renderGrowthList();
+    renderBaselines();
+  }
   if (view === "compare") refreshCompare();
   window.scrollTo({ top: 0 });
 }
@@ -209,6 +213,11 @@ function initSettings() {
   $("#opt-sd").value = d.analytical_sd_permil ?? "";
   $("#opt-mindrop").value = d.min_weaning_drop_permil;
   $("#opt-draws").value = d.monte_carlo_draws;
+  $("#opt-timeavg").checked = d.time_averaging;
+  $("#opt-incwidth").value = d.increment_width_mm;
+  $("#opt-layeroffset").value = d.growth_layer_offset_mm;
+  $("#opt-elbownorm").checked = d.elbow_normalise;
+  $("#opt-constrain").checked = d.constrain_adult_plateau;
   for (const [k, v] of Object.entries(d.qc)) {
     const input = $(`#qc-${k}`);
     if (!input) continue;
@@ -239,6 +248,12 @@ function currentOptions() {
     random_seed: 42,
     qc,
     growth_overrides: state.overrides,
+    time_averaging: $("#opt-timeavg").checked,
+    increment_width_mm: val("#opt-incwidth") || 1,
+    growth_layer_offset_mm: val("#opt-layeroffset") ?? 0,
+    elbow_normalise: $("#opt-elbownorm").checked,
+    adult_baselines: state.baselines,
+    constrain_adult_plateau: $("#opt-constrain").checked,
   };
 }
 
@@ -266,6 +281,29 @@ function renderGrowthList() {
       </div>`;
     })
     .join("");
+}
+
+function renderBaselines() {
+  const keys = [...new Set(state.samples.map((s) => `${s.site}:${s.species}`))];
+  $("#baseline-list").innerHTML = keys.length
+    ? keys
+        .map((key) => {
+          const b = state.baselines[key] || {};
+          return `<div class="baseline-row" data-key="${esc(key)}">
+            <span class="key">${esc(key.replace(":", " · "))}</span>
+            <label>Mean δ¹⁵N (‰)<input type="number" step="0.01" class="bl-mean" value="${b.mean ?? ""}" placeholder="TBD-LAB"></label>
+            <label>SD (‰)<input type="number" step="0.01" min="0.01" class="bl-sd" value="${b.sd ?? ""}" placeholder="0.5"></label>
+          </div>`;
+        })
+        .join("")
+    : '<p class="muted">Load data to enter baselines for each site and species.</p>';
+}
+
+function syncBaseline(row) {
+  const mean = row.querySelector(".bl-mean").value;
+  const sd = Number(row.querySelector(".bl-sd").value) || 0.5;
+  if (mean === "") delete state.baselines[row.dataset.key];
+  else state.baselines[row.dataset.key] = { mean: Number(mean), sd };
 }
 
 function syncOverride(item) {
@@ -320,7 +358,7 @@ function renderResults() {
     .map((r) => {
       const best = r.fits.find((f) => f.model === r.best_model);
       const m = reported(best);
-      const warn = r.warnings.filter((w) => !/PLACEHOLDER/.test(w)).length + r.fits.reduce((n, f) => n + f.warnings.length, 0);
+      const warn = r.warnings.filter((w) => !/PLACEHOLDER|^Time averaging on/.test(w)).length + r.fits.reduce((n, f) => n + f.warnings.length, 0);
       return `<li><button data-specimen="${esc(r.specimen_id)}" class="${r.specimen_id === state.current ? "active" : ""}">
         <span><strong>${esc(r.specimen_id)}</strong><small>${esc(r.site)} · ${esc(r.species)}</small></span>
         <span class="pill">${m ? `${num(m.estimate, 1)} mo` : "—"}${warn ? ' <span class="warn-dot" title="Has warnings">!</span>' : ""}</span>
@@ -341,8 +379,10 @@ function renderResults() {
   const best = res.fits.find((f) => f.model === res.best_model);
   const bm = reported(best);
   $("#res-summary").innerHTML = best && bm
-    ? `Best-supported model: <strong>${esc(best.label)}</strong>. Estimated weaning ${milestone}: <strong>${num(bm.estimate, 1)} months</strong>${bm.ci_low != null ? ` (95% interval ${ci(bm)} months)` : ""}. Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰).${res.growth_placeholder ? ' <span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}`
-    : "No model could be fitted to this specimen.";
+    ? `Best-supported model: <strong>${esc(best.label)}</strong>. Estimated weaning ${milestone}: <strong>${num(bm.estimate, 1)} months</strong>${bm.ci_low != null ? ` (95% interval ${ci(bm)} months)` : ""}. Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `; ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${res.growth_placeholder ? ' <span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}`
+    : best
+      ? `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}; see the table below.`
+      : "No model could be fitted to this specimen.";
 
   const fits = res.fits.filter((f) => f.converged && state.visible.has(f.model));
   if (res.points.length) {
@@ -352,9 +392,11 @@ function renderResults() {
       points: res.points.map((p) => ({
         x: p.age_months,
         y: p.d15N,
+        xMin: p.age_min,
+        xMax: p.age_max,
         used: p.used_in_fit,
         extrapolated: p.extrapolated,
-        label: `${p.position_mm} mm → ${num(p.age_months, 1)} mo<br>δ¹⁵N ${num(p.d15N)}‰${p.qc_flags.length ? `<br><em>${esc(p.qc_flags.join(", "))}</em>` : ""}`,
+        label: `${p.position_mm} mm → ${num(p.age_months, 1)} mo${p.age_min != null ? ` (window ${num(p.age_min, 1)}–${num(p.age_max, 1)})` : ""}<br>δ¹⁵N ${num(p.d15N)}‰${p.qc_flags.length ? `<br><em>${esc(p.qc_flags.join(", "))}</em>` : ""}`,
       })),
       curves: fits.map((f) => ({ name: f.model, color: MODEL_COLORS[f.model], xs: f.curve_age, ys: f.curve_d15N })),
       markers: fits
@@ -367,7 +409,7 @@ function renderResults() {
   }
 
   const warnings = [...res.warnings, ...res.fits.flatMap((f) => f.warnings.map((w) => `${f.label}: ${w}`))];
-  $("#res-warnings").innerHTML = warnings.map((w) => `<li class="${/PLACEHOLDER/.test(w) ? "tbd-li" : "warning"}">${esc(w)}</li>`).join("");
+  $("#res-warnings").innerHTML = warnings.map((w) => `<li class="${/PLACEHOLDER/.test(w) ? "tbd-li" : /^Time averaging on/.test(w) ? "info" : "warning"}">${esc(w)}</li>`).join("");
 
   table(
     $("#fit-table"),
@@ -381,6 +423,7 @@ function renderResults() {
       { label: "Nursing δ¹⁵N", render: (f) => num(f.nursing_d15N), cls: "num" },
       { label: "Adult δ¹⁵N", render: (f) => num(f.adult_d15N), cls: "num" },
       { label: "Drop (‰)", render: (f) => num(f.drop_permil), cls: "num" },
+      { label: "Enrichment vs ♀ (‰)", title: "Nursing δ15N minus adult-female baseline", render: (f) => num(f.enrichment_permil), cls: "num" },
       { label: "RMSE", render: (f) => num(f.rmse, 3), cls: "num" },
       { label: "R²", render: (f) => num(f.r2, 3), cls: "num" },
       { label: "ΔAICc", render: (f) => num(f.delta_aicc, 2), cls: "num" },
@@ -445,13 +488,15 @@ async function refreshCompare() {
     );
     $("#val-body").innerHTML = out.validation.length
       ? '<table id="val-table"></table>'
-      : `<div class="tbd tbd-block">${tbdBadge} No known-age reference animals in this dataset. Add a
-         <code>known_weaning_age_months</code> column for modern reference animals (or published series) to see
-         bias, MAE, RMSE and interval coverage for each model here.</div>`;
+      : `<div class="tbd tbd-block">${tbdBadge} No known-age reference animals or published estimates in this dataset. Add a
+         <code>known_weaning_age_months</code> column for modern reference animals, or a
+         <code>published_weaning_age_months</code> column to compare with published estimates (e.g. WEAN or
+         visual readings), to see bias, MAE, RMSE and interval coverage for each model here.</div>`;
     if (out.validation.length) {
       table(
         $("#val-table"),
         [
+          { label: "Reference", key: "reference" },
           { label: "Model", key: "model" },
           { label: "n", key: "n", cls: "num" },
           { label: "Bias", render: (r) => num(r.bias), cls: "num" },
@@ -517,6 +562,10 @@ function bind() {
       syncOverride(e.target.closest(".growth-item"));
       renderGrowthList();
     }
+  });
+  $("#baseline-list").addEventListener("input", (e) => {
+    const row = e.target.closest(".baseline-row");
+    if (row) syncBaseline(row);
   });
   $("#btn-run").addEventListener("click", runAnalysis);
 

@@ -18,7 +18,7 @@ from .aggregate import aggregate, frame_to_records, model_disagreement
 from .analysis import analyze, estimate_rows
 from .config import DATA_DIR, WEB_DIR, default_options, growth_tables, tbd_items
 from .ingest import IngestReport, ingest_csv, ingest_records
-from .models import MODELS
+from .models import MODEL_CATALOG, MODEL_NAMES
 from .qc import FLAG_DESCRIPTIONS
 from .schema import AnalysisOptions, EstimateRow, IsotopeSample, SpecimenResult
 from .validation import validate
@@ -56,10 +56,7 @@ def get_config() -> dict[str, Any]:
     return {
         "version": __version__,
         "defaults": default_options().model_dump(),
-        "models": [
-            {"name": m.name, "label": m.label, "description": m.description, "params": m.param_names}
-            for m in MODELS.values()
-        ],
+        "models": MODEL_CATALOG,
         "growth_tables": [t.model_dump() for t in growth_tables().values()],
         "qc_flags": FLAG_DESCRIPTIONS,
         "tbd": tbd_items(),
@@ -107,7 +104,7 @@ def run_aggregate(body: AggregateIn) -> dict[str, Any]:
         raise HTTPException(400, f"group_by must be a non-empty subset of {sorted(ALLOWED_GROUPS)}")
     if body.milestone not in ALLOWED_MILESTONES:
         raise HTTPException(400, f"milestone must be one of {sorted(ALLOWED_MILESTONES)}")
-    if body.model is not None and body.model not in MODELS:
+    if body.model is not None and body.model not in MODEL_NAMES:
         raise HTTPException(400, f"unknown model {body.model!r}")
     summary = aggregate(
         body.estimates, group_by=body.group_by, milestone=body.milestone, model=body.model

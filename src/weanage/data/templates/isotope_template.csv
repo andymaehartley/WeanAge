@@ -1,2 +1,2 @@
-specimen_id,site,species,tooth,sample_index,position_mm,d15N,d13C,pct_C,pct_N,cn_ratio,collagen_yield_pct,period,notes,known_weaning_age_months
-TBD-LAB-001,TBD-LAB site,cattle,M2,1,0.5,,,,,,,,"Replace this row: position_mm = distance from cusp apex to increment midpoint",
+specimen_id,site,species,tooth,sample_index,position_mm,d15N,d13C,pct_C,pct_N,cn_ratio,collagen_yield_pct,period,notes,known_weaning_age_months,increment_width_mm,published_weaning_age_months
+TBD-LAB-001,TBD-LAB site,cattle,M2,1,0.5,,,,,,,,"Replace this row: position_mm = distance from cusp apex to increment midpoint",,,

@@ -9,6 +9,13 @@ two "level" parameters so their results are directly comparable:
 so the nursing plateau is ``post + drop``. They differ in the shape of the
 transition, which is exactly the methodological choice whose effect on weaning-age
 estimates the project sets out to measure.
+
+A fourth, non-parametric method re-implements the elbow approach of WEAN
+(Ganiatsou et al. 2023) so its estimates can be compared side by side.
+
+Optionally each sample can be treated as the average of the curve over the age
+window its increment spans (time averaging, after Tsutaya 2020 / MDSS); the
+milestones then refer to the underlying, un-averaged dietary curve.
 """
 
 from __future__ import annotations
@@ -88,10 +95,12 @@ class CurveModel:
                     guesses.append([post, drop, centre - w, w])
         return guesses
 
-    def bounds(self, t: np.ndarray, y: np.ndarray) -> tuple[list[float], list[float]]:
+    def bounds(
+        self, t: np.ndarray, y: np.ndarray, post_range: tuple[float, float] | None = None
+    ) -> tuple[list[float], list[float]]:
         span = max(float(np.ptp(t)), 1.0)
         lo_t, hi_t = float(t.min()) - span, float(t.max()) + span
-        y_lo, y_hi = float(y.min()) - 5, float(y.max()) + 5
+        y_lo, y_hi = post_range or (float(y.min()) - 5, float(y.max()) + 5)
         lower = [y_lo, 0.0, lo_t, span * 1e-3]
         upper = [y_hi, max(float(np.ptp(y)) * 3, 1.0), hi_t, span * 4]
         return lower, upper
@@ -136,12 +145,12 @@ def aicc(sse: float, n: int, n_params: int) -> float | None:
     return n * math.log(sse / n) + 2 * k + (2 * k * (k + 1)) / (n - k - 1)
 
 
-def _fit_once(model: CurveModel, t, y, sigma, p0, bounds):
+def _fit_once(func, t, y, sigma, p0, bounds):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", OptimizeWarning)
         warnings.simplefilter("ignore", RuntimeWarning)
         popt, pcov = curve_fit(
-            model.func,
+            func,
             t,
             y,
             p0=np.clip(p0, np.array(bounds[0]) + 1e-9, np.array(bounds[1]) - 1e-9),
@@ -151,7 +160,7 @@ def _fit_once(model: CurveModel, t, y, sigma, p0, bounds):
             method="trf",
             maxfev=20000,
         )
-    sse = float(np.sum((y - model.func(t, *popt)) ** 2))
+    sse = float(np.sum((y - func(t, *popt)) ** 2))
     return popt, pcov, sse
 
 
@@ -175,17 +184,32 @@ def fit_model(
     seed: int | None = 42,
     curve_points: int = 200,
     age_uncertainty: float = 0.0,
+    age_windows: np.ndarray | None = None,
+    post_range: tuple[float, float] | None = None,
+    adult_baseline: float | None = None,
+    elbow_normalise: bool = True,
 ) -> FitResult:
     """Fit one model and derive weaning milestones with Monte Carlo 95 % intervals.
 
     ``age_uncertainty`` (months, 1 SD) from the tooth growth table is added in
-    quadrature to the milestone intervals.
+    quadrature to the milestone intervals. ``age_windows`` (n × k ages, one row per
+    sample) switches on time averaging: each sample is predicted as the mean of the
+    curve over its row. ``post_range`` bounds the adult plateau, and
+    ``adult_baseline`` (adult-female mean δ15N) is used to report nursing enrichment.
     """
-    model = MODELS[name]
     t = np.asarray(age, dtype=float)
     y = np.asarray(d15n, dtype=float)
     order = np.argsort(t)
     t, y = t[order], y[order]
+    if name == "elbow":
+        result = fit_elbow(
+            t, y, analytical_sd=analytical_sd, min_drop=min_drop, draws=draws, seed=seed,
+            curve_points=curve_points, age_uncertainty=age_uncertainty, normalise=elbow_normalise,
+        )
+        _set_enrichment(result, adult_baseline)
+        return result
+
+    model = MODELS[name]
     n = t.size
     result = FitResult(model=name, label=model.label, converged=False)
 
@@ -194,11 +218,18 @@ def fit_model(
         return result
 
     sigma = np.full(n, analytical_sd) if analytical_sd else None
-    bounds = model.bounds(t, y)
+    bounds = model.bounds(t, y, post_range)
+    func = model.func
+    if age_windows is not None:
+        windows = np.asarray(age_windows, dtype=float)[order]
+
+        def func(_t, *p):
+            return model.func(windows, *p).mean(axis=1)
+
     best = None
     for p0 in model.starts(t, y):
         try:
-            popt, pcov, sse = _fit_once(model, t, y, sigma, p0, bounds)
+            popt, pcov, sse = _fit_once(func, t, y, sigma, p0, bounds)
         except (RuntimeError, ValueError):
             continue
         if best is None or sse < best[2]:
@@ -218,7 +249,7 @@ def fit_model(
     post, drop = float(popt[0]), float(popt[1])
     result.adult_d15N, result.nursing_d15N, result.drop_permil = post, post + drop, drop
 
-    resid = y - model.func(t, *popt)
+    resid = y - func(t, *popt)
     result.rmse = float(math.sqrt(np.mean(resid**2)))
     sst = float(np.sum((y - y.mean()) ** 2))
     result.r2 = float(1 - sse / sst) if sst > 0 else None
@@ -248,7 +279,133 @@ def fit_model(
     grid = np.linspace(t.min(), t.max(), curve_points)
     result.curve_age = [round(float(v), 4) for v in grid]
     result.curve_d15N = [round(float(v), 4) for v in model.func(grid, *popt)]
+    _set_enrichment(result, adult_baseline)
     return result
+
+
+def _set_enrichment(result: FitResult, adult_baseline: float | None) -> None:
+    if adult_baseline is not None and result.nursing_d15N is not None:
+        result.enrichment_permil = result.nursing_d15N - adult_baseline
+
+
+def _elbow_index(grid: np.ndarray, curve: np.ndarray, normalise: bool) -> tuple[int, int] | None:
+    """Indices of (peak, elbow) on a fitted curve.
+
+    Following WEAN, the elbow is the point of greatest perpendicular distance below
+    the straight line joining the curve's maximum to its last point. With
+    ``normalise`` both axes are rescaled to [0, 1] first, so the result does not
+    depend on the units (months vs ‰); WEAN itself uses raw units.
+    """
+    start = int(np.argmax(curve))
+    if grid.size - start < 3:
+        return None
+    x, y = grid[start:], curve[start:]
+    if normalise:
+        x = (x - x[0]) / ((x[-1] - x[0]) or 1.0)
+        y = (y - y.min()) / ((y.max() - y.min()) or 1.0)
+    dx, dy = x[-1] - x[0], y[-1] - y[0]
+    # Signed distance: positive when the curve sags below the chord (a convex decline).
+    dist = (dy * (x - x[0]) - dx * (y - y[0])) / (np.hypot(dx, dy) or 1.0)
+    return start, start + int(np.argmax(dist))
+
+
+def fit_elbow(
+    t: np.ndarray,
+    y: np.ndarray,
+    *,
+    analytical_sd: float | None = None,
+    min_drop: float = 1.0,
+    draws: int = 1000,
+    seed: int | None = 42,
+    curve_points: int = 200,
+    age_uncertainty: float = 0.0,
+    normalise: bool = True,
+    degree: int = 4,
+) -> FitResult:
+    """WEAN-style estimate: 4th-degree polynomial fit, weaning age at its elbow."""
+    label = "Elbow on polynomial (WEAN-style)"
+    result = FitResult(model="elbow", label=label, converged=False)
+    n = t.size
+    if n < degree + 3:
+        result.message = f"Need at least {degree + 3} samples, got {n}"
+        return result
+
+    weights = np.full(n, 1 / analytical_sd) if analytical_sd else None
+    # Centre ages for a well-conditioned polynomial fit.
+    t0 = float(t.mean())
+    coef, cov = np.polyfit(t - t0, y, degree, w=weights, cov="unscaled" if weights is not None else True)
+    grid = np.linspace(t.min(), t.max(), curve_points)
+    curve = np.polyval(coef, grid - t0)
+    idx = _elbow_index(grid, curve, normalise)
+    if idx is None:
+        result.message = "δ15N peaks at the end of the series: no declining segment to analyse"
+        return result
+
+    peak, elbow = idx
+    fitted = np.polyval(coef, t - t0)
+    sse = float(np.sum((y - fitted) ** 2))
+    sst = float(np.sum((y - y.mean()) ** 2))
+    result.converged = True
+    result.params = {f"c{degree - i}": float(c) for i, c in enumerate(coef)}
+    se = np.sqrt(np.clip(np.diag(cov), 0, None)) if np.all(np.isfinite(cov)) else [None] * len(coef)
+    result.param_se = {f"c{degree - i}": (float(v) if v is not None else None) for i, v in enumerate(se)}
+    result.rmse = float(np.sqrt(sse / n))
+    result.r2 = float(1 - sse / sst) if sst > 0 else None
+    result.aicc = aicc(sse, n, degree + 1)
+
+    t_elbow = float(grid[elbow])
+    post_mask = t >= t_elbow
+    result.nursing_d15N = float(curve[peak])
+    result.adult_d15N = float(y[post_mask].mean()) if post_mask.any() else float(curve[-1])
+    result.drop_permil = result.nursing_d15N - result.adult_d15N
+
+    lo = hi = None
+    if draws > 0 and np.all(np.isfinite(cov)):
+        rng = np.random.default_rng(seed)
+        sims = rng.multivariate_normal(coef, cov, size=draws, check_valid="ignore")
+        curves = sims @ np.vander(grid - t0, degree + 1).T
+        ages = [grid[i[1]] for c in curves if (i := _elbow_index(grid, c, normalise)) is not None]
+        lo, hi = _ci(np.asarray(ages))
+        if lo is not None and age_uncertainty > 0:
+            lo = t_elbow - math.hypot(t_elbow - lo, 1.96 * age_uncertainty)
+            hi = t_elbow + math.hypot(hi - t_elbow, 1.96 * age_uncertainty)
+    result.onset = ValueWithCI(estimate=float(grid[peak]))
+    result.completion = ValueWithCI(estimate=t_elbow, ci_low=lo, ci_high=hi)
+
+    slope = float(np.polyval(np.polyder(coef), t_elbow - t0))
+    if slope > 0:
+        result.warnings.append(
+            f"Curve is rising at the elbow (slope {slope:+.2f}‰/month): possible false estimate"
+        )
+    if result.drop_permil < min_drop:
+        result.warnings.append(
+            f"δ15N drop of {result.drop_permil:.2f}‰ is below the {min_drop:.2f}‰ minimum: no clear weaning signal"
+        )
+    if elbow >= curve_points - 2:
+        result.warnings.append("Elbow falls at the last sample: weaning may not be complete within the series")
+    if curve.max() > y.max() + 0.5 or curve.min() < y.min() - 0.5:
+        result.warnings.append(
+            "Polynomial overshoots the observed δ15N range (>0.5‰); check the curve visually"
+        )
+    result.curve_age = [round(float(v), 4) for v in grid]
+    result.curve_d15N = [round(float(v), 4) for v in curve]
+    return result
+
+
+MODEL_CATALOG = [
+    {"name": m.name, "label": m.label, "description": m.description, "params": list(m.param_names)}
+    for m in MODELS.values()
+] + [
+    {
+        "name": "elbow",
+        "label": "Elbow on polynomial (WEAN-style)",
+        "description": "Re-implementation of WEAN (Ganiatsou et al. 2023): a 4th-degree polynomial "
+        "is fitted and weaning completion is the 'elbow', the point farthest below the line from "
+        "the δ15N peak to the last sample. Reports completion only.",
+        "params": ["c4", "c3", "c2", "c1", "c0"],
+    }
+]
+MODEL_NAMES = {m["name"] for m in MODEL_CATALOG}
 
 
 def _monte_carlo(model, popt, pcov, bounds, threshold, draws, seed):

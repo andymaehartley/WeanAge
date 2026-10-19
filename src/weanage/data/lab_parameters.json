@@ -19,5 +19,15 @@
     "value": null,
     "placeholder": true,
     "tbd_note": "CSV of known-age modern reference animals (with known_weaning_age_months) used by the validation suite."
+  },
+  "growth_layer_offset_mm": {
+    "value": 0.0,
+    "placeholder": true,
+    "tbd_note": "Extra tooth growth (mm) captured by each horizontal section because dentine growth layers are oblique (time averaging, after Tsutaya 2020 / MDSS). Measure from thin sections of cattle/pig/horse teeth; MDSS values are for human teeth only."
+  },
+  "adult_baselines": {
+    "value": null,
+    "placeholder": true,
+    "tbd_note": "Mean and SD of adult-female δ15N for each site and species (bone collagen), after WARN's maternal baseline. Used to report nursing enrichment and optionally to constrain the adult plateau."
   }
 }

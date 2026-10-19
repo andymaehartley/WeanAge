@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # Ratio of atomic masses used to convert a weight-% C:N ratio to an atomic ratio.
 N_TO_C_MASS = 14.007 / 12.011
 
-ModelName = Literal["logistic", "piecewise", "exponential"]
+ModelName = Literal["logistic", "piecewise", "exponential", "elbow"]
 Milestone = Literal["onset", "midpoint", "completion"]
 
 
@@ -41,8 +41,14 @@ class IsotopeSample(BaseModel):
     collagen_yield_pct: float | None = Field(default=None, ge=0, le=100)
     period: str | None = None
     notes: str | None = None
+    increment_width_mm: float | None = Field(
+        default=None, gt=0, le=20, description="Height of the sampled increment (mm)"
+    )
     known_weaning_age_months: float | None = Field(
         default=None, ge=0, description="Only for known-age reference animals"
+    )
+    published_weaning_age_months: float | None = Field(
+        default=None, ge=0, description="Weaning age reported in a published study, for comparison"
     )
 
     @field_validator("species")
@@ -114,8 +120,17 @@ class LinearGrowthOverride(BaseModel):
     extension_rate_mm_per_month: float = Field(gt=0)
 
 
+class AdultBaseline(BaseModel):
+    """δ15N of adult females (the mothers' population), after WARN's maternal baseline."""
+
+    mean: float = Field(ge=-10, le=30)
+    sd: float = Field(default=0.5, gt=0)
+
+
 class AnalysisOptions(BaseModel):
-    models: list[ModelName] = Field(default_factory=lambda: ["logistic", "piecewise", "exponential"])
+    models: list[ModelName] = Field(
+        default_factory=lambda: ["logistic", "piecewise", "exponential", "elbow"]
+    )
     # Fraction of the nursing-to-adult δ15N drop treated as "begun" / "complete"
     # for smooth models (0.05 => onset at 5 % of drop, completion at 95 %).
     transition_threshold: float = Field(default=0.05, gt=0, lt=0.5)
@@ -129,9 +144,24 @@ class AnalysisOptions(BaseModel):
     # take precedence over the bundled growth tables.
     growth_overrides: dict[str, LinearGrowthOverride] = Field(default_factory=dict)
 
+    # Time averaging (after MDSS / Tsutaya 2020): each sample integrates dentine
+    # formed over an age window rather than at a single instant.
+    time_averaging: bool = False
+    increment_width_mm: float = Field(default=1.0, gt=0, le=20)
+    growth_layer_offset_mm: float = Field(default=0.0, ge=0, le=50)
+    # Adult-female δ15N baselines keyed "site:species" (or just "species").
+    adult_baselines: dict[str, AdultBaseline] = Field(default_factory=dict)
+    constrain_adult_plateau: bool = False
+    # Elbow method (after WEAN): normalise both axes before measuring distance.
+    elbow_normalise: bool = True
+
     def override_for(self, species: str, tooth: str) -> LinearGrowthOverride | None:
         wanted = f"{species}:{tooth}".lower()
         return next((v for k, v in self.growth_overrides.items() if k.lower() == wanted), None)
+
+    def baseline_for(self, site: str, species: str) -> AdultBaseline | None:
+        keys = {k.lower(): v for k, v in self.adult_baselines.items()}
+        return keys.get(f"{site}:{species}".lower()) or keys.get(species.lower())
 
 
 class ValueWithCI(BaseModel):
@@ -150,6 +180,7 @@ class FitResult(BaseModel):
     nursing_d15N: float | None = None
     adult_d15N: float | None = None
     drop_permil: float | None = None
+    enrichment_permil: float | None = None
     onset: ValueWithCI | None = None
     midpoint: ValueWithCI | None = None
     completion: ValueWithCI | None = None
@@ -167,6 +198,8 @@ class SamplePoint(BaseModel):
     position_mm: float
     age_months: float
     d15N: float
+    age_min: float | None = None
+    age_max: float | None = None
     extrapolated: bool = False
     qc_flags: list[str] = Field(default_factory=list)
     used_in_fit: bool = True
@@ -185,6 +218,8 @@ class SpecimenResult(BaseModel):
     best_model: ModelName | None = None
     warnings: list[str] = Field(default_factory=list)
     known_weaning_age_months: float | None = None
+    published_weaning_age_months: float | None = None
+    adult_baseline: AdultBaseline | None = None
 
 
 class EstimateRow(BaseModel):
@@ -202,3 +237,4 @@ class EstimateRow(BaseModel):
     completion_ci_low: float | None = None
     completion_ci_high: float | None = None
     known_weaning_age_months: float | None = None
+    published_weaning_age_months: float | None = None

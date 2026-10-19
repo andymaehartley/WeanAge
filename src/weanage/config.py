@@ -60,7 +60,12 @@ def default_options() -> AnalysisOptions:
     qc = QCThresholds(**{k: v for k, v in qc_config().items() if k in qc_fields})
     lab = lab_parameters()
     kwargs: dict[str, Any] = {"qc": qc}
-    for name in ("analytical_sd_permil", "min_weaning_drop_permil", "transition_threshold"):
+    for name in (
+        "analytical_sd_permil",
+        "min_weaning_drop_permil",
+        "transition_threshold",
+        "growth_layer_offset_mm",
+    ):
         value = lab.get(name, {}).get("value")
         if value is not None:
             kwargs[name] = value

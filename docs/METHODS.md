@@ -37,9 +37,42 @@ They differ only in the **shape** of the transition:
 Here `q` is the *transition threshold* (default 0.05). For the smooth models, weaning
 counts as *begun* once 5 % of the drop has happened and *complete* once 95 % has.
 
+**Elbow (WEAN-style).** This is a re-implementation of Ganiatsou et al. (2023). A
+4th-degree polynomial is fitted. Weaning *completion* is the point on that curve
+farthest below the straight line from its δ¹⁵N peak to the last sample, and the
+reported *onset* is the age of the peak. There is no midpoint. By default both axes
+are rescaled to [0, 1] first so the answer does not depend on units; WEAN measures
+the distance in raw units. A curve that is rising at the elbow, or a polynomial that
+overshoots the data by more than 0.5‰, is flagged.
+
+**Rising profiles.** If δ¹⁵N rises with age (Spearman ρ > 0.3, p < 0.05), the
+specimen is flagged. That pattern points to something other than weaning, such as
+physiological stress or a diet change (cf. WEAN).
+
 Fitting uses `scipy.optimize.curve_fit` (trust-region reflective, bounded) from about
 ten starting points spread across the sampled age range, keeping the lowest-SSE
 solution. If an analytical SD is set, it is used as an absolute per-point σ.
+
+## 3a. Time averaging (optional)
+
+This follows Tsutaya (2020) and the MDSS package. A horizontal section of height `w`
+centred on position `p` holds dentine laid down while the growth front moved through
+`p ± w/2`. Because growth layers run at an angle, it also holds later-formed inner
+dentine, modelled as a further `growth_layer_offset_mm` of growth. With
+`time_averaging` on, each sample's window is split into 15 evenly spaced positions,
+each converted to an age, and the sample is fitted as the **mean** of the curve over
+those ages. The fitted curve and its milestones then describe the underlying diet
+change, which is sharper and earlier than the blurred sampled profile. This is a
+simplified, livestock-agnostic version of MDSS, which weights growth layers by volume
+using measured human tooth geometry.
+
+## 3b. Adult-female baseline (optional)
+
+This follows WARN's maternal baseline. For each site and species you can enter the
+mean and SD of adult-female δ¹⁵N. Results then include the **nursing enrichment**:
+the nursing plateau minus the female mean. With `constrain_adult_plateau`, the
+adult plateau is bounded to mean ± 2 SD, which helps when a series ends before the
+adult value is reached.
 
 ## 4. Uncertainty
 
@@ -66,17 +99,16 @@ model for each specimen, or one chosen model throughout.
 
 If `known_weaning_age_months` is present (for known-age reference animals), the
 following are reported for each model: bias, MAE, RMSE, Pearson r and the coverage
-of the 95 % intervals. The pytest suite includes a simulation study on synthetic
+of the 95 % intervals. If `published_weaning_age_months` is present, the same
+metrics measure agreement with published estimates, such as WEAN outputs or visual
+readings of the same profiles. This reproduces WEAN's re-estimation test. The pytest suite includes a simulation study on synthetic
 animals with known weaning ages.
 
 ## Limitations / future work
 
-* **Increment averaging**: each 1 mm sample integrates weeks of growth, which flattens
-  and delays the apparent transition. A forward model that convolves the curve with the
-  sampling window could be added once extension rates are known (`TBD-LAB`).
-* **Dentine apposition geometry**: horizontal sections cut across obliquely oriented
-  growth layers. Correcting for this needs tooth-specific geometry data.
-* **Maternal baseline**: the nursing offset relative to the mother is not modelled
-  explicitly. Adult or maternal reference values could constrain `post`.
+* **Time-averaging geometry**: the optional model (3a) uses a single offset and
+  uniform weighting. Livestock values for growth-layer obliqueness and changing
+  extension rates still have to be measured (`TBD-LAB`). A full MDSS-style volume
+  model per tooth type would be more realistic.
 * **Bayesian alternative**: a hierarchical model (for example, pooling specimens within
   a site) could be added alongside the current least-squares models.

@@ -65,6 +65,11 @@ COLUMN_ALIASES: dict[str, str] = {
     "comment": "notes",
     "knownweaningagemonths": "known_weaning_age_months",
     "knownweaningage": "known_weaning_age_months",
+    "publishedweaningagemonths": "published_weaning_age_months",
+    "publishedweaningage": "published_weaning_age_months",
+    "incrementwidthmm": "increment_width_mm",
+    "incrementwidth": "increment_width_mm",
+    "incrementheightmm": "increment_width_mm",
 }
 
 

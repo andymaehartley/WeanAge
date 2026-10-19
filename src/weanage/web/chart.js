@@ -92,7 +92,7 @@ function axes(svg, plot, xs, ys, xTicks, yTicks, xLabel, yLabel) {
 
 /**
  * Weaning curve plot.
- * opts.points:  [{x, y, used, extrapolated, label}]
+ * opts.points:  [{x, y, xMin?, xMax?, used, extrapolated, label}]
  * opts.curves:  [{name, color, xs:[], ys:[]}]
  * opts.markers: [{x, lo, hi, color, label}]  vertical milestone lines with CI bands
  */
@@ -101,7 +101,7 @@ export function curveChart(container, opts) {
   const { svg, plot } = frame(container, W, H, { l: 64, r: 20, t: 16, b: 56 });
   const tip = tooltip(container);
 
-  const allX = [...opts.points.map((p) => p.x), ...opts.curves.flatMap((c) => c.xs)];
+  const allX = [...opts.points.flatMap((p) => [p.x, p.xMin ?? p.x, p.xMax ?? p.x]), ...opts.curves.flatMap((c) => c.xs)];
   const allY = [...opts.points.map((p) => p.y), ...opts.curves.flatMap((c) => c.ys)];
   for (const m of opts.markers) allX.push(m.x);
   let [xMin, xMax] = [Math.min(...allX), Math.max(...allX)];
@@ -142,6 +142,11 @@ export function curveChart(container, opts) {
     el("path", { d, fill: "none", stroke: c.color, "stroke-width": 2.5, class: "curve" }, layer);
   }
 
+  for (const p of opts.points) {
+    if (p.xMin != null && p.xMax != null) {
+      el("line", { x1: xs(p.xMin), x2: xs(p.xMax), y1: ys(p.y), y2: ys(p.y), class: "win" }, layer);
+    }
+  }
   for (const p of opts.points) {
     const dot = el("circle", {
       cx: xs(p.x), cy: ys(p.y), r: 4.5,

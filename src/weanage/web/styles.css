@@ -224,3 +224,12 @@ svg.chart .marker-label { font-weight: 600; font-size: 11px; }
   padding: .7rem 1rem; border-radius: 8px; color: #fff; background: var(--error); box-shadow: 0 6px 24px rgb(0 0 0 / .2);
 }
 .toast.ok { background: var(--ok); }
+
+/* ── baselines / windows ── */
+.baseline-list { display: grid; gap: .5rem; margin-bottom: .6rem; }
+.baseline-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: .6rem; align-items: end; }
+.baseline-row .key { font-weight: 600; text-transform: capitalize; padding-bottom: .45rem; }
+svg.chart .win { stroke: var(--muted); stroke-width: 1.5; opacity: .55; }
+.legend .bar { display: inline-block; width: 18px; border-top: 2px solid var(--muted); opacity: .6; vertical-align: middle; }
+.issues li.info { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+#fit-table td:first-child { min-width: 170px; }

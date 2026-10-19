@@ -144,6 +144,38 @@
         </article>
       </div>
 
+      <div class="grid-2">
+        <article class="card">
+          <h2>Time averaging</h2>
+          <p class="hint">Each 1 mm section mixes dentine formed over weeks, and oblique growth layers add
+            later-formed dentine to every section (Tsutaya 2020; MDSS). With this on, each sample is fitted as
+            the <em>average</em> of the curve across its age window, so the estimate refers to the underlying diet
+            change rather than the blurred sampled signal.</p>
+          <label class="check"><input id="opt-timeavg" type="checkbox"> Model time averaging</label>
+          <div class="form-grid">
+            <label>Increment height (mm)
+              <input id="opt-incwidth" type="number" min="0.1" step="0.1">
+            </label>
+            <label data-tbd="lab:growth_layer_offset_mm">Growth-layer offset (mm)
+              <input id="opt-layeroffset" type="number" min="0" step="0.1">
+            </label>
+          </div>
+          <h3>Elbow method (WEAN-style)</h3>
+          <label class="check"><input id="opt-elbownorm" type="checkbox">
+            Rescale both axes before finding the elbow (unit-independent; WEAN uses raw units)</label>
+        </article>
+
+        <article class="card" data-tbd="lab:adult_baselines">
+          <h2>Adult-female baseline</h2>
+          <p class="hint">Mean δ¹⁵N of adult females (the mothers' population) at each site, as used by WARN.
+            Used to report nursing enrichment and, optionally, to hold the adult plateau near this value.
+            Leave blank if unknown.</p>
+          <div id="baseline-list" class="baseline-list"></div>
+          <label class="check"><input id="opt-constrain" type="checkbox">
+            Constrain the adult plateau to baseline ± 2 SD</label>
+        </article>
+      </div>
+
       <article class="card">
         <h2>Age models (tooth growth)</h2>
         <p class="hint">Converts position along the tooth into age at formation. Use the bundled table,
@@ -179,6 +211,7 @@
               <span><i class="dot"></i> sample</span>
               <span><i class="dot extra"></i> age extrapolated</span>
               <span><i class="dot excluded"></i> failed QC (not fitted)</span>
+              <span><i class="bar"></i> age window (time averaging)</span>
               <span><i class="dash"></i> reported milestone ± 95% interval</span>
             </div>
             <ul id="res-warnings" class="issues"></ul>
@@ -231,7 +264,7 @@
       </article>
 
       <article class="card">
-        <h2>Validation against known-age animals</h2>
+        <h2>Validation against known ages and published estimates</h2>
         <div id="val-body"></div>
       </article>
     </section>

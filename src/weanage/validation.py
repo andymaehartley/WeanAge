@@ -41,20 +41,32 @@ def interval_coverage(ci_low, ci_high, known) -> float:
     return float(np.mean((ref[mask] >= lo[mask]) & (ref[mask] <= hi[mask])))
 
 
+REFERENCES = {
+    "known_weaning_age_months": "known age",
+    "published_weaning_age_months": "published estimate",
+}
+
+
 def validate(rows: list[EstimateRow], milestone: str = "completion") -> pd.DataFrame:
-    """Per-model accuracy against ``known_weaning_age_months``."""
+    """Per-model accuracy against known ages and/or published estimates.
+
+    Known-age reference animals test accuracy; published estimates (e.g. WEAN or
+    visual readings of the same profiles) test agreement with existing methods.
+    """
+    cols = ["reference", "model", "n", "bias", "mae", "rmse", "pearson_r", "ci_coverage"]
     df = pd.DataFrame([r.model_dump() for r in rows])
-    if df.empty or df["known_weaning_age_months"].isna().all():
-        return pd.DataFrame(columns=["model", "n", "bias", "mae", "rmse", "pearson_r", "ci_coverage"])
     out = []
-    for model, sub in df.groupby("model"):
-        metrics = error_metrics(sub[milestone], sub["known_weaning_age_months"])
-        metrics["ci_coverage"] = (
-            interval_coverage(
-                sub["completion_ci_low"], sub["completion_ci_high"], sub["known_weaning_age_months"]
+    for ref_col, ref_label in REFERENCES.items():
+        if df.empty or ref_col not in df or df[ref_col].isna().all():
+            continue
+        for model, sub in df.groupby("model"):
+            metrics = error_metrics(sub[milestone], sub[ref_col])
+            if metrics["n"] == 0:
+                continue
+            metrics["ci_coverage"] = (
+                interval_coverage(sub["completion_ci_low"], sub["completion_ci_high"], sub[ref_col])
+                if milestone == "completion"
+                else np.nan
             )
-            if milestone == "completion"
-            else np.nan
-        )
-        out.append({"model": model, **metrics})
-    return pd.DataFrame(out)
+            out.append({"reference": ref_label, "model": model, **metrics})
+    return pd.DataFrame(out, columns=cols)
