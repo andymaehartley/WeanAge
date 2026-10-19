@@ -89,7 +89,7 @@ def test_browser_version():
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.add_init_script("localStorage.setItem('weanage-tour-done', '1')")
         page.goto(f"http://127.0.0.1:{static.server_port}/")
-        page.wait_for_selector("#model-options input", timeout=240000)  # the engine has loaded
+        page.wait_for_selector("#model-options input", state="attached", timeout=240000)  # the engine has loaded
         click(page, "#btn-example")
         page.wait_for_selector("#specimens-card:not([hidden])", timeout=60000)
         click(page, '.step[data-view="settings"]')
