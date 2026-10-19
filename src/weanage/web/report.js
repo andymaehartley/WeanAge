@@ -13,6 +13,10 @@ const REFERENCES = [
   "Guiry, E. J., & Szpak, P. (2020). Quality control for modern bone collagen stable carbon and nitrogen isotope measurements. Methods in Ecology and Evolution 11, 1049–1060.",
   "Beaumont, J., & Montgomery, J. (2016). The Great Irish Famine: identifying starvation in the tissues of victims using stable isotope analysis of bone and incremental dentine collagen. PLoS ONE 11, e0160065.",
   "Balasse, M., et al. (2021). Seasonal calving in European prehistoric cattle and its impacts on milk availability and cheesemaking. Scientific Reports 11, 8185.",
+  "DeNiro, M. J., & Epstein, S. (1981). Influence of diet on the distribution of nitrogen isotopes in animals. Geochimica et Cosmochimica Acta 45, 341–351.",
+  "Minagawa, M., & Wada, E. (1984). Stepwise enrichment of 15N along food chains. Geochimica et Cosmochimica Acta 48, 1135–1140.",
+  "Fuller, B. T., Fuller, J. L., Harris, D. A., & Hedges, R. E. M. (2006). Detection of breastfeeding and weaning in modern human infants with carbon and nitrogen stable isotope ratios. American Journal of Physical Anthropology 129, 279–293.",
+  "Gelman, A. (2006). Prior distributions for variance parameters in hierarchical models. Bayesian Analysis 1, 515–534.",
   "Burnham, K. P., & Anderson, D. R. (2002). Model Selection and Multimodel Inference (2nd ed.). Springer.",
   "DerSimonian, R., & Laird, N. (1986). Meta-analysis in clinical trials. Controlled Clinical Trials 7, 177–188.",
 ];

@@ -27,14 +27,13 @@
   Compare view reports agreement with the published values for each model.
 
 **MDSS / Tsutaya 2020**
-* Optional **time averaging** (`time_averaging`): each sample covers an age window
-  rather than a single age. The window is the increment's height
-  (`increment_width_mm`) plus extra later-formed dentine picked up because growth
-  layers are oblique (`growth_layer_offset_mm`, TBD-LAB). Each sample is fitted as
-  the curve's average over its window, so the milestones refer to the underlying
-  diet change. This is a simplification: MDSS weights growth layers by volume and
-  models the curved tooth outline. Its parameters are for human teeth, so the
-  livestock values still have to be measured.
+* Optional **time averaging** (`time_averaging`): each slice is integrated over its
+  height (`increment_width_mm`) and over the dentine depth, where oblique growth layers
+  add later-formed dentine (`growth_layer_offset_mm`, TBD-LAB) and inner dentine counts
+  for less volume (`inner_dentine_weight`, TBD-LAB). Each sample is fitted as the
+  curve's weighted average over that grid, so the milestones refer to the underlying
+  diet change. Unlike MDSS, growth layers are straight and the cross-section circular,
+  and MDSS's parameters are for human teeth, so livestock values still have to be measured.
 
 **WARN**
 * An **adult-female baseline** (`adult_baselines`, per site and species) acts as the
@@ -43,8 +42,9 @@
   ±2 SD of it (`constrain_adult_plateau`).
 * WARN's curve forms (linear, sigmoid, and parabolic as a smooth decline) are covered
   by the piecewise, logistic and exponential models.
-* Bayesian inference is used at the group level: a hierarchical model (Gibbs sampler)
-  pools specimen estimates within sites and species and gives direct probabilities
+* Bayesian inference is used at the group level: a hierarchical model pools specimen
+  estimates within sites and species (two-stage), or fits every specimen's raw δ¹⁵N
+  values together with the group means (one-stage), and gives direct probabilities
   such as P(pigs weaned earlier than cattle). WARN's Approximate Bayesian Computation of
   raw values, and its bone-collagen turnover model, are not adopted; turnover does not
   apply to dentine, which does not remodel after it forms.

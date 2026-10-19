@@ -102,12 +102,15 @@ file / form ─► check the data (pydantic) ─► collagen QC (C:N, %C, %N, yi
                  (optional: time averaging, yearly seasonal term, adult-female baseline)
             ─► weaning ages with 95 % intervals (covariance or bootstrap, shared age-model error)
             ─► AICc weights, model average, seasonality and rising-profile checks
-            ─► group comparison (random effects, permutation, hierarchical Bayes) and validation
+            ─► group comparison (random effects, permutation, two- or one-stage hierarchical Bayes)
+            ─► validation against known-age animals
 ```
 
 [`docs/METHODS.md`](docs/METHODS.md) gives the equations.
 [`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md) compares WeanAge with WARN, MDSS and WEAN.
 [`docs/VALIDATION.md`](docs/VALIDATION.md) explains how to test it on known-age animals.
+[`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) is a step-by-step guide with screenshots, and
+[`docs/brief/`](docs/brief/) a printable two-page summary of the methods for events.
 
 ### Research the method builds on
 

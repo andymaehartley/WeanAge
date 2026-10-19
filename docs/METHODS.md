@@ -66,12 +66,17 @@ used as the measurement error of each point.
 
 ### Options
 
-* **Time averaging** (after Tsutaya 2020 and MDSS). A slice of height `w` at position
-  `p` contains dentine from `p − w/2` to `p + w/2 + growth_layer_offset_mm` (the extra
-  part is later inner dentine, because growth layers run at an angle). That range is
-  split into 15 points converted to ages. The sample is fitted as their weighted
-  average, with weights falling linearly from 1 to `inner_dentine_weight`. The
-  fitted curve then describes the underlying diet change, not the blurred one.
+* **Time averaging** (after Tsutaya 2020 and MDSS). A slice is a disc of dentine with a
+  height `w` (the slice width) and a depth (from the enamel inwards to the pulp). Growth
+  layers run at an angle, so dentine at relative depth `d` (0 at the enamel, 1 at the
+  pulp) was laid down when the growth front was `growth_layer_offset_mm × d` further
+  along the tooth. The slice is covered by an 8 × 8 grid over height and depth, each
+  point converted to an age. Inner dentine lies on a smaller circle, so there is less of
+  it: weights fall from 1 at the enamel to `inner_dentine_weight` at the pulp (the ratio
+  of inner to outer radius). The sample is fitted as the weighted average of the curve
+  over the grid, so the fitted curve describes the underlying diet change, not the
+  blurred one. In practice `growth_layer_offset_mm` = dentine thickness ÷ tan(angle of
+  the growth layers to the tooth axis), both measurable on a thin section.
 * **Seasonal term.** `a·sin(2πt/P) + b·cos(2πt/P)` is added to every parametric curve
   (default `P` = 12 months), so a yearly pasture or fodder cycle is not mistaken for
   weaning. Its amplitude is reported.
@@ -102,6 +107,12 @@ estimates across models (thesis question 1).
 ## 6. Warnings and diagnostics
 
 * No clear weaning signal: the drop is below `min_weaning_drop_permil`.
+* **Implausibly large drop**: above `max_plausible_drop_permil` (default 5‰). Suckling
+  raises δ¹⁵N by about one food-chain step, 3–4‰ (DeNiro & Epstein 1981; Minagawa &
+  Wada 1984), and measured nursing enrichment is usually 2–3‰ (Balasse et al. 2001;
+  Fuller et al. 2006). A larger drop suggests another diet change, mixed-up samples or a
+  badly fitting curve. The same limit applies to nursing δ¹⁵N above the adult-female
+  baseline.
 * Onset before the first sample, or completion after the last (extrapolated).
 * **Rising profile**: δ¹⁵N increases with age (Spearman ρ > 0.3, p < 0.05). Stress and
   starvation can raise δ¹⁵N (Beaumont & Montgomery 2016).
@@ -136,8 +147,32 @@ best model, the model average, or one chosen model.
   group weaned earlier than another, partially pooled specimen estimates, and split-R̂
   as a convergence check.
 
-This is a two-stage model: it pools the specimen estimates rather than the raw δ¹⁵N
+This is a **two-stage** model: it pools the specimen estimates rather than the raw δ¹⁵N
 values.
+
+### One-stage model (`joint.py`)
+
+The curves and the group comparison can instead be estimated together from the raw
+values of every specimen (*Compare → Bayesian model → One-stage*):
+
+```
+δ15N_ij ~ N(post_i + drop_i / (1 + exp((age_ij − c_i)/s_i)), σ_i)
+m_i = c_i + k·s_i + shift_i          (the milestone in true age; k = ±ln((1−q)/q) or 0)
+m_i ~ N(μ_group, τ)      shift_i ~ N(0, age-model SD of the tooth)
+μ_group ~ N(mean, 50)    τ ~ half-Cauchy(3)    s_i ~ log-N(0, 1)    drop_i ~ U(0, 20)    σ_i ∝ 1/σ
+```
+
+Writing the curve in the tooth's recorded ages (`c`, `s`), and the milestone as
+`c + k·s + shift`, keeps the parameters that the data pin down separate from the ones
+the hierarchy pins down, which lets the sampler mix well. Curve parameters are updated by
+Metropolis steps tuned during warm-up; σ, the age shift and μ are drawn exactly; τ by a
+Metropolis step on log τ. 4 chains × 3000 kept draws after 2000 warm-up; split-R̂ is
+reported for τ, every μ and every specimen.
+
+Compared with the two-stage model, the uncertainty in each curve's shape and in each
+tooth's age model reaches the group comparison directly. It uses the logistic curve
+only, and leaves out teeth whose own logistic milestone lies outside their sampled ages,
+so that extrapolations do not drive the group means. They are listed in the results.
 
 ## 8. Validation
 
@@ -158,7 +193,11 @@ and drop drawn from user ranges. It then "cuts" them as the lab would:
 * growth-layer offset,
 * measurement noise,
 * missing samples,
-* an optional per-animal age-model error.
+* an optional per-animal age-model error,
+* the shape of the true curves: logistic, piecewise, exponential, two-phase or a random
+  mix. All shapes take about the same time from 5 % to 95 % of the drop, so they are
+  comparable, and testing with non-logistic truths shows how each model copes when its
+  shape is wrong.
 
 It runs the full analysis and scores each model's completion age against the truth
 (MAE, bias, RMSE, coverage, share fitted). Sweeping one setting with the same random
@@ -166,10 +205,7 @@ seed shows how accuracy depends on the protocol.
 
 ## Limitations / future work
 
-* Time averaging uses a single offset and linear volume weights. Livestock values must
-  still be measured (`TBD-LAB`); a full MDSS-style geometric model per tooth type would
-  be more realistic.
-* The hierarchical model pools estimates (two-stage). A joint model of the raw δ¹⁵N
-  values (e.g. in PyMC) would also carry the curve-shape uncertainty fully.
-* Simulated truths are logistic curves, which favours the logistic model. Other shapes
-  could be added to the planner.
+* The slice geometry assumes straight growth layers and a circular cross-section. Real
+  layers curve, and the livestock values must still be measured (`TBD-LAB`).
+* The one-stage model uses the logistic curve only and no time averaging or seasonal
+  term; it is a check on, not a replacement for, the per-specimen model comparison.
