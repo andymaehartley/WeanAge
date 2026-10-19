@@ -1,4 +1,8 @@
-// Thin wrapper over the WeanAge FastAPI backend.
+// How the app asks for work to be done. There are two versions:
+// * local app (`weanage`): requests go to the Python server on this computer.
+// * browser version: Python runs inside the page (pyworker.js), with no server at all.
+// The browser build marks its page with <meta name="weanage-mode" content="browser">.
+const IN_BROWSER = document.querySelector('meta[name="weanage-mode"]')?.content === "browser";
 
 async function request(path, options = {}) {
   const res = await fetch(path, options);
@@ -31,7 +35,7 @@ async function waitForJob(job, onProgress) {
   }
 }
 
-export const api = {
+const server = {
   config: () => request("/api/config"),
   example: () => request("/api/example"),
   uploadFile(file) {
@@ -55,3 +59,52 @@ export const api = {
   calibrate: (body) => request("/api/growth-tables/calibrate", json(body)),
   templateUrl: "/api/template.csv",
 };
+
+// ───────────── browser version ─────────────
+let worker = null;
+let nextId = 0;
+const waiting = new Map(); // request id -> { resolve, reject, onProgress }
+let showStatus = () => {};
+
+function python(name, request = {}, onProgress = null, content = undefined) {
+  if (!worker) {
+    worker = new Worker("pyworker.js");
+    worker.onmessage = ({ data }) => {
+      if ("status" in data) return showStatus(data.status);
+      const job = waiting.get(data.id);
+      if (!job) return;
+      if (data.progress) return job.onProgress?.(...data.progress);
+      waiting.delete(data.id);
+      data.ok ? job.resolve(data.result) : job.reject(new Error(data.error));
+    };
+    worker.onerror = (event) => { // the engine crashed: fail every waiting request instead of hanging
+      showStatus(null);
+      for (const job of waiting.values()) job.reject(new Error(event.message || "the analysis engine stopped"));
+      waiting.clear();
+    };
+  }
+  const id = ++nextId;
+  return new Promise((resolve, reject) => {
+    waiting.set(id, { resolve, reject, onProgress });
+    worker.postMessage({ id, name, request, content });
+  });
+}
+
+const browser = {
+  config: () => python("config"),
+  example: () => python("example"),
+  uploadFile: async (file) => python("upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
+  validateRecords: (records) => python("records", { records }),
+  analyze: (samples, options, onProgress) => python("analyze", { samples, options }, onProgress),
+  simulate: (body, onProgress) => python("simulate", body, onProgress),
+  aggregate: (body) => python("aggregate", body),
+  saveTable: (table) => python("save_table", table),
+  deleteTable: (species, tooth) => python("delete_table", { species, tooth }),
+  calibrate: (body) => python("calibrate", body),
+  templateUrl: "weanage_template.csv",
+};
+
+export const api = IN_BROWSER ? browser : server;
+export const inBrowser = IN_BROWSER;
+/** Show loading messages from the browser version's engine (text, or null when ready). */
+export const onEngineStatus = (callback) => { showStatus = callback; };

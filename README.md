@@ -47,6 +47,25 @@ Saved charts and reports always use the light colours so they print well.
 browser automatically. **Report** downloads a self-contained HTML report (print it to
 get a PDF).
 
+### Browser version (nothing to install)
+
+The same app can run entirely inside a web browser: the page downloads Python
+(Pyodide, about 40 MB the first time, then cached) and does every calculation on the
+user's own computer. No data leaves the computer, and there is no server to maintain.
+
+```bash
+python scripts/build_browser.py --serve   # build dist/browser/ and preview it at http://localhost:8000
+```
+
+`dist/browser/` is a folder of plain files that can go on any static web host. Pushing to
+`main` publishes it to GitHub Pages automatically (`.github/workflows/pages.yml`; one-time
+setup: *Settings → Pages → Source: GitHub Actions*).
+
+Differences from the local app:
+* the first visit needs internet and takes a little while to load; after that it starts quickly,
+* analyses use one processor core, so large datasets are slower,
+* saved growth tables and autosaved work are kept in that browser only.
+
 Without the app:
 
 ```bash
@@ -120,10 +139,12 @@ src/weanage/
   inference.py   group tests and the hierarchical Bayesian model
   simulate.py    the sampling planner
   calibrate.py   growth tables from known-age reference points
-  api.py         the web server (and background jobs with progress)
+  service.py     everything the app can ask for, as plain functions
+  api.py         the local web server (and background jobs with progress)
+  browser.py     the same requests for the browser version (Python inside the page)
   cli.py         the `weanage` command
   data/          growth tables, QC limits, lab parameters, template, synthetic example
-  web/           the app: HTML, CSS and plain JavaScript (no build step, works offline)
+  web/           the app: HTML, CSS and plain JavaScript (pyworker.js runs Python in the browser version)
 tests/           pytest suite, including a browser test (needs Playwright)
 packaging/       single-file app (PyInstaller)
 paper/           JOSS paper draft
@@ -136,6 +157,7 @@ pip install -e . pytest httpx ruff mypy
 pytest                       # add `pip install playwright && playwright install chromium` for the browser test
 ruff check src tests && mypy src
 python scripts/make_synthetic_example.py      # regenerate the example data
+python scripts/build_browser.py               # browser version in dist/browser/
 pyinstaller packaging/weanage.spec            # single-file app in dist/
 ```
 

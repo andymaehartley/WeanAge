@@ -118,6 +118,7 @@ summary { cursor: pointer; }
 .info-banner { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; padding: .55rem 1.5rem; font-size: .9rem; background: color-mix(in srgb, var(--accent) 10%, var(--card)); border-bottom: 1px solid var(--border); }
 
 /* ── placeholders still waiting on lab work (TBD-LAB) ── */
+.engine-status { margin: 1rem auto 0; max-width: 1200px; padding: .8rem 1rem; border: 1px solid var(--accent); border-radius: 8px; background: var(--tint); font-weight: 600; }
 .tbd-banner { background: var(--tbd-bg); color: var(--tbd-ink); border-bottom: 2px solid var(--tbd-border); padding: .6rem 1.5rem; font-size: .9rem; }
 .tbd-banner ul { margin: .5rem 0 .2rem; padding-left: 1.2rem; }
 .tbd { background: var(--tbd-bg) !important; outline: 2px dashed var(--tbd-border); outline-offset: -2px; }

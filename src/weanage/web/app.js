@@ -1,5 +1,5 @@
 // The main page: holds the app's state and draws each of the five views.
-import { api } from "./api.js";
+import { api, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, startTour, tourSeen } from "./help.js";
@@ -657,9 +657,14 @@ function showLook() {
 // ───────────── start ─────────────
 async function init() {
   try {
+    // The browser version downloads its Python engine first; show what is happening.
+    onEngineStatus((text) => {
+      $("#engine-status").hidden = !text;
+      $("#engine-status").textContent = text || "";
+    });
     state.config = await api.config();
   } catch (e) {
-    return toast(`Could not reach the WeanAge backend: ${e.message}`);
+    return toast(`Could not start WeanAge: ${e.message}`);
   }
   initSettings();
   initPlanner(state);

@@ -5,9 +5,7 @@ individual_id (each tooth uses its own growth table, so they join into one timel
 """
 
 import atexit
-import multiprocessing
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 from scipy import stats
@@ -216,6 +214,10 @@ POOL: dict = {}
 
 
 def worker_pool(workers):
+    # Imported here, not at the top: the browser version has no extra processes to start.
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
     if workers not in POOL:
         POOL.clear()
         POOL[workers] = ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("spawn"))
@@ -232,6 +234,8 @@ def analyze(samples, options, progress=None, workers=None):
     workers = workers if workers is not None else min(os.cpu_count() or 1, 8)
     if workers > 1 and len(groups) >= 6:
         try:
+            from concurrent.futures import as_completed
+
             jobs = {worker_pool(workers).submit(analyze_specimen, g, options): i for i, g in enumerate(groups)}
             for done, job in enumerate(as_completed(jobs), start=1):
                 results[jobs[job]] = job.result()
