@@ -1,41 +1,38 @@
+// The main page: holds the app's state and draws each of the five views.
 import { api } from "./api.js";
-import { curveChart, forestChart, svgToBlob } from "./chart.js";
-import { curveOptions } from "./curves.js";
+import { curveChart, curveOptions, forestChart, svgToBlob } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
-import { autosave, clearAutosave, loadAutosave, parseProject, serialiseProject } from "./project.js";
 import { buildReport } from "./report.js";
-import {
-  $, $$, ci, download, esc, help, MILESTONES, num, progressBar, pval, swatch, table, tbdBadge, toast, toCsv,
-} from "./util.js";
+import { $, $$, ci, download, esc, help, MILESTONES, num, progressBar, pval, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
 
 const state = {
-  config: null,
-  tbdIds: new Set(),
+  config: null, // settings and lists sent by the server
   samples: [],
-  report: null,
-  overrides: {}, // "species:tooth" -> {initiation_age_months, extension_rate_mm_per_month}
-  baselines: {}, // "site:species" -> {mean, sd}
-  editedTables: {}, // "species:tooth" -> GrowthTable (unsaved edits / calibrations)
+  report: null, // the server's check of the samples (issues, specimen list)
+  overrides: {}, // "species:tooth" -> simple linear age model
+  baselines: {}, // "site:species" -> adult-female δ15N {mean, sd}
+  editedTables: {}, // "species:tooth" -> growth table edited in the app
   results: null,
   estimates: null,
-  options: null,
-  current: null,
-  visible: new Set(),
+  options: null, // the settings used for the current results
+  current: null, // which specimen is shown
+  visible: new Set(), // which curves are switched on
   zoom: null,
   plan: null,
 };
+const capital = (s) => s[0].toUpperCase() + s.slice(1);
 
-// ───────────────────────── navigation ─────────────────────────
+// ───────────── switching views ─────────────
 function show(view) {
-  $$(".step").forEach((b) => {
-    const on = b.dataset.view === view;
-    b.classList.toggle("active", on);
-    if (on) b.setAttribute("aria-current", "page");
+  for (const b of $$(".step")) {
+    const isThis = b.dataset.view === view;
+    b.classList.toggle("active", isThis);
+    if (isThis) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
-  });
-  $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
+  }
+  for (const v of $$(".view")) v.classList.toggle("active", v.id === `view-${view}`);
   if (view === "settings") {
     renderGrowthList(state);
     renderBaselines();
@@ -44,34 +41,24 @@ function show(view) {
   window.scrollTo({ top: 0 });
 }
 
-function enableResultSteps(on) {
-  $$('.step[data-view="results"], .step[data-view="compare"]').forEach((b) => (b.disabled = !on));
-  $("#btn-report").disabled = !on;
+function enableResults(on) {
+  for (const b of $$('.step[data-view="results"], .step[data-view="compare"], #btn-report')) b.disabled = !on;
 }
 
-function fillHelpSlots(root = document) {
-  $$("[data-helpslot]", root).forEach((n) => {
-    if (!n.firstChild) n.innerHTML = help(n.dataset.helpslot);
-  });
-}
-
-// ───────────────────────── TBD banner ─────────────────────────
+// Highlight every setting that is still a placeholder (TBD-LAB).
 function renderTbd() {
   const items = state.config.tbd;
-  state.tbdIds = new Set(items.map((i) => i.id));
+  const ids = new Set(items.map((i) => i.id));
   $("#tbd-banner").hidden = !items.length;
   $("#tbd-count").textContent = items.length;
-  $("#tbd-list").innerHTML = items
-    .map((i) => `<li><strong>${esc(i.area)}:</strong> ${esc(i.label)} — ${esc(i.note)} <code>${esc(i.file)}</code></li>`)
-    .join("");
-  $$("[data-tbd]").forEach((node) => {
-    const on = state.tbdIds.has(node.dataset.tbd);
+  $("#tbd-list").innerHTML = items.map((i) => `<li><strong>${esc(i.area)}:</strong> ${esc(i.label)} — ${esc(i.note)} <code>${esc(i.file)}</code></li>`).join("");
+  for (const node of $$("[data-tbd]")) {
+    const on = ids.has(node.dataset.tbd);
+    const title = node.matches("label") ? node : node.querySelector("h2");
     node.classList.toggle("tbd", on);
-    const target = node.matches("label") ? node : node.querySelector("h2");
-    const badge = target?.querySelector(".tbd-badge");
-    if (on && target && !badge) target.insertAdjacentHTML("beforeend", ` ${tbdBadge}`);
-    if (!on && badge) badge.remove();
-  });
+    title.querySelector(".tbd-badge")?.remove();
+    if (on) title.insertAdjacentHTML("beforeend", ` ${tbdBadge}`);
+  }
 }
 
 async function refreshConfig() {
@@ -79,71 +66,60 @@ async function refreshConfig() {
   renderTbd();
 }
 
-// ───────────────────────── 1. data ─────────────────────────
-function setReport(report, { keepResults = false } = {}) {
+// ───────────── 1. data ─────────────
+function setReport(report, keepResults = false) {
   state.report = report;
   state.samples = report.samples;
   if (!keepResults) {
     state.results = state.estimates = null;
-    enableResultSteps(false);
+    enableResults(false);
   }
   renderData();
-  persist();
+  autosave();
 }
 
-async function revalidate() {
-  setReport(await api.validateRecords(state.samples));
+async function recheck(keepResults = false) {
+  setReport(await api.validateRecords(state.samples), keepResults);
 }
 
 function ageModelLabel(species, tooth) {
   const key = `${species}:${tooth}`;
   if (state.overrides[key]) return "custom linear";
   const t = state.editedTables[key] || state.config.growth_tables.find((g) => `${g.species}:${g.tooth}` === key);
-  if (!t) return '<span class="warn-text">none — add one in Settings</span>';
-  return `${esc(t.label)} ${t.placeholder ? tbdBadge : ""}`;
+  return t ? `${esc(t.label)} ${t.placeholder ? tbdBadge : ""}` : '<span class="warn-text">none — add one in Settings</span>';
 }
 
 function renderData() {
-  const { report } = state;
-  const issues = report ? report.issues : [];
+  const issues = state.report ? state.report.issues : [];
   $("#issues-card").hidden = !issues.length;
   $("#issues").innerHTML = issues
     .map((i) => `<li class="${i.severity}">${i.row ? `<b>Row ${i.row}</b>${i.field ? ` (${esc(i.field)})` : ""}: ` : ""}${esc(i.message)}</li>`)
     .join("");
-
   $("#specimens-card").hidden = !state.samples.length;
   $("#sample-count").textContent = `· ${state.samples.length} samples`;
-  table(
-    $("#specimen-table"),
-    [
-      { label: "Specimen", key: "specimen_id" },
-      { label: "Animal", render: (s) => esc(s.individual_id || "—") },
-      { label: "Site", key: "site" },
-      { label: "Species", key: "species" },
-      { label: "Tooth", key: "tooth" },
-      { label: "Samples", key: "n_samples", cls: "num" },
-      { label: "Age model", render: (s) => ageModelLabel(s.species, s.tooth) },
-    ],
-    report ? report.specimens : []
-  );
+  table($("#specimen-table"), [
+    { label: "Specimen", key: "specimen_id" },
+    { label: "Animal", render: (s) => esc(s.individual_id || "—") },
+    { label: "Site", key: "site" },
+    { label: "Species", key: "species" },
+    { label: "Tooth", key: "tooth" },
+    { label: "Samples", key: "n_samples", cls: "num" },
+    { label: "Age model", render: (s) => ageModelLabel(s.species, s.tooth) },
+  ], state.report ? state.report.specimens : []);
 
   const qc = settings().qc;
-  const cnBad = (s) => s.cn_ratio != null && (s.cn_ratio < qc.cn_min || s.cn_ratio > qc.cn_max);
-  table(
-    $("#sample-table"),
-    [
-      { label: "Specimen", key: "specimen_id" },
-      { label: "Position (mm)", render: (s) => `${num(s.position_mm, 2)}${s.position_measured_mm != null ? ` <small class="muted">(cervix ${num(s.position_measured_mm, 1)})</small>` : ""}`, cls: "num" },
-      { label: "δ¹⁵N", render: (s) => num(s.d15N), cls: "num" },
-      { label: "δ¹³C", render: (s) => num(s.d13C), cls: "num" },
-      { label: "%C", render: (s) => num(s.pct_C, 1), cls: "num" },
-      { label: "%N", render: (s) => num(s.pct_N, 1), cls: "num" },
-      { label: "C:N", render: (s) => `<span class="${cnBad(s) ? "bad" : ""}">${num(s.cn_ratio)}</span>`, cls: "num" },
-      { label: "Notes", key: "notes" },
-      { label: "<span class='sr-only'>Remove</span>", render: (s) => `<button class="ghost tiny" data-remove="${state.samples.indexOf(s)}" aria-label="Remove sample at ${esc(s.position_mm)} mm from ${esc(s.specimen_id)}">✕</button>` },
-    ],
-    state.samples
-  );
+  const badCN = (s) => s.cn_ratio != null && (s.cn_ratio < qc.cn_min || s.cn_ratio > qc.cn_max);
+  table($("#sample-table"), [
+    { label: "Specimen", key: "specimen_id" },
+    { label: "Position (mm)", cls: "num", render: (s) => num(s.position_mm) + (s.position_measured_mm != null ? ` <small class="muted">(cervix ${num(s.position_measured_mm, 1)})</small>` : "") },
+    { label: "δ¹⁵N", cls: "num", render: (s) => num(s.d15N) },
+    { label: "δ¹³C", cls: "num", render: (s) => num(s.d13C) },
+    { label: "%C", cls: "num", render: (s) => num(s.pct_C, 1) },
+    { label: "%N", cls: "num", render: (s) => num(s.pct_N, 1) },
+    { label: "C:N", cls: "num", render: (s) => `<span class="${badCN(s) ? "bad" : ""}">${num(s.cn_ratio)}</span>` },
+    { label: "Notes", key: "notes" },
+    { label: "<span class='sr-only'>Remove</span>", render: (s, i) => `<button class="ghost tiny" data-remove="${i}" aria-label="Remove sample at ${esc(s.position_mm)} mm from ${esc(s.specimen_id)}">✕</button>` },
+  ], state.samples);
 }
 
 async function loadFile(file) {
@@ -155,37 +131,32 @@ async function loadFile(file) {
   }
 }
 
-async function addManualSample(ev) {
-  ev.preventDefault();
-  const form = ev.target;
-  const data = Object.fromEntries(new FormData(form).entries());
-  const step = parseFloat(data.step) || 1;
+async function addSampleByHand(event) {
+  event.preventDefault();
+  const form = event.target;
+  const data = Object.fromEntries(new FormData(form));
+  const step = Number(data.step) || 1;
   delete data.step;
   const msg = $("#manual-msg");
   try {
     const check = await api.validateRecords([data]);
     const errors = check.issues.filter((i) => i.severity === "error");
-    form.querySelectorAll(".invalid").forEach((n) => {
-      n.classList.remove("invalid");
-      n.removeAttribute("aria-invalid");
-    });
+    for (const input of form.elements) {
+      const bad = errors.some((e) => e.field === input.name);
+      input.classList.toggle("invalid", bad);
+      if (bad) input.setAttribute("aria-invalid", "true");
+      else input.removeAttribute("aria-invalid");
+    }
     if (errors.length) {
-      errors.forEach((e) => {
-        const f = form.elements[e.field];
-        if (f) {
-          f.classList.add("invalid");
-          f.setAttribute("aria-invalid", "true");
-        }
-      });
       msg.className = "inline-msg error";
       msg.textContent = errors.map((e) => `${e.field}: ${e.message}`).join("; ");
       return;
     }
     state.samples.push(check.samples[0]);
-    await revalidate();
+    await recheck();
     msg.className = "inline-msg ok";
-    msg.textContent = `Added ${check.samples[0].specimen_id} @ ${check.samples[0].position_mm} mm`;
-    form.elements.position_mm.value = (parseFloat(data.position_mm) + step).toFixed(1);
+    msg.textContent = `Added ${data.specimen_id} @ ${data.position_mm} mm`;
+    form.elements.position_mm.value = (Number(data.position_mm) + step).toFixed(1);
     for (const f of ["d15N", "d13C", "pct_C", "pct_N", "cn_ratio", "collagen_yield_pct"]) form.elements[f].value = "";
     form.elements.d15N.focus();
   } catch (e) {
@@ -194,70 +165,64 @@ async function addManualSample(ev) {
   }
 }
 
-// ───────────────────────── 2. settings ─────────────────────────
+// ───────────── 2. settings ─────────────
+// Which form control holds each setting, and what kind of value it holds.
 const FIELDS = {
-  reported_milestone: ["#opt-milestone", "value"],
-  analytical_sd_permil: ["#opt-sd", "number-or-null"],
+  reported_milestone: ["#opt-milestone", "text"],
+  analytical_sd_permil: ["#opt-sd", "number"],
   min_weaning_drop_permil: ["#opt-mindrop", "number"],
   monte_carlo_draws: ["#opt-draws", "number"],
-  uncertainty: ["#opt-uncertainty", "value"],
+  uncertainty: ["#opt-uncertainty", "text"],
   bootstrap_draws: ["#opt-boot", "number"],
-  time_averaging: ["#opt-timeavg", "checked"],
+  time_averaging: ["#opt-timeavg", "tick"],
   increment_width_mm: ["#opt-incwidth", "number"],
   growth_layer_offset_mm: ["#opt-layeroffset", "number"],
   inner_dentine_weight: ["#opt-innerweight", "number"],
-  seasonal_term: ["#opt-seasonal", "checked"],
+  seasonal_term: ["#opt-seasonal", "tick"],
   season_period_months: ["#opt-period", "number"],
-  elbow_normalise: ["#opt-elbownorm", "checked"],
-  constrain_adult_plateau: ["#opt-constrain", "checked"],
+  elbow_normalise: ["#opt-elbownorm", "tick"],
+  constrain_adult_plateau: ["#opt-constrain", "tick"],
 };
 
 function initSettings() {
-  const d = state.config.defaults;
   $("#model-options").innerHTML = state.config.models
-    .map(
-      (m) => `<label class="check model-opt">
-        <input type="checkbox" name="model" value="${m.name}" ${d.models.includes(m.name) ? "checked" : ""}>
-        ${swatch(m.name)}
-        <span><strong>${esc(m.label)}</strong> ${m.name === "two_phase" ? help("two_phase") : m.name === "elbow" ? help("elbow") : ""}<br><small>${esc(m.description)}</small></span>
-      </label>`
-    )
+    .map((m) => `<label class="check model-opt">
+        <input type="checkbox" name="model" value="${m.name}">${swatch(m.name)}
+        <span><strong>${esc(m.label)}</strong> ${["two_phase", "elbow"].includes(m.name) ? help(m.name) : ""}<br><small>${esc(m.description)}</small></span>
+      </label>`)
     .join("");
-  const cmpModel = $("#cmp-model");
-  for (const m of state.config.models) cmpModel.insertAdjacentHTML("beforeend", `<option value="${m.name}">${esc(m.label)}</option>`);
-  applySettings(d);
+  for (const m of state.config.models) $("#cmp-model").insertAdjacentHTML("beforeend", `<option value="${m.name}">${esc(m.label)}</option>`);
+  applySettings(state.config.defaults);
 }
 
-/** Put an options object (defaults, or a loaded project's settings) into the form. */
+/** Put a settings object (the defaults, or a saved project's) into the form. */
 function applySettings(o) {
-  if (o.models) $$('input[name="model"]').forEach((i) => (i.checked = o.models.includes(i.value)));
+  if (o.models) for (const box of $$('input[name="model"]')) box.checked = o.models.includes(box.value);
   if (o.transition_threshold != null) $("#opt-threshold").value = Math.round(o.transition_threshold * 100);
-  for (const [key, [sel, kind]] of Object.entries(FIELDS)) {
+  for (const [key, [selector, kind]] of Object.entries(FIELDS)) {
     if (!(key in o)) continue;
-    const input = $(sel);
-    if (kind === "checked") input.checked = !!o[key];
-    else input.value = o[key] ?? "";
+    if (kind === "tick") $(selector).checked = !!o[key];
+    else $(selector).value = o[key] ?? "";
   }
-  for (const [k, v] of Object.entries(o.qc || {})) {
-    const input = $(`#qc-${k}`);
-    if (!input) continue;
-    if (input.type === "checkbox") input.checked = v;
-    else input.value = v;
+  for (const [key, value] of Object.entries(o.qc || {})) {
+    const input = $(`#qc-${key}`);
+    if (input?.type === "checkbox") input.checked = value;
+    else if (input) input.value = value;
   }
   if (o.growth_overrides) state.overrides = { ...o.growth_overrides };
   if (o.adult_baselines) state.baselines = { ...o.adult_baselines };
   if (o.growth_tables) state.editedTables = Object.fromEntries(o.growth_tables.map((t) => [`${t.species}:${t.tooth}`, t]));
 }
 
-/** Current settings as an AnalysisOptions payload. */
+/** Read the form back into a settings object for the server. */
 function settings() {
   const qc = {};
-  for (const k of Object.keys(state.config.defaults.qc)) {
-    const input = $(`#qc-${k}`);
-    qc[k] = input.type === "checkbox" ? input.checked : Number(input.value);
+  for (const key of Object.keys(state.config.defaults.qc)) {
+    const input = $(`#qc-${key}`);
+    qc[key] = input.type === "checkbox" ? input.checked : Number(input.value);
   }
   const out = {
-    models: $$('input[name="model"]:checked').map((i) => i.value),
+    models: $$('input[name="model"]:checked').map((box) => box.value),
     transition_threshold: (Number($("#opt-threshold").value) || 5) / 100,
     random_seed: 42,
     qc,
@@ -265,188 +230,144 @@ function settings() {
     adult_baselines: state.baselines,
     growth_tables: Object.values(state.editedTables).map(({ saved, ...t }) => t),
   };
-  const d = state.config.defaults;
-  for (const [key, [sel, kind]] of Object.entries(FIELDS)) {
-    const input = $(sel);
-    if (kind === "checked") out[key] = input.checked;
-    else if (kind === "value") out[key] = input.value;
-    else if (input.value === "") out[key] = kind === "number-or-null" ? null : d[key];
-    else out[key] = Number(input.value);
+  for (const [key, [selector, kind]] of Object.entries(FIELDS)) {
+    const input = $(selector);
+    if (kind === "tick") out[key] = input.checked;
+    else if (kind === "text") out[key] = input.value;
+    else out[key] = input.value === "" ? state.config.defaults[key] : Number(input.value);
   }
-  if (!out.analytical_sd_permil) out.analytical_sd_permil = null;
+  out.analytical_sd_permil ||= null; // blank or 0 means "not known yet"
   return out;
 }
 
 function renderBaselines() {
   const keys = [...new Set(state.samples.map((s) => `${s.site}:${s.species}`))];
   $("#baseline-list").innerHTML = keys.length
-    ? keys
-        .map((key) => {
-          const b = state.baselines[key] || {};
-          return `<div class="baseline-row" data-key="${esc(key)}">
-            <span class="key">${esc(key.replace(":", " · "))}</span>
-            <label>Mean δ¹⁵N (‰)<input type="number" step="0.01" class="bl-mean" value="${b.mean ?? ""}" placeholder="TBD-LAB"></label>
-            <label>SD (‰)<input type="number" step="0.01" min="0.01" class="bl-sd" value="${b.sd ?? ""}" placeholder="0.5"></label>
-          </div>`;
-        })
-        .join("")
+    ? keys.map((key) => `<div class="baseline-row" data-key="${esc(key)}">
+          <span class="key">${esc(key.replace(":", " · "))}</span>
+          <label>Mean δ¹⁵N (‰)<input type="number" step="0.01" class="bl-mean" value="${state.baselines[key]?.mean ?? ""}" placeholder="TBD-LAB"></label>
+          <label>SD (‰)<input type="number" step="0.01" min="0.01" class="bl-sd" value="${state.baselines[key]?.sd ?? ""}" placeholder="0.5"></label>
+        </div>`).join("")
     : '<p class="muted">Load data to enter baselines for each site and species.</p>';
 }
 
-function syncBaseline(row) {
-  const mean = row.querySelector(".bl-mean").value;
-  const sd = Number(row.querySelector(".bl-sd").value) || 0.5;
-  if (mean === "") delete state.baselines[row.dataset.key];
-  else state.baselines[row.dataset.key] = { mean: Number(mean), sd };
-  persist();
-}
-
 async function runAnalysis() {
-  const msg = $("#run-msg");
   const opts = settings();
   if (!state.samples.length) return toast("Load some data first.");
   if (!opts.models.length) return toast("Choose at least one curve model.");
-  const btn = $("#btn-run");
-  btn.disabled = true;
-  msg.className = "inline-msg";
-  msg.textContent = "";
+  $("#btn-run").disabled = true;
   progressBar($("#run-progress"), 0, 0, "Fitting specimens");
   try {
-    const out = await api.analyze(state.samples, opts, (d, t) => progressBar($("#run-progress"), d, t, "Fitting specimens"));
-    state.results = out.results;
-    state.estimates = out.estimates;
-    state.options = opts;
-    state.current = out.results[0]?.specimen_id;
+    const out = await api.analyze(state.samples, opts, (done, total) => progressBar($("#run-progress"), done, total, "Fitting specimens"));
+    Object.assign(state, { results: out.results, estimates: out.estimates, options: opts, current: out.results[0]?.specimen_id, zoom: null });
     state.visible = new Set([...opts.models, "average"]);
-    state.zoom = null;
-    enableResultSteps(true);
+    enableResults(true);
     renderResults();
     show("results");
-    persist();
+    autosave();
   } catch (e) {
     toast(e.message);
   } finally {
-    btn.disabled = false;
+    $("#btn-run").disabled = false;
     $("#run-progress").hidden = true;
   }
 }
 
-// ───────────────────────── 3. results ─────────────────────────
-const isInfo = (w) => /PLACEHOLDER|^Time averaging on|teeth .* combined/.test(w);
+// ───────────── 3. results ─────────────
+const isNote = (w) => /PLACEHOLDER|^Time averaging on|teeth .* combined/.test(w); // information, not a problem
+const warningCount = (r) => r.warnings.filter((w) => !isNote(w)).length + r.fits.reduce((n, f) => n + f.warnings.length, 0);
 
 function renderResults() {
   const milestone = state.options.reported_milestone;
   $("#result-list").innerHTML = state.results
     .map((r) => {
-      const best = r.fits.find((f) => f.model === r.best_model);
-      const m = best?.[milestone];
-      const warn = r.warnings.filter((w) => !isInfo(w)).length + r.fits.reduce((n, f) => n + f.warnings.length, 0);
-      const sel = r.specimen_id === state.current;
-      return `<li><button role="option" aria-selected="${sel}" tabindex="${sel ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${sel ? "active" : ""}">
+      const best = r.fits.find((f) => f.model === r.best_model)?.[milestone];
+      const chosen = r.specimen_id === state.current;
+      return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
         <span><strong>${esc(r.specimen_id)}</strong><small>${esc(r.site)} · ${esc(r.species)} ${esc(r.tooth)}</small></span>
-        <span class="pill">${m ? `${num(m.estimate, 1)} mo` : "—"}${warn ? ` <span class="warn-dot" aria-label="${warn} warning(s)">!</span>` : ""}</span>
+        <span class="pill">${best ? `${num(best.estimate, 1)} mo` : "—"}${warningCount(r) ? ` <span class="warn-dot" aria-label="${warningCount(r)} warning(s)">!</span>` : ""}</span>
       </button></li>`;
     })
     .join("");
   const res = state.results.find((r) => r.specimen_id === state.current) || state.results[0];
   if (!res) return;
-
   $("#res-title").textContent = res.specimen_id;
   $("#res-meta").innerHTML = `${esc(res.site)} · ${esc(res.species)} ${esc(res.tooth)}${res.period ? ` · ${esc(res.period)}` : ""} · age model: ${esc(res.growth_table)} ${res.growth_placeholder ? tbdBadge : ""}`;
 
-  const toggles = [...res.fits.map((f) => [f.model, f.label.split(" (")[0]]), ...(Object.keys(res.model_average || {}).length ? [["average", "Model average"]] : [])];
+  const hasAverage = Object.keys(res.model_average).length > 0;
+  const toggles = res.fits.map((f) => [f.model, f.label.split(" (")[0]]).concat(hasAverage ? [["average", "Model average"]] : []);
   $("#curve-toggles").innerHTML = toggles
     .map(([m, label]) => `<label class="check toggle"><input type="checkbox" data-model="${m}" ${state.visible.has(m) ? "checked" : ""}>${swatch(m)}${esc(label)}</label>`)
     .join("");
 
-  const best = res.fits.find((f) => f.model === res.best_model);
-  const bm = best?.[milestone];
-  const avg = res.model_average?.[milestone];
-  const extra = best?.model === "two_phase"
-    ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${num(best.extra.supplementation_months, 1)} months (supplementary feeding while suckling).`
-    : "";
-  $("#res-summary").innerHTML = best && bm
-    ? `Best-supported model: <strong>${esc(best.label)}</strong>. Estimated weaning ${milestone}: <strong>${num(bm.estimate, 1)} months</strong>${bm.ci_low != null ? ` (95% interval ${ci(bm)})` : ""}.
-       ${avg ? `Averaged over all models: <strong>${num(avg.estimate, 1)} months</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}.` : ""}
-       Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `; ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${extra}
-       ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}`
-    : best
-      ? `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${num(avg.estimate, 1)} months</strong>` : ""}.`
-      : "No model could be fitted to this specimen.";
-
+  $("#res-summary").innerHTML = summaryText(res, milestone);
   if (res.points.length) {
-    curveChart($("#res-chart"), curveOptions(res, {
-      visible: state.visible,
-      milestone,
-      xRange: state.zoom,
-      showD13C: $("#opt-show13c").checked,
-      onZoom: (range) => {
-        state.zoom = range;
-        renderResults();
-      },
-    }));
+    const onZoom = (range) => { state.zoom = range; renderResults(); };
+    curveChart($("#res-chart"), curveOptions(res, { visible: state.visible, milestone, xRange: state.zoom, showD13C: $("#opt-show13c").checked, onZoom }));
   } else {
     $("#res-chart").innerHTML = '<p class="muted">No data points to plot.</p>';
   }
   $("#btn-zoom-reset").hidden = !state.zoom;
 
   const warnings = [...res.warnings, ...res.fits.flatMap((f) => f.warnings.map((w) => `${f.label}: ${w}`))];
-  $("#res-warnings").innerHTML = warnings
-    .map((w) => `<li class="${/PLACEHOLDER/.test(w) ? "tbd-li" : isInfo(w) ? "info" : "warning"}">${esc(w)}</li>`)
-    .join("");
-  const dg = res.diagnostics || {};
-  const diag = [
-    dg.residual_seasonal_p != null && `annual cycle in residuals: ${num(dg.residual_seasonal_amplitude)}‰ (p ${pval(dg.residual_seasonal_p)})`,
-    dg.d13C_seasonal_p != null && `annual cycle in δ¹³C: ${num(dg.d13C_seasonal_amplitude)}‰ (p ${pval(dg.d13C_seasonal_p)})`,
-    dg.d13C_d15N_spearman != null && `δ¹³C–δ¹⁵N correlation ρ = ${num(dg.d13C_d15N_spearman)}`,
+  $("#res-warnings").innerHTML = warnings.map((w) => `<li class="${/PLACEHOLDER/.test(w) ? "tbd-li" : isNote(w) ? "info" : "warning"}">${esc(w)}</li>`).join("");
+  const d = res.diagnostics;
+  const checks = [
+    d.residual_seasonal_p != null && `annual cycle in residuals: ${num(d.residual_seasonal_amplitude)}‰ (p ${pval(d.residual_seasonal_p)})`,
+    d.d13C_seasonal_p != null && `annual cycle in δ¹³C: ${num(d.d13C_seasonal_amplitude)}‰ (p ${pval(d.d13C_seasonal_p)})`,
+    d.d13C_d15N_spearman != null && `δ¹³C–δ¹⁵N correlation ρ = ${num(d.d13C_d15N_spearman)}`,
   ].filter(Boolean);
-  $("#res-diagnostics").innerHTML = diag.length ? `<p class="muted small">Seasonality checks ${help("seasonal")}: ${diag.join(" · ")}</p>` : "";
+  $("#res-diagnostics").innerHTML = checks.length ? `<p class="muted small">Seasonality checks ${help("seasonal")}: ${checks.join(" · ")}</p>` : "";
 
-  const avgRow = Object.keys(res.model_average || {}).length
-    ? [{ model: "average", label: "Model average", converged: true, ...res.model_average, isAverage: true }]
-    : [];
-  table(
-    $("#fit-table"),
-    [
-      { label: "Model", render: (f) => `${swatch(f.model)}${esc(f.label)}${f.model === res.best_model ? ' <span class="pill best">best</span>' : ""}` },
-      ...MILESTONES.map((k) => ({
-        label: k[0].toUpperCase() + k.slice(1),
-        cls: "num",
-        render: (f) => (f[k] ? `${num(f[k].estimate, 1)}<br><small>${ci(f[k])}</small>` : "—"),
-      })),
-      { label: "Nursing δ¹⁵N", render: (f) => num(f.nursing_d15N), cls: "num" },
-      { label: "Adult δ¹⁵N", render: (f) => num(f.adult_d15N), cls: "num" },
-      { label: "Drop (‰)", render: (f) => num(f.drop_permil), cls: "num" },
-      { label: "Enrichment vs ♀ (‰)", title: "Nursing δ15N minus adult-female baseline", render: (f) => num(f.enrichment_permil), cls: "num" },
-      { label: "RMSE", render: (f) => num(f.rmse, 3), cls: "num" },
-      { label: "ΔAICc", render: (f) => num(f.delta_aicc, 2), cls: "num" },
-      { label: "Weight", render: (f) => num(f.akaike_weight, 2), cls: "num" },
-      {
-        label: "Notes",
-        render: (f) => {
-          if (f.isAverage) return '<small class="muted">weighted by Akaike weight</small>';
-          if (!f.converged) return `<span class="warn-text">${esc(f.message)}</span>`;
-          const e = f.extra || {};
-          const bits = [];
-          if (e.intermediate_d15N != null) bits.push(`intermediate ${num(e.intermediate_d15N, 1)}‰ for ${num(e.supplementation_months, 1)} mo`);
-          if (e.seasonal_amplitude_permil != null) bits.push(`seasonal ±${num(e.seasonal_amplitude_permil)}‰`);
-          return `<small>${bits.join("; ") || "fitted"}</small>`;
-        },
-      },
-    ],
-    [...res.fits, ...avgRow],
-    (f) => (f.model === res.best_model ? "best-row" : f.isAverage ? "avg-row" : "")
-  );
+  const averageRow = hasAverage ? [{ model: "average", label: "Model average", converged: true, isAverage: true, ...res.model_average }] : [];
+  table($("#fit-table"), [
+    { label: "Model", render: (f) => `${swatch(f.model)}${esc(f.label)}${f.model === res.best_model ? ' <span class="pill best">best</span>' : ""}` },
+    ...MILESTONES.map((k) => ({ label: capital(k), cls: "num", render: (f) => (f[k] ? `${num(f[k].estimate, 1)}<br><small>${ci(f[k])}</small>` : "—") })),
+    { label: "Nursing δ¹⁵N", cls: "num", render: (f) => num(f.nursing_d15N) },
+    { label: "Adult δ¹⁵N", cls: "num", render: (f) => num(f.adult_d15N) },
+    { label: "Drop (‰)", cls: "num", render: (f) => num(f.drop_permil) },
+    { label: "Enrichment vs ♀ (‰)", title: "Nursing δ15N minus adult-female baseline", cls: "num", render: (f) => num(f.enrichment_permil) },
+    { label: "RMSE", cls: "num", render: (f) => num(f.rmse, 3) },
+    { label: "ΔAICc", cls: "num", render: (f) => num(f.delta_aicc) },
+    { label: "Weight", cls: "num", render: (f) => num(f.akaike_weight) },
+    { label: "Notes", render: fitNotes },
+  ], [...res.fits, ...averageRow], (f) => (f.model === res.best_model ? "best-row" : f.isAverage ? "avg-row" : ""));
 }
 
-// ───────────────────────── 4. compare ─────────────────────────
+function summaryText(res, milestone) {
+  const best = res.fits.find((f) => f.model === res.best_model);
+  const age = best?.[milestone];
+  const avg = res.model_average[milestone];
+  if (!best) return "No model could be fitted to this specimen.";
+  if (!age) return `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${num(avg.estimate, 1)} months</strong>` : ""}.`;
+  const staged = best.model === "two_phase"
+    ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${num(best.extra.supplementation_months, 1)} months (supplementary feeding while suckling).` : "";
+  return `Best-supported model: <strong>${esc(best.label)}</strong>. Estimated weaning ${milestone}: <strong>${num(age.estimate, 1)} months</strong>${age.ci_low != null ? ` (95% interval ${ci(age)})` : ""}.
+    ${avg ? `Averaged over all models: <strong>${num(avg.estimate, 1)} months</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}.` : ""}
+    Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `; ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${staged}
+    ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}`;
+}
+
+function fitNotes(f) {
+  if (f.isAverage) return '<small class="muted">weighted by Akaike weight</small>';
+  if (!f.converged) return `<span class="warn-text">${esc(f.message)}</span>`;
+  const notes = [];
+  if (f.extra.intermediate_d15N != null) notes.push(`intermediate ${num(f.extra.intermediate_d15N, 1)}‰ for ${num(f.extra.supplementation_months, 1)} mo`);
+  if (f.extra.seasonal_amplitude_permil != null) notes.push(`seasonal ±${num(f.extra.seasonal_amplitude_permil)}‰`);
+  return `<small>${notes.join("; ") || "fitted"}</small>`;
+}
+
+function chooseSpecimen(id) {
+  state.current = id;
+  state.zoom = null;
+  renderResults();
+  $(`[data-specimen="${CSS.escape(id)}"]`)?.focus();
+}
+
+// ───────────── 4. compare ─────────────
 function compareRequest() {
-  return {
-    estimates: state.estimates,
-    group_by: $$('input[name="group"]:checked').map((i) => i.value),
-    milestone: $("#cmp-milestone").value,
-    model: $("#cmp-model").value || null,
-  };
+  const group_by = $$('input[name="group"]:checked').map((box) => box.value);
+  return { estimates: state.estimates, group_by, milestone: $("#cmp-milestone").value, model: $("#cmp-model").value || null };
 }
 
 async function refreshCompare() {
@@ -456,162 +377,154 @@ async function refreshCompare() {
   const { group_by, milestone, model } = body;
   try {
     const out = await api.aggregate(body);
-    state.lastCompare = out;
-    const label = (row) => group_by.map((g) => row[g] ?? "—").join(" · ");
+    const groupName = (row) => group_by.map((g) => row[g] ?? "—").join(" · ");
     const rows = state.estimates.filter((e) => (model ? e.model === model : e.is_best));
-    const re = Object.fromEntries(out.tests.groups.map((g) => [g.group, g]));
-    forestChart(
-      $("#cmp-chart"),
-      out.summary.map((s) => {
-        const g = re[label(s)];
-        return {
-          label: label(s),
-          mean: g ? g.mean : s.mean,
-          lo: g ? g.ci_low : s.ci95_low,
-          hi: g ? g.ci_high : s.ci95_high,
-          values: rows
-            .filter((r) => group_by.every((k) => (r[k] ?? "—") === s[k]))
-            .filter((r) => r[milestone] != null)
-            .map((r) => ({ v: r[milestone], label: `${esc(r.specimen_id)}: ${num(r[milestone], 1)} mo (${r.model})` })),
-        };
-      }),
-      `Weaning ${milestone} (months): random-effects mean ± 95% CI, dots = specimens`
-    );
-    table(
-      $("#cmp-table"),
-      [
-        ...group_by.map((g) => ({ label: g[0].toUpperCase() + g.slice(1), key: g })),
-        { label: "Estimates", key: "model" },
-        { label: "n", key: "n", cls: "num" },
-        { label: "Mean", render: (r) => num(r.mean, 1), cls: "num" },
-        { label: "SD", render: (r) => num(r.sd, 1), cls: "num" },
-        { label: "Median", render: (r) => num(r.median, 1), cls: "num" },
-        { label: "Range", render: (r) => `${num(r.min, 1)}–${num(r.max, 1)}`, cls: "num" },
-        { label: "95% CI (t)", render: (r) => (r.ci95_low != null ? `${num(r.ci95_low, 1)}–${num(r.ci95_high, 1)}` : "—"), cls: "num" },
-      ],
-      out.summary
-    );
+    const means = Object.fromEntries(out.tests.groups.map((g) => [g.group, g]));
+    forestChart($("#cmp-chart"), out.summary.map((s) => ({
+      label: groupName(s),
+      mean: means[groupName(s)]?.mean,
+      lo: means[groupName(s)]?.ci_low,
+      hi: means[groupName(s)]?.ci_high,
+      values: rows.filter((r) => groupName(r) === groupName(s) && r[milestone] != null)
+        .map((r) => ({ v: r[milestone], label: `${esc(r.specimen_id)}: ${num(r[milestone], 1)} mo (${r.model})` })),
+    })), `Weaning ${milestone} (months): random-effects mean ± 95% CI, dots = specimens`);
+    table($("#cmp-table"), [
+      ...group_by.map((g) => ({ label: capital(g), key: g })),
+      { label: "Estimates", key: "model" },
+      { label: "n", key: "n", cls: "num" },
+      { label: "Mean", cls: "num", render: (r) => num(r.mean, 1) },
+      { label: "SD", cls: "num", render: (r) => num(r.sd, 1) },
+      { label: "Median", cls: "num", render: (r) => num(r.median, 1) },
+      { label: "Range", cls: "num", render: (r) => `${num(r.min, 1)}–${num(r.max, 1)}` },
+      { label: "95% CI (t)", cls: "num", render: (r) => (r.ci95_low != null ? `${num(r.ci95_low, 1)}–${num(r.ci95_high, 1)}` : "—") },
+    ], out.summary);
     renderTests(out.tests);
-    const models = state.options.models;
-    table(
-      $("#dis-table"),
-      [
-        { label: "Specimen", key: "specimen_id" },
-        { label: "Site", key: "site" },
-        { label: "Species", key: "species" },
-        ...models.map((m) => ({ label: esc(m), render: (r) => num(r[m], 1), cls: "num" })),
-        { label: "Range (months)", render: (r) => `<strong>${num(r.range, 1)}</strong>`, cls: "num" },
-      ],
-      out.disagreement
-    );
-    $("#val-body").innerHTML = out.validation.length
-      ? '<div class="table-wrap"><table id="val-table"></table></div>'
-      : `<div class="tbd tbd-block">${tbdBadge} No known-age reference animals or published estimates in this dataset. Add a
-         <code>known_weaning_age_months</code> column for modern reference animals, or a
-         <code>published_weaning_age_months</code> column to compare with published estimates (e.g. WEAN or
-         visual readings), to see bias, MAE, RMSE and interval coverage for each model here.</div>`;
-    if (out.validation.length) {
-      table(
-        $("#val-table"),
-        [
-          { label: "Reference", key: "reference" },
-          { label: "Model", key: "model" },
-          { label: "n", key: "n", cls: "num" },
-          { label: "Bias", render: (r) => num(r.bias), cls: "num" },
-          { label: "MAE", render: (r) => num(r.mae), cls: "num" },
-          { label: "RMSE", render: (r) => num(r.rmse), cls: "num" },
-          { label: "Pearson r", render: (r) => num(r.pearson_r), cls: "num" },
-          { label: "95% interval coverage", render: (r) => (r.ci_coverage != null ? `${Math.round(r.ci_coverage * 100)}%` : "—"), cls: "num" },
-        ],
-        out.validation
-      );
-    }
+    table($("#dis-table"), [
+      { label: "Specimen", key: "specimen_id" },
+      { label: "Site", key: "site" },
+      { label: "Species", key: "species" },
+      ...state.options.models.map((m) => ({ label: esc(m), cls: "num", render: (r) => num(r[m], 1) })),
+      { label: "Range (months)", cls: "num", render: (r) => `<strong>${num(r.range, 1)}</strong>` },
+    ], out.disagreement);
+    renderValidation(out.validation);
   } catch (e) {
     toast(e.message);
   }
 }
 
+const range = (lo, hi) => `${num(lo, 1)}–${num(hi, 1)}`;
+
 function renderTests(t) {
-  const groups = t.groups
-    .map((g) => `<tr><td>${esc(g.group)}</td><td class="num">${g.n}</td><td class="num">${num(g.mean, 1)}</td><td class="num">${num(g.ci_low, 1)}–${num(g.ci_high, 1)}</td><td class="num">${num(g.tau, 2)}</td></tr>`)
-    .join("");
-  const sig = (p) => (p != null && p < 0.05 ? ' class="sig"' : "");
-  const pairs = t.pairwise
-    .map((p) => `<tr><td>${esc(p.group_a)} − ${esc(p.group_b)}</td><td class="num">${num(p.difference, 1)}</td><td class="num">${num(p.se, 2)}</td><td class="num">${pval(p.p)}</td><td class="num"${sig(p.p_holm)}>${pval(p.p_holm)}</td></tr>`)
-    .join("");
-  const overall = t.q_p != null
-    ? `<p class="summary">Do groups differ at all? Between-group Q = ${num(t.q_between, 2)} on ${t.q_df} df,
-       <strong>p = ${pval(t.q_p)}</strong>; permutation test p = ${pval(t.permutation_p)}.
-       ${t.q_p < 0.05 ? "There is evidence that weaning ages differ between groups." : "No clear evidence that weaning ages differ between groups."}</p>`
-    : '<p class="muted">At least two groups are needed for a comparison.</p>';
-  $("#tests-body").innerHTML = `${overall}
-    <div class="grid-2">
-      <div class="table-wrap"><table><thead><tr><th scope="col">Group</th><th scope="col">n</th><th scope="col">Mean</th><th scope="col">95% CI</th><th scope="col">τ</th></tr></thead><tbody>${groups}</tbody></table></div>
-      ${pairs ? `<div class="table-wrap"><table><thead><tr><th scope="col">Pair</th><th scope="col">Difference</th><th scope="col">SE</th><th scope="col">p</th><th scope="col">p (Holm)</th></tr></thead><tbody>${pairs}</tbody></table></div>` : ""}
-    </div>
+  $("#tests-body").innerHTML = `${t.q_p != null
+    ? `<p class="summary">Do groups differ at all? Between-group Q = ${num(t.q_between)} on ${t.q_df} df, <strong>p = ${pval(t.q_p)}</strong>;
+       permutation test p = ${pval(t.permutation_p)}. ${t.q_p < 0.05 ? "There is evidence that weaning ages differ between groups." : "No clear evidence that weaning ages differ between groups."}</p>`
+    : '<p class="muted">At least two groups are needed for a comparison.</p>'}
+    <div class="grid-2"><div class="table-wrap"><table id="t-groups"></table></div><div class="table-wrap"><table id="t-pairs"></table></div></div>
     ${t.notes.map((n) => `<p class="muted small">${esc(n)}</p>`).join("")}`;
+  table($("#t-groups"), [
+    { label: "Group", key: "group" }, { label: "n", key: "n", cls: "num" },
+    { label: "Mean", cls: "num", render: (g) => num(g.mean, 1) },
+    { label: "95% CI", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
+    { label: "τ", cls: "num", render: (g) => num(g.tau) },
+  ], t.groups);
+  table($("#t-pairs"), [
+    { label: "Pair", render: (p) => `${esc(p.group_a)} − ${esc(p.group_b)}` },
+    { label: "Difference", cls: "num", render: (p) => num(p.difference, 1) },
+    { label: "SE", cls: "num", render: (p) => num(p.se) },
+    { label: "p", cls: "num", render: (p) => pval(p.p) },
+    { label: "p (Holm)", cls: "num", render: (p) => `<span class="${p.p_holm < 0.05 ? "sig" : ""}">${pval(p.p_holm)}</span>` },
+  ], t.pairwise);
 
   const b = t.bayes;
-  if (!b) {
-    $("#bayes-body").innerHTML = '<p class="muted">Needs at least three specimens.</p>';
+  if (!b) return ($("#bayes-body").innerHTML = '<p class="muted">Needs at least three specimens.</p>');
+  $("#bayes-body").innerHTML = `<p class="muted small">Shared between-animal SD τ = ${num(b.tau_mean)} months (95% CrI ${num(b.tau_ci_low)}–${num(b.tau_ci_high)}) ·
+      max R̂ ${num(b.rhat_max, 3)} ${help("rhat")} · ${b.draws} posterior draws${b.rhat_max > 1.05 ? ' · <span class="warn-text">not fully converged</span>' : ""}</p>
+    <div class="grid-2"><div class="table-wrap"><table id="b-groups"></table></div><div class="table-wrap"><table id="b-pairs"></table></div></div>
+    <details><summary>Specimen estimates after partial pooling</summary><div class="table-wrap"><table id="b-specimens"></table></div></details>`;
+  table($("#b-groups"), [
+    { label: "Group", key: "group" },
+    { label: "Posterior mean", cls: "num", render: (g) => num(g.mean, 1) },
+    { label: "95% CrI", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
+  ], b.groups);
+  table($("#b-pairs"), [
+    { label: "Comparison", render: (p) => `${esc(p.group_a)} vs ${esc(p.group_b)}` },
+    { label: "Probability the first weaned earlier", cls: "num", render: (p) => `${Math.round(p.prob_a_earlier * 100)}%` },
+    { label: "Difference (95% CrI)", cls: "num", render: (p) => `${num(p.difference_mean, 1)} (${range(p.difference_ci_low, p.difference_ci_high)})` },
+  ], b.pairs);
+  table($("#b-specimens"), [
+    { label: "Specimen", key: "specimen_id" }, { label: "Group", key: "group" },
+    { label: "Own estimate", cls: "num", render: (s) => num(s.observed, 1) },
+    { label: "Pooled estimate", cls: "num", render: (s) => num(s.shrunk, 1) },
+    { label: "95% CrI", cls: "num", render: (s) => range(s.ci_low, s.ci_high) },
+  ], b.specimens);
+}
+
+function renderValidation(rows) {
+  if (!rows.length) {
+    $("#val-body").innerHTML = `<div class="tbd tbd-block">${tbdBadge} No known-age reference animals or published estimates in this dataset. Add a
+      <code>known_weaning_age_months</code> column for modern reference animals, or a <code>published_weaning_age_months</code> column to
+      compare with published estimates (e.g. WEAN or visual readings), to see bias, MAE, RMSE and interval coverage for each model here.</div>`;
     return;
   }
-  $("#bayes-body").innerHTML = `
-    <p class="muted small">Shared between-animal SD τ = ${num(b.tau_mean, 2)} months (95% CrI ${num(b.tau_ci_low, 2)}–${num(b.tau_ci_high, 2)}) ·
-      max R̂ ${num(b.rhat_max, 3)} ${help("rhat")} · ${b.draws} posterior draws${b.rhat_max > 1.05 ? ' · <span class="warn-text">not fully converged</span>' : ""}</p>
-    <div class="grid-2">
-      <div class="table-wrap"><table><thead><tr><th scope="col">Group</th><th scope="col">Posterior mean</th><th scope="col">95% CrI</th></tr></thead>
-        <tbody>${b.groups.map((g) => `<tr><td>${esc(g.group)}</td><td class="num">${num(g.mean, 1)}</td><td class="num">${num(g.ci_low, 1)}–${num(g.ci_high, 1)}</td></tr>`).join("")}</tbody></table></div>
-      <div class="table-wrap"><table><thead><tr><th scope="col">Comparison</th><th scope="col">Probability the first weaned earlier</th><th scope="col">Difference (95% CrI)</th></tr></thead>
-        <tbody>${b.pairs.map((p) => `<tr><td>${esc(p.group_a)} vs ${esc(p.group_b)}</td><td class="num">${Math.round(p.prob_a_earlier * 100)}%</td><td class="num">${num(p.difference_mean, 1)} (${num(p.difference_ci_low, 1)}–${num(p.difference_ci_high, 1)})</td></tr>`).join("")}</tbody></table></div>
-    </div>
-    <details><summary>Specimen estimates after partial pooling</summary>
-      <div class="table-wrap"><table><thead><tr><th scope="col">Specimen</th><th scope="col">Group</th><th scope="col">Own estimate</th><th scope="col">Pooled estimate</th><th scope="col">95% CrI</th></tr></thead>
-      <tbody>${b.specimens.map((s) => `<tr><td>${esc(s.specimen_id)}</td><td>${esc(s.group)}</td><td class="num">${num(s.observed, 1)}</td><td class="num">${num(s.shrunk, 1)}</td><td class="num">${num(s.ci_low, 1)}–${num(s.ci_high, 1)}</td></tr>`).join("")}</tbody></table></div>
-    </details>`;
+  $("#val-body").innerHTML = '<div class="table-wrap"><table id="val-table"></table></div>';
+  table($("#val-table"), [
+    { label: "Reference", key: "reference" }, { label: "Model", key: "model" }, { label: "n", key: "n", cls: "num" },
+    { label: "Bias", cls: "num", render: (r) => num(r.bias) },
+    { label: "MAE", cls: "num", render: (r) => num(r.mae) },
+    { label: "RMSE", cls: "num", render: (r) => num(r.rmse) },
+    { label: "Pearson r", cls: "num", render: (r) => num(r.pearson_r) },
+    { label: "95% interval coverage", cls: "num", render: (r) => (r.ci_coverage != null ? `${Math.round(r.ci_coverage * 100)}%` : "—") },
+  ], rows);
 }
 
-// ───────────────────────── projects, report ─────────────────────────
-function projectData() {
-  return serialiseProject(state, settings(), state.config.version);
+// ───────────── saving, opening and the report ─────────────
+function project() {
+  return {
+    format: "weanage-project", format_version: 1, app_version: state.config.version, saved_at: new Date().toISOString(),
+    samples: state.samples, settings: settings(), results: state.results, estimates: state.estimates,
+    analysis_options: state.options, current: state.current, plan: state.plan,
+  };
 }
 
-function persist() {
-  if (state.config) autosave({ ...projectData(), plan: state.plan });
+let saveTimer = null;
+function autosave() {
+  // Kept in this browser so work survives a refresh; results are dropped if there is not enough room.
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem("weanage-autosave", JSON.stringify(project()));
+    } catch {
+      try { localStorage.setItem("weanage-autosave", JSON.stringify({ ...project(), results: null, estimates: null })); } catch {}
+    }
+  }, 600);
 }
 
-function restoreProject(p) {
+function openProject(p) {
+  if (p.format !== "weanage-project" || !Array.isArray(p.samples)) throw new Error("This file is not a WeanAge project.");
   applySettings(p.settings || {});
-  state.samples = p.samples;
-  state.results = p.results || null;
-  state.estimates = p.estimates || null;
-  state.options = p.analysis_options || null;
-  state.current = p.current || p.results?.[0]?.specimen_id;
-  state.plan = p.plan || null;
+  Object.assign(state, { samples: p.samples, options: p.analysis_options, plan: p.plan || null });
   state.visible = new Set([...(state.options?.models || []), "average"]);
-  enableResultSteps(!!(state.results && state.options));
-  revalidate().then(() => {
-    if (p.results) {
-      state.results = p.results;
-      state.estimates = p.estimates;
-      enableResultSteps(true);
+  recheck(true).then(() => {
+    if (p.results && p.analysis_options) {
+      Object.assign(state, { results: p.results, estimates: p.estimates, current: p.current || p.results[0]?.specimen_id });
+      enableResults(true);
       renderResults();
     }
     if (state.plan) renderPlan(state);
   });
 }
 
-async function openProject(file) {
-  try {
-    restoreProject(parseProject(await file.text()));
-    toast(`Opened project ${file.name}`, "ok");
-  } catch (e) {
-    toast(e.message);
-  }
+function offerRestore() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("weanage-autosave")); } catch {}
+  if (!saved?.samples?.length) return;
+  $("#restore-when").textContent = `${saved.samples.length} samples, ${new Date(saved.saved_at).toLocaleString()}`;
+  $("#restore-banner").hidden = false;
+  $("#btn-restore").onclick = () => { openProject(saved); $("#restore-banner").hidden = true; };
+  $("#btn-discard").onclick = () => { localStorage.removeItem("weanage-autosave"); $("#restore-banner").hidden = true; };
 }
 
 async function makeReport() {
-  if (!state.results) return;
   try {
     let compare = null;
     if (new Set(state.results.map((r) => `${r.site}:${r.species}`)).size > 1) {
@@ -627,29 +540,20 @@ async function makeReport() {
   }
 }
 
-// ───────────────────────── events ─────────────────────────
+// ───────────── buttons and inputs ─────────────
 function bind() {
-  $$(".step").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
-  $("#btn-to-settings").addEventListener("click", () => show("settings"));
+  const on = (selector, event, handler) => $(selector).addEventListener(event, handler);
+  for (const b of $$(".step")) b.addEventListener("click", () => show(b.dataset.view));
+  on("#btn-to-settings", "click", () => show("settings"));
 
-  const input = $("#csv-input");
   const zone = $("#dropzone");
-  input.addEventListener("change", () => input.files[0] && loadFile(input.files[0]));
-  zone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    zone.classList.add("over");
-  });
+  on("#csv-input", "change", (e) => e.target.files[0] && loadFile(e.target.files[0]));
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("over"); });
   zone.addEventListener("dragleave", () => zone.classList.remove("over"));
-  zone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    zone.classList.remove("over");
-    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
-  });
-  zone.setAttribute("tabindex", "0");
-  zone.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), input.click()));
-
+  zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("over"); e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]); });
+  zone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#csv-input").click(); } });
   $("#btn-template").href = api.templateUrl;
-  $("#btn-example").addEventListener("click", async () => {
+  on("#btn-example", "click", async () => {
     try {
       setReport(await api.example());
       toast("Loaded SYNTHETIC example data (simulated, not real measurements).", "ok");
@@ -657,105 +561,77 @@ function bind() {
       toast(e.message);
     }
   });
-  $("#btn-clear").addEventListener("click", () => {
-    if (state.samples.length && !confirm("Remove all loaded samples?")) return;
-    setReport({ samples: [], issues: [], specimens: [] });
+  on("#btn-clear", "click", () => {
+    if (!state.samples.length || confirm("Remove all loaded samples?")) setReport({ samples: [], issues: [], specimens: [] });
   });
-  $("#manual-form").addEventListener("submit", addManualSample);
-  $("#sample-table").addEventListener("click", async (e) => {
-    const idx = e.target.closest("[data-remove]")?.dataset.remove;
-    if (idx == null) return;
-    state.samples.splice(Number(idx), 1);
-    await revalidate();
+  on("#manual-form", "submit", addSampleByHand);
+  on("#sample-table", "click", (e) => {
+    const index = e.target.closest("[data-remove]")?.dataset.remove;
+    if (index != null) { state.samples.splice(Number(index), 1); recheck(); }
   });
 
-  bindGrowthEditor(state, { refreshConfig, onChange: persist });
-  $("#baseline-list").addEventListener("input", (e) => {
+  bindGrowthEditor(state, { refreshConfig, onChange: autosave });
+  on("#baseline-list", "input", (e) => {
     const row = e.target.closest(".baseline-row");
-    if (row) syncBaseline(row);
+    const mean = row.querySelector(".bl-mean").value;
+    if (mean === "") delete state.baselines[row.dataset.key];
+    else state.baselines[row.dataset.key] = { mean: Number(mean), sd: Number(row.querySelector(".bl-sd").value) || 0.5 };
+    autosave();
   });
-  $("#view-settings").addEventListener("change", persist);
-  $("#btn-run").addEventListener("click", runAnalysis);
+  on("#view-settings", "change", autosave);
+  on("#btn-run", "click", runAnalysis);
 
-  const list = $("#result-list");
-  list.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-specimen]");
-    if (!btn) return;
-    state.current = btn.dataset.specimen;
-    state.zoom = null;
-    renderResults();
-    $(`[data-specimen="${CSS.escape(state.current)}"]`)?.focus();
-  });
-  list.addEventListener("keydown", (e) => {
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-    e.preventDefault();
+  on("#result-list", "click", (e) => { const b = e.target.closest("[data-specimen]"); if (b) chooseSpecimen(b.dataset.specimen); });
+  on("#result-list", "keydown", (e) => { // arrow keys move through the specimen list
     const ids = state.results.map((r) => r.specimen_id);
+    const moves = { ArrowDown: 1, ArrowUp: -1 };
     let i = ids.indexOf(state.current);
-    i = e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : Math.min(Math.max(i + (e.key === "ArrowDown" ? 1 : -1), 0), ids.length - 1);
-    state.current = ids[i];
-    state.zoom = null;
-    renderResults();
-    $(`[data-specimen="${CSS.escape(state.current)}"]`)?.focus();
+    if (e.key in moves) i = Math.min(Math.max(i + moves[e.key], 0), ids.length - 1);
+    else if (e.key === "Home") i = 0;
+    else if (e.key === "End") i = ids.length - 1;
+    else return;
+    e.preventDefault();
+    chooseSpecimen(ids[i]);
   });
-  $("#curve-toggles").addEventListener("change", (e) => {
-    const m = e.target.dataset.model;
-    if (e.target.checked) state.visible.add(m);
-    else state.visible.delete(m);
-    renderResults();
-  });
-  $("#opt-show13c").addEventListener("change", renderResults);
-  $("#btn-zoom-reset").addEventListener("click", () => {
-    state.zoom = null;
+  on("#curve-toggles", "change", (e) => {
+    if (e.target.checked) state.visible.add(e.target.dataset.model);
+    else state.visible.delete(e.target.dataset.model);
     renderResults();
   });
-  $("#btn-export-csv").addEventListener("click", () =>
-    download("weanage_estimates.csv", new Blob([toCsv(state.estimates)], { type: "text/csv" }))
-  );
-  $("#btn-export-json").addEventListener("click", () =>
-    download("weanage_results.json", new Blob([JSON.stringify({ options: state.options, results: state.results }, null, 2)], { type: "application/json" }))
-  );
-  $("#btn-export-svg").addEventListener("click", () => {
+  on("#opt-show13c", "change", renderResults);
+  on("#btn-zoom-reset", "click", () => { state.zoom = null; renderResults(); });
+  on("#btn-export-csv", "click", () => download("weanage_estimates.csv", new Blob([toCsv(state.estimates)], { type: "text/csv" })));
+  on("#btn-export-json", "click", () => download("weanage_results.json", new Blob([JSON.stringify({ options: state.options, results: state.results }, null, 2)])));
+  on("#btn-export-svg", "click", () => {
     const svg = $("#res-chart svg");
     if (svg) download(`${state.current}_weaning_curve.svg`, svgToBlob(svg));
   });
+  for (const input of $$('input[name="group"], #cmp-milestone, #cmp-model')) input.addEventListener("change", refreshCompare);
 
-  $$('input[name="group"], #cmp-milestone, #cmp-model').forEach((n) => n.addEventListener("change", refreshCompare));
-
-  $("#btn-save").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify({ ...projectData(), plan: state.plan }, null, 1)], { type: "application/json" });
-    download(`weanage_project_${new Date().toISOString().slice(0, 10)}.weanage.json`, blob);
+  on("#btn-save", "click", () => download(`weanage_project_${new Date().toISOString().slice(0, 10)}.weanage.json`, new Blob([JSON.stringify(project(), null, 1)])));
+  on("#project-input", "change", async (e) => {
+    try {
+      openProject(JSON.parse(await e.target.files[0].text()));
+      toast(`Opened project ${e.target.files[0].name}`, "ok");
+    } catch (err) {
+      toast(err.message);
+    }
   });
-  $("#project-input").addEventListener("change", (e) => e.target.files[0] && openProject(e.target.files[0]));
-  $("#btn-report").addEventListener("click", makeReport);
-  $("#btn-help").addEventListener("click", () => startTour(show));
+  on("#btn-report", "click", makeReport);
+  on("#btn-help", "click", () => startTour(show));
 }
 
-function offerRestore() {
-  const saved = loadAutosave();
-  if (!saved || !saved.samples?.length) return;
-  $("#restore-when").textContent = `${saved.samples.length} samples, ${new Date(saved.saved_at).toLocaleString()}`;
-  $("#restore-banner").hidden = false;
-  $("#btn-restore").addEventListener("click", () => {
-    restoreProject(saved);
-    $("#restore-banner").hidden = true;
-  });
-  $("#btn-discard").addEventListener("click", () => {
-    clearAutosave();
-    $("#restore-banner").hidden = true;
-  });
-}
-
+// ───────────── start ─────────────
 async function init() {
   try {
     state.config = await api.config();
   } catch (e) {
-    toast(`Could not reach the WeanAge backend: ${e.message}`);
-    return;
+    return toast(`Could not reach the WeanAge backend: ${e.message}`);
   }
   initSettings();
   initPlanner(state);
   renderTbd();
-  fillHelpSlots();
+  for (const slot of $$("[data-helpslot]")) slot.innerHTML = help(slot.dataset.helpslot);
   initGlossary();
   bind();
   renderData();

@@ -1,361 +1,292 @@
-// Dependency-free, accessible SVG charts: weaning curves, group forest plots and
-// line charts for the sampling planner.
+// Charts drawn as SVG (no chart library): weaning curves, group "forest" plots and line charts.
+import { color, esc, MODEL_STYLE, num } from "./util.js";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-let uid = 0;
+const SVG = "http://www.w3.org/2000/svg";
+const SHAPES = ["circle", "square", "diamond", "triangle"];
+let chartCount = 0;
 
+// Make an SVG element with attributes, optionally adding it to a parent.
 function el(tag, attrs = {}, parent) {
-  const node = document.createElementNS(SVG_NS, tag);
+  const node = document.createElementNS(SVG, tag);
   for (const [k, v] of Object.entries(attrs)) if (v != null) node.setAttribute(k, v);
   if (parent) parent.appendChild(node);
   return node;
 }
 
+// Round numbers for the axis (e.g. 0, 2.5, 5, 7.5) covering min..max.
 export function niceTicks(min, max, count = 6) {
   if (!isFinite(min) || !isFinite(max)) return [];
-  if (min === max) {
-    min -= 1;
-    max += 1;
-  }
-  const raw = (max - min) / count;
-  const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
+  if (min === max) [min, max] = [min - 1, max + 1];
+  const rough = (max - min) / count;
+  const power = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rough);
   const ticks = [];
-  const end = Math.ceil(max / step - 1e-9) * step;
-  for (let v = Math.floor(min / step + 1e-9) * step; v <= end + step * 1e-9; v += step) {
+  for (let v = Math.floor(min / step + 1e-9) * step; v <= Math.ceil(max / step - 1e-9) * step + step * 1e-9; v += step) {
     ticks.push(Math.round(v / step) * step);
   }
   return ticks;
 }
 
-function scale(d0, d1, r0, r1) {
-  const k = (r1 - r0) / (d1 - d0 || 1);
-  const f = (v) => r0 + (v - d0) * k;
-  f.invert = (px) => d0 + (px - r0) / k;
+// A function that turns a data value into a pixel position (and back with .invert).
+function scale(d0, d1, p0, p1) {
+  const k = (p1 - p0) / (d1 - d0 || 1);
+  const f = (v) => p0 + (v - d0) * k;
+  f.invert = (px) => d0 + (px - p0) / k;
   return f;
 }
 
-function fmt(v) {
-  return Math.abs(v) >= 100 ? v.toFixed(0) : +v.toFixed(2) + "";
+const label = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : String(+v.toFixed(2)));
+
+function marker(shape, x, y, r, attrs, parent) {
+  if (shape === "square") return el("rect", { x: x - r, y: y - r, width: 2 * r, height: 2 * r, ...attrs }, parent);
+  const corners = {
+    diamond: [[0, -1.3], [1.3, 0], [0, 1.3], [-1.3, 0]],
+    triangle: [[0, -1.3], [1.2, 1], [-1.2, 1]],
+  }[shape];
+  if (corners) return el("polygon", { points: corners.map(([a, b]) => `${x + a * r},${y + b * r}`).join(" "), ...attrs }, parent);
+  return el("circle", { cx: x, cy: y, r, ...attrs }, parent);
 }
 
-function tooltip(container) {
-  let tip = container.querySelector(".chart-tip");
-  if (!tip) {
-    tip = document.createElement("div");
-    tip.className = "chart-tip";
-    tip.setAttribute("role", "status");
-    tip.hidden = true;
-    container.appendChild(tip);
-  }
-  return {
-    show(html, x, y) {
-      tip.innerHTML = html;
-      tip.hidden = false;
-      tip.style.left = `${x + 12}px`;
-      tip.style.top = `${y - 12}px`;
-    },
-    hide() {
-      tip.hidden = true;
-    },
-  };
-}
-
-function frame(container, width, height, margin, title, desc) {
-  container.querySelectorAll("svg").forEach((s) => s.remove());
-  const id = `chart-${++uid}`;
-  const svg = el("svg", {
-    viewBox: `0 0 ${width} ${height}`,
-    class: "chart",
-    role: "img",
-    "aria-labelledby": `${id}-t ${id}-d`,
-    preserveAspectRatio: "xMidYMid meet",
-  });
+// Start a fresh chart inside `box`, with a title and description for screen readers.
+function newChart(box, width, height, margin, title, description) {
+  box.querySelectorAll("svg").forEach((s) => s.remove());
+  const id = `chart-${++chartCount}`;
+  const svg = el("svg", { viewBox: `0 0 ${width} ${height}`, class: "chart", role: "img", "aria-labelledby": `${id}-t ${id}-d` });
   el("title", { id: `${id}-t` }, svg).textContent = title || "Chart";
-  el("desc", { id: `${id}-d` }, svg).textContent = desc || "";
-  container.prepend(svg);
-  const plot = { x0: margin.l, x1: width - margin.r, y0: height - margin.b, y1: margin.t };
-  return { svg, plot, id };
+  el("desc", { id: `${id}-d` }, svg).textContent = description || "";
+  box.prepend(svg);
+  const area = { left: margin.l, right: width - margin.r, bottom: height - margin.b, top: margin.t };
+  return { svg, area, id, width };
 }
 
-function bottomAxis(g, plot, xs, ticks, label) {
+function xAxis(g, area, xs, ticks, title) {
   for (const t of ticks) {
-    el("line", { x1: xs(t), x2: xs(t), y1: plot.y0, y2: plot.y0 + 5, class: "tick" }, g);
-    el("text", { x: xs(t), y: plot.y0 + 20, "text-anchor": "middle" }, g).textContent = fmt(t);
+    el("line", { x1: xs(t), x2: xs(t), y1: area.bottom, y2: area.bottom + 5, class: "tick" }, g);
+    el("text", { x: xs(t), y: area.bottom + 20, "text-anchor": "middle" }, g).textContent = label(t);
   }
-  el("line", { x1: plot.x0, x2: plot.x1, y1: plot.y0, y2: plot.y0, class: "axis" }, g);
-  el("text", { x: (plot.x0 + plot.x1) / 2, y: plot.y0 + 42, "text-anchor": "middle", class: "label" }, g)
-    .textContent = label;
+  el("line", { x1: area.left, x2: area.right, y1: area.bottom, y2: area.bottom, class: "axis" }, g);
+  el("text", { x: (area.left + area.right) / 2, y: area.bottom + 42, "text-anchor": "middle", class: "label" }, g).textContent = title;
 }
 
-function leftAxis(g, plot, ys, ticks, label, grid = true) {
+function yAxis(g, area, ys, ticks, title) {
   for (const t of ticks) {
-    if (grid) el("line", { x1: plot.x0, x2: plot.x1, y1: ys(t), y2: ys(t), class: "grid" }, g);
-    el("text", { x: plot.x0 - 8, y: ys(t) + 4, "text-anchor": "end" }, g).textContent = fmt(t);
+    el("line", { x1: area.left, x2: area.right, y1: ys(t), y2: ys(t), class: "grid" }, g);
+    el("text", { x: area.left - 8, y: ys(t) + 4, "text-anchor": "end" }, g).textContent = label(t);
   }
-  el("line", { x1: plot.x0, x2: plot.x0, y1: plot.y0, y2: plot.y1, class: "axis" }, g);
-  if (label) {
-    const cy = (plot.y0 + plot.y1) / 2;
-    el("text", { x: 16, y: cy, transform: `rotate(-90 16 ${cy})`, "text-anchor": "middle", class: "label" }, g)
-      .textContent = label;
-  }
+  el("line", { x1: area.left, x2: area.left, y1: area.bottom, y2: area.top, class: "axis" }, g);
+  const middle = (area.top + area.bottom) / 2;
+  el("text", { x: 16, y: middle, transform: `rotate(-90 16 ${middle})`, "text-anchor": "middle", class: "label" }, g).textContent = title;
 }
 
-const SHAPES = ["circle", "square", "diamond", "triangle"];
-
-function marker(shape, cx, cy, r, attrs, parent) {
-  if (shape === "square") return el("rect", { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, ...attrs }, parent);
-  if (shape === "diamond") return el("polygon", { points: `${cx},${cy - r * 1.3} ${cx + r * 1.3},${cy} ${cx},${cy + r * 1.3} ${cx - r * 1.3},${cy}`, ...attrs }, parent);
-  if (shape === "triangle") return el("polygon", { points: `${cx},${cy - r * 1.3} ${cx + r * 1.2},${cy + r} ${cx - r * 1.2},${cy + r}`, ...attrs }, parent);
-  return el("circle", { cx, cy, r, ...attrs }, parent);
+// Show `html` next to the mouse while it is over `node`.
+function hover(box, node, html) {
+  let tip = box.querySelector(".chart-tip");
+  if (!tip) {
+    tip = Object.assign(document.createElement("div"), { className: "chart-tip", hidden: true });
+    box.appendChild(tip);
+  }
+  node.addEventListener("mouseenter", (e) => {
+    const r = box.getBoundingClientRect();
+    tip.innerHTML = html;
+    tip.hidden = false;
+    tip.style.left = `${e.clientX - r.left + 12}px`;
+    tip.style.top = `${e.clientY - r.top - 12}px`;
+  });
+  node.addEventListener("mouseleave", () => (tip.hidden = true));
 }
+
+const path = (points, xs, ys) => points.map(([x, y], i) => `${i ? "L" : "M"}${xs(x).toFixed(1)},${ys(y).toFixed(1)}`).join("");
 
 /**
- * Weaning curve plot.
- * opts.points:  [{x, y, xMin?, xMax?, used, extrapolated, label, group?, position?, d13C?}]
- * opts.curves:  [{name, label, color, dash, xs:[], ys:[]}]
- * opts.markers: [{x, lo, hi, color, label}]  vertical milestone lines with CI bands
- * opts.xRange:  [min, max] zoom window (optional)
- * opts.positionAxis: true to label the top axis in mm along the tooth
- * opts.showD13C: true to overlay δ13C on a right-hand axis
- * opts.onZoom(range|null): called after a drag-zoom or reset
+ * Weaning curve chart.
+ * points:  [{x, y, xMin?, xMax?, used, extrapolated, label, group?, position?, d13C?}]
+ * curves:  [{color, dash, xs, ys}]     markers: [{x, lo, hi, color, label}] (weaning age ± 95 %)
+ * xRange (zoom window), positionAxis (mm along the top), showD13C, onZoom(range | null)
  */
-export function curveChart(container, opts) {
-  const W = 760, H = 440;
-  const right = opts.showD13C ? 58 : 20;
-  const top = opts.positionAxis ? 44 : 16;
-  const { svg, plot, id } = frame(container, W, H, { l: 64, r: right, t: top, b: 56 }, opts.title, opts.desc);
-  const tip = tooltip(container);
-
-  let allX = [...opts.points.flatMap((p) => [p.x, p.xMin ?? p.x, p.xMax ?? p.x]), ...opts.curves.flatMap((c) => c.xs)];
-  // Markers are not used for the axis range, so one wild estimate cannot squash the data.
-  allX = allX.filter(isFinite);
-  let [xMin, xMax] = opts.xRange || [Math.min(...allX), Math.max(...allX)];
-  const inX = (x) => x >= xMin && x <= xMax;
-  const visY = [...opts.points.filter((p) => inX(p.x)).map((p) => p.y), ...opts.curves.flatMap((c) => c.ys.filter((_, i) => inX(c.xs[i])))];
-  let [yMin, yMax] = [Math.min(...visY), Math.max(...visY)];
-  const padY = (yMax - yMin) * 0.08 || 0.5;
-  yMin -= padY;
-  yMax += padY;
+export function curveChart(box, o) {
+  const { svg, area, id, width } = newChart(box, 760, 440, { l: 64, r: o.showD13C ? 58 : 20, t: o.positionAxis ? 44 : 16, b: 56 }, o.title, o.desc);
+  // The axis range comes from the data and curves only, so one wild estimate cannot squash the chart.
+  const allX = [...o.points.flatMap((p) => [p.x, p.xMin ?? p.x, p.xMax ?? p.x]), ...o.curves.flatMap((c) => c.xs)];
+  let [xMin, xMax] = o.xRange || [Math.min(...allX), Math.max(...allX)];
+  const inView = (x) => x >= xMin && x <= xMax;
+  const allY = [...o.points.filter((p) => inView(p.x)).map((p) => p.y), ...o.curves.flatMap((c) => c.ys.filter((_, i) => inView(c.xs[i])))];
+  const pad = (Math.max(...allY) - Math.min(...allY)) * 0.08 || 0.5;
   const xTicks = niceTicks(xMin, xMax);
-  const yTicks = niceTicks(yMin, yMax, 5);
-  if (!opts.xRange) {
-    xMin = Math.min(xMin, xTicks[0] ?? xMin);
-    xMax = Math.max(xMax, xTicks.at(-1) ?? xMax);
-  }
-  yMin = Math.min(yMin, yTicks[0] ?? yMin);
-  yMax = Math.max(yMax, yTicks.at(-1) ?? yMax);
-  const xs = scale(xMin, xMax, plot.x0, plot.x1);
-  const ys = scale(yMin, yMax, plot.y0, plot.y1);
+  const yTicks = niceTicks(Math.min(...allY) - pad, Math.max(...allY) + pad, 5);
+  if (!o.xRange) [xMin, xMax] = [Math.min(xMin, xTicks[0]), Math.max(xMax, xTicks.at(-1))];
+  const xs = scale(xMin, xMax, area.left, area.right);
+  const ys = scale(yTicks[0], yTicks.at(-1), area.bottom, area.top);
 
-  el("clipPath", { id: `${id}-clip` }, svg).appendChild(
-    el("rect", { x: plot.x0, y: plot.y1, width: plot.x1 - plot.x0, height: plot.y0 - plot.y1 })
-  );
-  const axesG = el("g", { class: "axes" }, svg);
-  leftAxis(axesG, plot, ys, yTicks, opts.yLabel);
-  bottomAxis(axesG, plot, xs, xTicks.filter((t) => t >= xMin - 1e-9 && t <= xMax + 1e-9), opts.xLabel);
+  const axes = el("g", { class: "axes" }, svg);
+  yAxis(axes, area, ys, yTicks, o.yLabel);
+  xAxis(axes, area, xs, xTicks.filter(inView), o.xLabel);
+  if (o.positionAxis) positionAxis(axes, area, xs, o.points, inView);
 
-  // Top axis: position along the tooth (interpolated from the samples' own ages).
-  if (opts.positionAxis) {
-    const pts = opts.points.filter((p) => p.position != null).sort((a, b) => a.x - b.x);
-    if (pts.length > 1) {
-      const posTicks = niceTicks(Math.min(...pts.map((p) => p.position)), Math.max(...pts.map((p) => p.position)), 8);
-      const ageAt = (pos) => {
-        for (let i = 1; i < pts.length; i++) {
-          const a = pts[i - 1], b = pts[i];
-          if (pos >= Math.min(a.position, b.position) && pos <= Math.max(a.position, b.position) && b.position !== a.position) {
-            return a.x + ((pos - a.position) / (b.position - a.position)) * (b.x - a.x);
-          }
-        }
-        return null;
-      };
-      el("line", { x1: plot.x0, x2: plot.x1, y1: plot.y1, y2: plot.y1, class: "axis" }, axesG);
-      for (const t of posTicks) {
-        const age = ageAt(t);
-        if (age == null || !inX(age)) continue;
-        el("line", { x1: xs(age), x2: xs(age), y1: plot.y1, y2: plot.y1 - 5, class: "tick" }, axesG);
-        el("text", { x: xs(age), y: plot.y1 - 9, "text-anchor": "middle" }, axesG).textContent = fmt(t);
-      }
-      el("text", { x: (plot.x0 + plot.x1) / 2, y: 13, "text-anchor": "middle", class: "label" }, axesG)
-        .textContent = "Position from cusp apex (mm)";
-    }
+  el("clipPath", { id: `${id}-clip` }, svg).appendChild(el("rect", { x: area.left, y: area.top, width: area.right - area.left, height: area.bottom - area.top }));
+  const plot = el("g", { "clip-path": `url(#${id}-clip)` }, svg);
+  for (const m of o.markers) {
+    if (m.lo != null) el("rect", { x: xs(m.lo), y: area.top, width: Math.max(xs(m.hi) - xs(m.lo), 1), height: area.bottom - area.top, fill: m.color, opacity: 0.1 }, plot);
+    el("line", { x1: xs(m.x), x2: xs(m.x), y1: area.bottom, y2: area.top, stroke: m.color, "stroke-dasharray": "5 4", "stroke-width": 1.5 }, plot);
   }
 
-  const layer = el("g", { "clip-path": `url(#${id}-clip)` }, svg);
-  for (const m of opts.markers) {
-    if (m.lo != null && m.hi != null) {
-      el("rect", {
-        x: xs(m.lo), y: plot.y1, width: Math.max(xs(m.hi) - xs(m.lo), 1), height: plot.y0 - plot.y1,
-        fill: m.color, opacity: 0.1,
-      }, layer);
-    }
-    el("line", { x1: xs(m.x), x2: xs(m.x), y1: plot.y0, y2: plot.y1, stroke: m.color, "stroke-dasharray": "5 4", "stroke-width": 1.5 }, layer);
+  // δ13C on its own axis on the right.
+  const carbon = o.showD13C ? o.points.filter((p) => p.d13C != null).sort((a, b) => a.x - b.x) : [];
+  if (carbon.length > 1) {
+    const cTicks = niceTicks(Math.min(...carbon.map((p) => p.d13C)) - 0.2, Math.max(...carbon.map((p) => p.d13C)) + 0.2, 5);
+    const cs = scale(cTicks[0], cTicks.at(-1), area.bottom, area.top);
+    for (const t of cTicks) el("text", { x: area.right + 8, y: cs(t) + 4, class: "c13" }, axes).textContent = label(t);
+    el("line", { x1: area.right, x2: area.right, y1: area.bottom, y2: area.top, class: "axis" }, axes);
+    const middle = (area.top + area.bottom) / 2;
+    el("text", { x: width - 10, y: middle, transform: `rotate(90 ${width - 10} ${middle})`, "text-anchor": "middle", class: "label c13" }, axes).textContent = "δ¹³C (‰ VPDB)";
+    el("path", { d: path(carbon.map((p) => [p.x, p.d13C]), xs, cs), class: "c13-line" }, plot);
+    for (const p of carbon) marker("diamond", xs(p.x), cs(p.d13C), 3, { class: "c13-pt" }, plot);
   }
 
-  // δ13C overlay on its own right-hand axis.
-  const c13 = opts.showD13C ? opts.points.filter((p) => p.d13C != null) : [];
-  if (c13.length > 1) {
-    const cv = c13.map((p) => p.d13C);
-    const cTicks = niceTicks(Math.min(...cv) - 0.2, Math.max(...cv) + 0.2, 5);
-    const cs = scale(cTicks[0], cTicks.at(-1), plot.y0, plot.y1);
-    for (const t of cTicks) {
-      el("text", { x: plot.x1 + 8, y: cs(t) + 4, class: "c13" }, axesG).textContent = fmt(t);
-    }
-    el("line", { x1: plot.x1, x2: plot.x1, y1: plot.y0, y2: plot.y1, class: "axis" }, axesG);
-    const cy = (plot.y0 + plot.y1) / 2;
-    el("text", { x: W - 10, y: cy, transform: `rotate(90 ${W - 10} ${cy})`, "text-anchor": "middle", class: "label c13" }, axesG)
-      .textContent = "δ¹³C (‰ VPDB)";
-    const sorted = [...c13].sort((a, b) => a.x - b.x);
-    el("path", { d: sorted.map((p, i) => `${i ? "L" : "M"}${xs(p.x).toFixed(1)},${cs(p.d13C).toFixed(1)}`).join(""), class: "c13-line" }, layer);
-    for (const p of sorted) marker("diamond", xs(p.x), cs(p.d13C), 3, { class: "c13-pt" }, layer);
+  for (const c of o.curves) el("path", { d: path(c.xs.map((x, i) => [x, c.ys[i]]), xs, ys), fill: "none", stroke: c.color, "stroke-width": 2.5, "stroke-dasharray": c.dash }, plot);
+  for (const p of o.points) if (p.xMin != null) el("line", { x1: xs(p.xMin), x2: xs(p.xMax), y1: ys(p.y), y2: ys(p.y), class: "win" }, plot);
+  const groups = [...new Set(o.points.map((p) => p.group ?? ""))]; // one marker shape per tooth
+  for (const p of o.points) {
+    const cls = !p.used ? "pt pt-excluded" : p.extrapolated ? "pt pt-extra" : "pt";
+    hover(box, marker(SHAPES[groups.indexOf(p.group ?? "") % 4], xs(p.x), ys(p.y), 4.5, { class: cls }, plot), p.label);
   }
-
-  for (const c of opts.curves) {
-    const d = c.xs.map((x, i) => `${i ? "L" : "M"}${xs(x).toFixed(1)},${ys(c.ys[i]).toFixed(1)}`).join("");
-    el("path", { d, fill: "none", stroke: c.color, "stroke-width": 2.5, "stroke-dasharray": c.dash || null, class: "curve" }, layer);
-  }
-  for (const p of opts.points) {
-    if (p.xMin != null && p.xMax != null) {
-      el("line", { x1: xs(p.xMin), x2: xs(p.xMax), y1: ys(p.y), y2: ys(p.y), class: "win" }, layer);
-    }
-  }
-  const groups = [...new Set(opts.points.map((p) => p.group ?? ""))];
-  for (const p of opts.points) {
-    const shape = SHAPES[groups.indexOf(p.group ?? "") % SHAPES.length];
-    const dot = marker(shape, xs(p.x), ys(p.y), 4.5, {
-      class: p.used ? (p.extrapolated ? "pt pt-extra" : "pt") : "pt pt-excluded",
-      tabindex: "-1",
-    }, layer);
-    dot.addEventListener("mouseenter", (ev) => {
-      const rect = container.getBoundingClientRect();
-      tip.show(p.label, ev.clientX - rect.left, ev.clientY - rect.top);
-    });
-    dot.addEventListener("mouseleave", () => tip.hide());
-  }
-  opts.markers.forEach((m, i) => {
-    const off = m.x > xMax ? " →" : m.x < xMin ? " ←" : "";
-    const x = Math.min(Math.max(xs(m.x) + 4, plot.x0 + 4), plot.x1 - 70);
-    el("text", { x, y: plot.y1 + 14 + i * 16, fill: m.color, class: "marker-label" }, svg).textContent = m.label + off;
+  o.markers.forEach((m, i) => {
+    const arrow = m.x > xMax ? " →" : m.x < xMin ? " ←" : ""; // estimate is off the chart
+    const x = Math.min(Math.max(xs(m.x) + 4, area.left + 4), area.right - 70);
+    el("text", { x, y: area.top + 14 + i * 16, fill: m.color, class: "marker-label" }, svg).textContent = m.label + arrow;
   });
   if (groups.length > 1) {
     groups.forEach((g, i) => {
-      const x = plot.x0 + 12 + i * 70, y = plot.y0 - 12;
-      marker(SHAPES[i % SHAPES.length], x, y, 4, { class: "pt" }, svg);
-      el("text", { x: x + 9, y: y + 4, class: "legend-text" }, svg).textContent = g;
+      marker(SHAPES[i % 4], area.left + 12 + i * 70, area.bottom - 12, 4, { class: "pt" }, svg);
+      el("text", { x: area.left + 21 + i * 70, y: area.bottom - 8, class: "legend-text" }, svg).textContent = g;
     });
   }
-
-  // Drag across the plot to zoom into an age range; double-click to reset.
-  if (opts.onZoom) {
-    const sel = el("rect", { y: plot.y1, height: plot.y0 - plot.y1, class: "zoom-sel", visibility: "hidden" }, svg);
-    const hit = el("rect", { x: plot.x0, y: plot.y1, width: plot.x1 - plot.x0, height: plot.y0 - plot.y1, class: "zoom-hit" });
-    svg.insertBefore(hit, layer);
-    const toX = (ev) => {
-      const pt = svg.createSVGPoint();
-      pt.x = ev.clientX;
-      pt.y = ev.clientY;
-      return Math.min(Math.max(pt.matrixTransform(svg.getScreenCTM().inverse()).x, plot.x0), plot.x1);
-    };
-    let start = null;
-    hit.addEventListener("pointerdown", (ev) => {
-      start = toX(ev);
-      hit.setPointerCapture(ev.pointerId);
-    });
-    hit.addEventListener("pointermove", (ev) => {
-      if (start == null) return;
-      const x = toX(ev);
-      sel.setAttribute("x", Math.min(start, x));
-      sel.setAttribute("width", Math.abs(x - start));
-      sel.setAttribute("visibility", "visible");
-    });
-    hit.addEventListener("pointerup", (ev) => {
-      if (start == null) return;
-      const x = toX(ev);
-      const [a, b] = [xs.invert(Math.min(start, x)), xs.invert(Math.max(start, x))];
-      start = null;
-      sel.setAttribute("visibility", "hidden");
-      if (Math.abs(xs(b) - xs(a)) > 8) opts.onZoom([a, b]);
-    });
-    svg.addEventListener("dblclick", () => opts.onZoom(null));
-  }
+  if (o.onZoom) addZoom(svg, plot, area, xs, o.onZoom);
   return svg;
 }
 
-/**
- * Forest plot: one row per group with an interval and individual specimen dots.
- * groups: [{label, mean, lo, hi, values:[{v, label}]}]
- */
-export function forestChart(container, groups, xLabel, title) {
-  const rowH = 36;
-  const W = 760, H = 70 + rowH * Math.max(groups.length, 1);
-  const desc = groups.map((g) => `${g.label}: mean ${isFinite(g.mean) ? g.mean.toFixed(1) : "n/a"}`).join("; ");
-  const { svg, plot } = frame(container, W, H, { l: 190, r: 24, t: 10, b: 50 }, title || xLabel, desc);
-  const tip = tooltip(container);
-  const vals = groups.flatMap((g) => [g.lo, g.hi, g.mean, ...g.values.map((v) => v.v)]).filter(isFinite);
-  if (!vals.length) return svg;
-  const ticks = niceTicks(Math.min(...vals), Math.max(...vals));
-  const xs = scale(Math.min(ticks[0], ...vals), Math.max(ticks.at(-1), ...vals), plot.x0, plot.x1);
-  const yAt = (i) => plot.y1 + rowH * (i + 0.5);
-  const g0 = el("g", { class: "axes" }, svg);
-  bottomAxis(g0, plot, xs, ticks, xLabel);
+// Top axis: position along the tooth, found by interpolating between the samples.
+function positionAxis(g, area, xs, points, inView) {
+  const pts = points.filter((p) => p.position != null).sort((a, b) => a.position - b.position);
+  if (pts.length < 2) return;
+  el("line", { x1: area.left, x2: area.right, y1: area.top, y2: area.top, class: "axis" }, g);
+  for (const mm of niceTicks(pts[0].position, pts.at(-1).position, 8)) {
+    const after = pts.findIndex((p) => p.position >= mm);
+    if (after < 1) continue;
+    const [a, b] = [pts[after - 1], pts[after]];
+    const age = a.x + ((mm - a.position) / (b.position - a.position || 1)) * (b.x - a.x);
+    if (!inView(age)) continue;
+    el("line", { x1: xs(age), x2: xs(age), y1: area.top, y2: area.top - 5, class: "tick" }, g);
+    el("text", { x: xs(age), y: area.top - 9, "text-anchor": "middle" }, g).textContent = label(mm);
+  }
+  el("text", { x: (area.left + area.right) / 2, y: 13, "text-anchor": "middle", class: "label" }, g).textContent = "Position from cusp apex (mm)";
+}
+
+// Drag across the chart to zoom into an age range; double-click to reset.
+function addZoom(svg, plot, area, xs, onZoom) {
+  const band = el("rect", { y: area.top, height: area.bottom - area.top, class: "zoom-sel", visibility: "hidden" }, svg);
+  const catcher = el("rect", { x: area.left, y: area.top, width: area.right - area.left, height: area.bottom - area.top, class: "zoom-hit" });
+  svg.insertBefore(catcher, plot);
+  const svgX = (e) => {
+    const p = Object.assign(svg.createSVGPoint(), { x: e.clientX, y: e.clientY });
+    return Math.min(Math.max(p.matrixTransform(svg.getScreenCTM().inverse()).x, area.left), area.right);
+  };
+  let start = null;
+  catcher.addEventListener("pointerdown", (e) => { start = svgX(e); catcher.setPointerCapture(e.pointerId); });
+  catcher.addEventListener("pointermove", (e) => {
+    if (start == null) return;
+    band.setAttribute("x", Math.min(start, svgX(e)));
+    band.setAttribute("width", Math.abs(svgX(e) - start));
+    band.setAttribute("visibility", "visible");
+  });
+  catcher.addEventListener("pointerup", (e) => {
+    const end = svgX(e);
+    band.setAttribute("visibility", "hidden");
+    if (start != null && Math.abs(end - start) > 8) onZoom([xs.invert(Math.min(start, end)), xs.invert(Math.max(start, end))]);
+    start = null;
+  });
+  svg.addEventListener("dblclick", () => onZoom(null));
+}
+
+/** Forest plot: one row per group with its interval, mean (square) and specimens (dots). */
+export function forestChart(box, groups, xTitle) {
+  const desc = groups.map((g) => `${g.label}: mean ${num(g.mean, 1)}`).join("; ");
+  const { svg, area } = newChart(box, 760, 70 + 36 * Math.max(groups.length, 1), { l: 190, r: 24, t: 10, b: 50 }, xTitle, desc);
+  const values = groups.flatMap((g) => [g.lo, g.hi, g.mean, ...g.values.map((v) => v.v)]).filter(isFinite);
+  if (!values.length) return svg;
+  const ticks = niceTicks(Math.min(...values), Math.max(...values));
+  const xs = scale(ticks[0], ticks.at(-1), area.left, area.right);
+  xAxis(el("g", { class: "axes" }, svg), area, xs, ticks, xTitle);
   groups.forEach((g, i) => {
-    const y = yAt(i);
-    el("text", { x: plot.x0 - 10, y: y + 4, "text-anchor": "end", class: "row-label" }, svg).textContent = g.label;
+    const y = area.top + 36 * (i + 0.5);
+    el("text", { x: area.left - 10, y: y + 4, "text-anchor": "end", class: "row-label" }, svg).textContent = g.label;
     if (isFinite(g.lo) && isFinite(g.hi)) el("line", { x1: xs(g.lo), x2: xs(g.hi), y1: y, y2: y, class: "ci" }, svg);
-    for (const v of g.values) {
-      const dot = el("circle", { cx: xs(v.v), cy: y + 9, r: 3.5, class: "pt pt-small" }, svg);
-      dot.addEventListener("mouseenter", (ev) => {
-        const rect = container.getBoundingClientRect();
-        tip.show(v.label, ev.clientX - rect.left, ev.clientY - rect.top);
-      });
-      dot.addEventListener("mouseleave", () => tip.hide());
-    }
+    for (const v of g.values) hover(box, el("circle", { cx: xs(v.v), cy: y + 9, r: 3.5, class: "pt pt-small" }, svg), v.label);
     if (isFinite(g.mean)) el("rect", { x: xs(g.mean) - 5, y: y - 5, width: 10, height: 10, class: "mean" }, svg);
   });
   return svg;
 }
 
-/**
- * Simple line chart with markers. series: [{name, color, dash, points:[{x, y}]}]
- */
-export function lineChart(container, series, { xLabel, yLabel, title, yMin } = {}) {
-  const W = 760, H = 360;
-  const desc = series.map((s) => `${s.name}: ${s.points.map((p) => `${fmt(p.x)} → ${p.y == null ? "n/a" : fmt(p.y)}`).join(", ")}`).join("; ");
-  const { svg, plot } = frame(container, W, H, { l: 64, r: 130, t: 16, b: 56 }, title, desc);
-  const pts = series.flatMap((s) => s.points).filter((p) => p.y != null && isFinite(p.y));
+/** Line chart for the planner. series: [{name, color, dash, points: [{x, y}]}] */
+export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
+  const desc = series.map((s) => `${s.name}: ${s.points.map((p) => `${label(p.x)} → ${num(p.y)}`).join(", ")}`).join("; ");
+  const { svg, area } = newChart(box, 760, 360, { l: 64, r: 130, t: 16, b: 56 }, title, desc);
+  const hasValue = (p) => p.y != null && isFinite(p.y);
+  const pts = series.flatMap((s) => s.points).filter(hasValue);
   if (!pts.length) return svg;
-  const xt = niceTicks(Math.min(...pts.map((p) => p.x)), Math.max(...pts.map((p) => p.x)), 6);
+  const xt = niceTicks(Math.min(...pts.map((p) => p.x)), Math.max(...pts.map((p) => p.x)));
   const yt = niceTicks(yMin ?? Math.min(...pts.map((p) => p.y)), Math.max(...pts.map((p) => p.y)), 5);
-  const xs = scale(xt[0], xt.at(-1), plot.x0, plot.x1);
-  const ys = scale(yt[0], yt.at(-1), plot.y0, plot.y1);
-  const g = el("g", { class: "axes" }, svg);
-  leftAxis(g, plot, ys, yt, yLabel);
-  bottomAxis(g, plot, xs, xt, xLabel);
+  const xs = scale(xt[0], xt.at(-1), area.left, area.right);
+  const ys = scale(yt[0], yt.at(-1), area.bottom, area.top);
+  const axes = el("g", { class: "axes" }, svg);
+  yAxis(axes, area, ys, yt, yLabel);
+  xAxis(axes, area, xs, xt, xLabel);
   series.forEach((s, i) => {
-    const ok = s.points.filter((p) => p.y != null && isFinite(p.y));
-    el("path", { d: ok.map((p, j) => `${j ? "L" : "M"}${xs(p.x)},${ys(p.y)}`).join(""), fill: "none", stroke: s.color, "stroke-width": 2.2, "stroke-dasharray": s.dash || null }, svg);
-    for (const p of ok) marker(SHAPES[i % SHAPES.length], xs(p.x), ys(p.y), 4, { fill: s.color }, svg);
-    const ly = plot.y1 + 12 + i * 18;
-    el("line", { x1: plot.x1 + 12, x2: plot.x1 + 34, y1: ly, y2: ly, stroke: s.color, "stroke-width": 2.2, "stroke-dasharray": s.dash || null }, svg);
-    el("text", { x: plot.x1 + 40, y: ly + 4, class: "legend-text" }, svg).textContent = s.name;
+    const ok = s.points.filter(hasValue);
+    el("path", { d: path(ok.map((p) => [p.x, p.y]), xs, ys), fill: "none", stroke: s.color, "stroke-width": 2.2, "stroke-dasharray": s.dash }, svg);
+    for (const p of ok) marker(SHAPES[i % 4], xs(p.x), ys(p.y), 4, { fill: s.color }, svg);
+    const y = area.top + 12 + i * 18; // legend
+    el("line", { x1: area.right + 12, x2: area.right + 34, y1: y, y2: y, stroke: s.color, "stroke-width": 2.2, "stroke-dasharray": s.dash }, svg);
+    el("text", { x: area.right + 40, y: y + 4, class: "legend-text" }, svg).textContent = s.name;
   });
   return svg;
 }
 
-export function svgToBlob(svg) {
-  return new Blob([svgMarkup(svg)], { type: "image/svg+xml" });
+/** Everything the weaning chart needs for one specimen's results. */
+export function curveOptions(res, { visible, milestone, xRange = null, showD13C = false, onZoom = null }) {
+  const fits = res.fits.filter((f) => f.converged && visible.has(f.model));
+  const multiTooth = new Set(res.points.map((p) => p.tooth)).size > 1;
+  const markers = fits.filter((f) => f[milestone]?.estimate != null)
+    .map((f) => ({ x: f[milestone].estimate, lo: f[milestone].ci_low, hi: f[milestone].ci_high, color: color(f.model), label: `${num(f[milestone].estimate, 1)} mo` }));
+  const avg = res.model_average?.[milestone];
+  if (visible.has("average") && avg) markers.push({ x: avg.estimate, lo: avg.ci_low, hi: avg.ci_high, color: color("average"), label: `avg ${num(avg.estimate, 1)} mo` });
+  return {
+    title: `Weaning curve for ${res.specimen_id}`,
+    desc: `${res.points.length} samples of δ15N against age; ${fits.length} model curve(s) shown.`,
+    xLabel: "Age at dentine formation (months)",
+    yLabel: "δ¹⁵N (‰ AIR)",
+    xRange, showD13C, onZoom, positionAxis: !multiTooth, markers,
+    curves: fits.map((f) => ({ color: color(f.model), dash: MODEL_STYLE[f.model].dash, xs: f.curve_age, ys: f.curve_d15N })),
+    points: res.points.map((p) => ({
+      x: p.age_months, y: p.d15N, xMin: p.age_min, xMax: p.age_max, d13C: p.d13C, position: p.position_mm,
+      group: multiTooth ? p.tooth : null, used: p.used_in_fit, extrapolated: p.extrapolated,
+      label: `${multiTooth ? `${esc(p.tooth)} · ` : ""}${p.position_mm} mm → ${num(p.age_months, 1)} mo${p.age_min != null ? ` (window ${num(p.age_min, 1)}–${num(p.age_max, 1)})` : ""}` +
+        `<br>δ¹⁵N ${num(p.d15N)}‰${p.d13C != null ? ` · δ¹³C ${num(p.d13C)}‰` : ""}${p.qc_flags.length ? `<br><em>${esc(p.qc_flags.join(", "))}</em>` : ""}`,
+    })),
+  };
 }
 
-/** Standalone SVG markup with embedded styles (for downloads and reports). */
+/** A standalone copy of a chart (with its styles built in) for downloads and the report. */
 export function svgMarkup(svg) {
-  const clone = svg.cloneNode(true);
-  clone.setAttribute("xmlns", SVG_NS);
-  clone.querySelectorAll(".zoom-hit, .zoom-sel").forEach((n) => n.remove());
-  const style = document.createElementNS(SVG_NS, "style");
-  style.textContent = `text{font:12px sans-serif;fill:#333}.grid{stroke:#e5e5e5}.axis,.tick{stroke:#555}
-  .pt{fill:#222}.pt-excluded{fill:none;stroke:#c0392b;stroke-width:1.5}.pt-extra{fill:#888}.pt-small{fill:#0072B2;opacity:.65}
-  .ci{stroke:#333;stroke-width:2}.mean{fill:#333}.label{font-weight:600}.win{stroke:#888;stroke-width:1.5;opacity:.55}
-  .c13,.c13-pt{fill:#7a5c00}.c13-line{fill:none;stroke:#7a5c00;stroke-width:1.2;stroke-dasharray:2 3}`;
-  clone.prepend(style);
-  return new XMLSerializer().serializeToString(clone);
+  const copy = svg.cloneNode(true);
+  copy.setAttribute("xmlns", SVG);
+  copy.querySelectorAll(".zoom-hit, .zoom-sel").forEach((n) => n.remove());
+  const style = document.createElementNS(SVG, "style");
+  style.textContent = `text{font:12px sans-serif;fill:#333}.grid{stroke:#e5e5e5}.axis,.tick{stroke:#555}.pt{fill:#222}
+    .pt-excluded{fill:none;stroke:#c0392b;stroke-width:1.5}.pt-extra{fill:#888}.pt-small{fill:#0072B2;opacity:.65}.ci{stroke:#333;stroke-width:2}
+    .mean{fill:#333}.label{font-weight:600}.win{stroke:#888;stroke-width:1.5;opacity:.55}.c13,.c13-pt{fill:#7a5c00}
+    .c13-line{fill:none;stroke:#7a5c00;stroke-width:1.2;stroke-dasharray:2 3}`;
+  copy.prepend(style);
+  return new XMLSerializer().serializeToString(copy);
 }
+
+export const svgToBlob = (svg) => new Blob([svgMarkup(svg)], { type: "image/svg+xml" });
