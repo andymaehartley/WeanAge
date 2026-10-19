@@ -82,7 +82,7 @@ def two_phase_ages(p, q):
 
 
 # Each parameter has a "kind" that decides its starting guess and allowed range.
-MODELS = {
+MODELS: dict[str, dict] = {
     "logistic": {
         "label": "Logistic (sigmoid)", "curve": logistic, "ages": logistic_ages,
         "params": {"post": "level", "drop": "drop", "t_mid": "time", "scale": "width"},

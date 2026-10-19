@@ -1,12 +1,12 @@
 # PyInstaller spec: builds a single-file WeanAge executable.
-#   poetry run pyinstaller packaging/weanage.spec
+#   pyinstaller packaging/weanage.spec   ->  dist/weanage (weanage.exe on Windows)
 from pathlib import Path
 
 root = Path(SPECPATH).parent
 pkg = root / "src" / "weanage"
 
 a = Analysis(
-    [str(pkg / "__main__.py")],
+    [str(root / "packaging" / "launcher.py")],
     pathex=[str(root / "src")],
     datas=[(str(pkg / "data"), "weanage/data"), (str(pkg / "web"), "weanage/web")],
     hiddenimports=["uvicorn.logging", "uvicorn.loops.auto", "uvicorn.protocols.http.auto",

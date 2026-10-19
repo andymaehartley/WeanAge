@@ -176,7 +176,7 @@ def analyze_specimen(samples, options):
 
 # A pool of worker processes is kept alive so repeated analyses start quickly.
 # "spawn" is safe to use from the web server's threads.
-POOL = {}
+POOL: dict = {}
 
 
 def worker_pool(workers):

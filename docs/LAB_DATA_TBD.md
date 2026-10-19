@@ -22,7 +22,9 @@ formation. **The current knots are illustrative only.**
 | pig | M1 | as above |
 | horse | M1 | as above (hypsodont; extension rate likely non-linear) |
 
-For each table also supply `age_uncertainty_months` (1 SD), which is propagated into
+Tables can be edited, calibrated from known-age reference points and saved directly
+in the app (*Settings → Age models*); saved tables go to `~/.weanage/growth_tables.json`
+and replace the bundled placeholder. For each table also supply `age_uncertainty_months` (1 SD), which is propagated into
 the confidence intervals, and a `source` citation. You can add more species or teeth
 (sheep, goat, deciduous teeth and so on) by appending entries.
 
@@ -45,21 +47,23 @@ lyophilisation.
 | `transition_threshold` | fraction of the drop that defines onset and completion for smooth curves (default 5 % / 95 %) |
 | `reference_dataset` | CSV of known-age animals with `known_weaning_age_months`, for validation |
 | `growth_layer_offset_mm` | extra growth (mm) each horizontal section captures because dentine growth layers are oblique. Used by the optional time-averaging model. MDSS values are for human teeth only, so measure from livestock thin sections |
+| `inner_dentine_weight` | how much the innermost (latest) dentine in a slice counts compared with the earliest (1 = equal). Estimate from livestock thin-section geometry |
 | `adult_baselines` | mean ± SD δ¹⁵N of adult females (bone collagen) for each site and species, entered in Settings. Gives nursing enrichment and can constrain the adult plateau |
 
 ## 4. Isotope data: `src/weanage/data/templates/isotope_template.csv`
 
 Compile the sequential δ¹⁵N values and tooth-position metadata into this format.
-Optional columns: `increment_width_mm` (if sections differ from 1 mm), and
-`published_weaning_age_months` (when re-analysing published series, to compare with
-the published estimates). The
+Optional columns include `individual_id` (several teeth from one animal),
+`position_reference` + `crown_height_mm` (positions measured from the cervix),
+`increment_width_mm` (if sections differ from 1 mm) and `published_weaning_age_months`
+(when re-analysing published series). The
 bundled `examples/synthetic_example.csv` is **simulated**, not real.
 
 ## 5. Sampling conventions to confirm
 
-* `position_mm` is measured from the **cusp apex** to the **midpoint** of each
-  increment. If the lab measures from the cervix, convert the values before import
-  (or ask for a `position_reference` option to be added).
+* `position_mm` is measured to the **midpoint** of each increment, from the **cusp
+  apex** by default. If the lab measures from the cervix, set
+  `position_reference = cervix` and give `crown_height_mm`.
 * Each 1 mm increment averages several weeks of growth, which smooths the true dietary
   transition. The optional time-averaging model (Settings → Time averaging; see
   `docs/METHODS.md` §3a) corrects for this once `growth_layer_offset_mm` and the

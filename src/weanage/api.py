@@ -7,7 +7,7 @@ background jobs), so it works for one person or a whole lab.
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
@@ -31,14 +31,14 @@ app = FastAPI(title="WeanAge", version=__version__)
 # ───────────── request bodies ─────────────
 class AnalyzeIn(BaseModel):
     samples: list[IsotopeSample] = Field(min_length=1)
-    options: Optional[AnalysisOptions] = None
+    options: AnalysisOptions | None = None
 
 
 class AggregateIn(BaseModel):
     estimates: list[dict[str, Any]]
     group_by: list[str] = ["site", "species"]
     milestone: str = "completion"
-    model: Optional[str] = None
+    model: str | None = None
     bayes: bool = True
 
 
@@ -53,13 +53,13 @@ class CalibrateIn(BaseModel):
 
 class SimulateIn(BaseModel):
     scenario: SimulationScenario = SimulationScenario()
-    options: Optional[AnalysisOptions] = None
-    sweep_param: Optional[SweepParam] = None
+    options: AnalysisOptions | None = None
+    sweep_param: SweepParam | None = None
     sweep_values: list[float] = Field(default=[], max_length=12)
 
 
 # ───────────── background jobs (so long runs can show a progress bar) ─────────────
-JOBS = {}
+JOBS: dict = {}
 WORKERS = ThreadPoolExecutor(max_workers=2)
 
 

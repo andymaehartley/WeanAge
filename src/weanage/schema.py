@@ -4,37 +4,38 @@ Positions are in mm from the cusp apex (the tip of the crown, where dentine form
 first). Isotope values are in per mil (‰).
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-MODEL_NAMES = ["logistic", "piecewise", "exponential", "two_phase", "elbow"]
+ModelName = Literal["logistic", "piecewise", "exponential", "two_phase", "elbow"]
+MODEL_NAMES: list[ModelName] = ["logistic", "piecewise", "exponential", "two_phase", "elbow"]
 
 
 class IsotopeSample(BaseModel):
     """One slice of dentine measured in the lab."""
 
     specimen_id: str = Field(min_length=1)  # one tooth
-    individual_id: Optional[str] = None  # teeth with the same animal ID are joined
+    individual_id: str | None = None  # teeth with the same animal ID are joined
     site: str = Field(min_length=1)
     species: str = Field(min_length=1)
     tooth: str = Field(min_length=1)
     position_mm: float = Field(ge=0, le=200)
-    position_reference: Optional[Literal["apex", "cervix"]] = "apex"
-    crown_height_mm: Optional[float] = Field(default=None, gt=0, le=200)
-    position_measured_mm: Optional[float] = None  # original value if we converted it
+    position_reference: Literal["apex", "cervix"] | None = "apex"
+    crown_height_mm: float | None = Field(default=None, gt=0, le=200)
+    position_measured_mm: float | None = None  # original value if we converted it
     d15N: float = Field(ge=-10, le=30)
-    d13C: Optional[float] = Field(default=None, ge=-45, le=5)
-    pct_C: Optional[float] = Field(default=None, ge=0, le=100)
-    pct_N: Optional[float] = Field(default=None, ge=0, le=100)
-    cn_ratio: Optional[float] = Field(default=None, gt=0, le=50)
-    collagen_yield_pct: Optional[float] = Field(default=None, ge=0, le=100)
-    increment_width_mm: Optional[float] = Field(default=None, gt=0, le=20)
-    sample_index: Optional[int] = Field(default=None, ge=0)
-    period: Optional[str] = None
-    notes: Optional[str] = None
-    known_weaning_age_months: Optional[float] = Field(default=None, ge=0)
-    published_weaning_age_months: Optional[float] = Field(default=None, ge=0)
+    d13C: float | None = Field(default=None, ge=-45, le=5)
+    pct_C: float | None = Field(default=None, ge=0, le=100)
+    pct_N: float | None = Field(default=None, ge=0, le=100)
+    cn_ratio: float | None = Field(default=None, gt=0, le=50)
+    collagen_yield_pct: float | None = Field(default=None, ge=0, le=100)
+    increment_width_mm: float | None = Field(default=None, gt=0, le=20)
+    sample_index: int | None = Field(default=None, ge=0)
+    period: str | None = None
+    notes: str | None = None
+    known_weaning_age_months: float | None = Field(default=None, ge=0)
+    published_weaning_age_months: float | None = Field(default=None, ge=0)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -97,7 +98,7 @@ class GrowthTable(BaseModel):
     age_uncertainty_months: float = Field(default=0.0, ge=0)
     source: str = ""
     placeholder: bool = False
-    tbd_note: Optional[str] = None
+    tbd_note: str | None = None
 
     @model_validator(mode="after")
     def check_order(self):
@@ -130,15 +131,15 @@ class AdultBaseline(BaseModel):
 class AnalysisOptions(BaseModel):
     """Every setting of an analysis. Comments say what each one does."""
 
-    models: list[Literal["logistic", "piecewise", "exponential", "two_phase", "elbow"]] = MODEL_NAMES
+    models: list[ModelName] = MODEL_NAMES
     reported_milestone: Literal["onset", "midpoint", "completion"] = "completion"
     transition_threshold: float = Field(default=0.05, gt=0, lt=0.5)  # 5 % => onset/completion at 5 %/95 % of the drop
-    analytical_sd_permil: Optional[float] = Field(default=None, gt=0)  # lab precision, weights the fit
+    analytical_sd_permil: float | None = Field(default=None, gt=0)  # lab precision, weights the fit
     min_weaning_drop_permil: float = Field(default=1.0, ge=0)  # smaller drops = "no clear signal"
     monte_carlo_draws: int = Field(default=1000, ge=0, le=20000)
     uncertainty: Literal["covariance", "bootstrap"] = "covariance"
     bootstrap_draws: int = Field(default=200, ge=0, le=5000)
-    random_seed: Optional[int] = 42
+    random_seed: int | None = 42
     qc: QCThresholds = QCThresholds()
     growth_overrides: dict[str, LinearGrowthOverride] = {}  # "species:tooth" -> simple linear age model
     growth_tables: list[GrowthTable] = []  # edited tables sent with this analysis

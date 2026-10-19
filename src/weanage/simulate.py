@@ -7,7 +7,7 @@ while changing one setting (e.g. 0.5 vs 1 vs 2 mm slices) shows which plan works
 """
 
 import math
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -25,11 +25,11 @@ SweepParam = Literal["sampling_interval_mm", "increment_width_mm", "noise_sd", "
 class SimulationScenario(BaseModel):
     species: str = "cattle"
     tooth: str = "M2"
-    growth_override: Optional[LinearGrowthOverride] = None
+    growth_override: LinearGrowthOverride | None = None
     n_specimens: int = Field(default=30, ge=2, le=500)
     sampling_interval_mm: float = Field(default=1.0, gt=0, le=10)
     increment_width_mm: float = Field(default=1.0, gt=0, le=10)
-    sampled_length_mm: Optional[float] = Field(default=None, gt=0)  # default: the whole growth table
+    sampled_length_mm: float | None = Field(default=None, gt=0)  # default: the whole growth table
     noise_sd: float = Field(default=0.15, ge=0, le=3)
     missing_fraction: float = Field(default=0.0, ge=0, lt=0.9)
     growth_layer_offset_mm: float = Field(default=0.0, ge=0, le=50)

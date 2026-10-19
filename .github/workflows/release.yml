@@ -1,0 +1,32 @@
+# Push a tag such as v0.2.0 to build the single-file apps and publish to PyPI.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write  # attach the apps to the GitHub release
+  id-token: write  # PyPI "trusted publishing" (set this repo up as a publisher on pypi.org first)
+jobs:
+  apps:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e . pyinstaller
+      - run: pyinstaller packaging/weanage.spec
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/weanage*
+          name: WeanAge ${{ github.ref_name }}
+  pypi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

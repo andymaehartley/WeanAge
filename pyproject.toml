@@ -6,6 +6,14 @@ readme = "README.md"
 license = "MIT"
 authors = [{ name = "Annabelle Hartley" }]
 requires-python = ">=3.11,<3.15"
+keywords = ["zooarchaeology", "weaning", "stable isotopes", "dentine", "livestock"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "numpy>=1.26",
     "pandas>=2.1",
@@ -16,6 +24,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "openpyxl>=3.1",
 ]
+
+[project.urls]
+Repository = "https://github.com/andymaehartley/repotest"
 
 [project.scripts]
 weanage = "weanage.cli:main"
@@ -31,6 +42,10 @@ include = [
 pytest = ">=8.0"
 httpx = ">=0.27"
 pyinstaller = ">=6.3"
+ruff = ">=0.6"
+mypy = ">=1.10"
+pandas-stubs = "*"
+playwright = ">=1.45"
 
 [build-system]
 requires = ["poetry-core>=2.0"]
@@ -39,3 +54,14 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B905", "B008"]  # long message strings; zip(strict=) noise; FastAPI File() defaults
+
+[tool.mypy]
+ignore_missing_imports = true

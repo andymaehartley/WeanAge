@@ -2,124 +2,132 @@
 
 An open-source tool for estimating **age at weaning** in livestock (cattle, pigs, horses)
 from sequentially sampled **incremental dentine δ¹⁵N**. You give it isotope values
-measured along a tooth, and it returns modelled weaning curves and weaning-age
-estimates with uncertainty. It also compares those estimates across curve models,
-sites and species.
+measured along a tooth. It returns modelled weaning curves and weaning ages with
+uncertainty, compares curve models, sites and species, and helps plan sampling before
+any tooth is cut.
 
-The aim is a single, documented, validated method that any zooarchaeology lab can
-use without writing its own statistical model. That makes weaning ages comparable
-across sites, species and research groups.
+The aim is one documented, validated method that any zooarchaeology lab can use
+without writing its own statistical model, so that weaning ages are comparable across
+sites, species and research groups.
 
-> ⚠️ **Status: pre-lab-data scaffold.** All tooth growth tables and several method
-> parameters are **placeholders**. They are marked `TBD-LAB` in the code and data
-> files, and highlighted in yellow in the app. Results are illustrative until those
-> values are filled in. See [`docs/LAB_DATA_TBD.md`](docs/LAB_DATA_TBD.md).
-
----
+> ⚠️ **Status: pre-lab-data.** All tooth growth tables and several method parameters
+> are **placeholders**. They are marked `TBD-LAB` in the data files and highlighted in
+> yellow in the app, and results are illustrative until they are filled in. See
+> [`docs/LAB_DATA_TBD.md`](docs/LAB_DATA_TBD.md).
 
 ## Quick start
 
 ```bash
-# Python 3.11+
-poetry install            # or: pip install -e .
-poetry run weanage        # opens http://127.0.0.1:8765/app/ in your browser
+pip install -e .          # Python 3.11–3.14 (or: poetry install)
+weanage                   # opens http://127.0.0.1:8765/app/ in your browser
 ```
 
-In the app:
+A guided tour runs on first use, and every technical term has a **?** button with a
+plain-language explanation. The app has five tabs:
 
-1. **Data**: upload a CSV (or *Load synthetic example*), or type samples in by hand.
-   Validation runs straight away and points to problem rows.
-2. **Settings**: choose curve models, the milestone to report (onset, midpoint or
-   completion), QC thresholds and the tooth age model.
-3. **Results**: for each specimen you get a curve plot (each model can be toggled),
-   a model-comparison table and exports (CSV, JSON, SVG).
-4. **Compare**: summaries by site, species and period, how much the models disagree,
-   and validation against known-age animals.
+1. **Data**: drop in a CSV or Excel file, load the synthetic example, or type samples
+   in by hand. Problems are reported straight away, row by row.
+2. **Settings**: choose curve models, uncertainty method, quality-control limits,
+   time averaging, the seasonal term and adult-female baselines. You can also edit,
+   calibrate and save tooth growth tables here.
+3. **Results**: a curve chart for each specimen (drag to zoom, δ¹³C overlay,
+   tooth-position axis), the best and model-averaged weaning ages, warnings and a
+   model-comparison table.
+4. **Compare**: group summaries, formal tests (random-effects, permutation and a
+   hierarchical Bayesian model), how much the models disagree, and validation.
+5. **Plan sampling**: simulate teeth with known weaning ages to compare sampling
+   intervals, sample sizes or noise levels.
 
-To use it without the GUI:
+**Save** and **Open** store the whole project in a file, and work is also kept in the
+browser automatically. **Report** downloads a self-contained HTML report (print it to
+get a PDF).
+
+Without the app:
 
 ```bash
-weanage analyze my_data.csv -o estimates.csv
+weanage analyze my_data.csv -o estimates.csv      # CSV or .xlsx
+weanage --host 0.0.0.0 --no-browser               # shared server on a lab machine
 ```
 
-To run it as a shared server on a lab machine, use `weanage --host 0.0.0.0 --no-browser`.
+## Input columns
 
-## Input format
-
-One row per dentine increment. Common header spellings are recognised
-(`δ15N (‰)`, `d15N_AIR`, `C:N`, `%C` and so on). There is a blank template under
-*Data → Download blank template*, and a copy at
-`src/weanage/data/templates/isotope_template.csv`.
+One row per dentine slice. Common spellings (`δ15N (‰)`, `C:N`, `%C`, `Animal`, …) are
+recognised. A blank template is under *Data → Download blank template*.
 
 | column | required | meaning |
 |---|---|---|
-| `specimen_id` | ✔ | one tooth / individual |
-| `site` | ✔ | |
-| `species` | ✔ | `cattle`, `pig`, `horse` (others need a custom age model) |
-| `tooth` | ✔ | e.g. `M2`; must match a growth table or a custom model |
-| `position_mm` | ✔ | distance from the **cusp apex** to the increment midpoint |
+| `specimen_id` | ✔ | one tooth |
+| `site`, `species`, `tooth` | ✔ | species `cattle`, `pig`, `horse` (others need an age model) |
+| `position_mm` | ✔ | distance from the **cusp apex** to the middle of the slice |
 | `d15N` | ✔ | δ¹⁵N, ‰ AIR |
-| `d13C`, `pct_C`, `pct_N`, `cn_ratio`, `collagen_yield_pct` | | used for collagen QC (C:N is derived from %C/%N if missing) |
+| `individual_id` | | teeth sharing it (e.g. M1 + M2) are joined into one timeline |
+| `position_reference`, `crown_height_mm` | | set `cervix` if measured from the crown base |
+| `d13C`, `pct_C`, `pct_N`, `cn_ratio`, `collagen_yield_pct` | | collagen QC and the seasonality check |
+| `increment_width_mm` | | slice height if not 1 mm (time averaging) |
 | `sample_index`, `period`, `notes` | | |
-| `increment_width_mm` | | height of each section if not 1 mm (used by time averaging) |
-| `known_weaning_age_months` | | known-age reference animals only, used for validation |
-| `published_weaning_age_months` | | weaning age from a published study, for comparison |
+| `known_weaning_age_months` | | known-age reference animals (validation) |
+| `published_weaning_age_months` | | a published estimate, for comparison |
 
 ## How it works
 
 ```
-CSV / form ──► ingest (Pydantic validation, column aliasing)
-           ──► QC flags (C:N, %C, %N, yield)
-           ──► age model (position → age via species/tooth growth table)
-           ──► [optional] time-averaging windows per sample (after MDSS)
-           ──► curve fits (SciPy: logistic, piecewise, exponential; WEAN-style elbow)
-           ──► milestones + Monte Carlo 95 % intervals, AICc model weights
-           ──► aggregation (pandas groupby by site/species/period)
-           ──► validation vs. known ages and published estimates (bias, MAE, RMSE, coverage)
+file / form ─► check the data (pydantic) ─► collagen QC (C:N, %C, %N, yield)
+            ─► position → age (growth table per species and tooth; teeth of one animal joined)
+            ─► fit curves: logistic, piecewise, exponential, two-phase, WEAN-style elbow
+                 (optional: time averaging, yearly seasonal term, adult-female baseline)
+            ─► weaning ages with 95 % intervals (covariance or bootstrap, shared age-model error)
+            ─► AICc weights, model average, seasonality and rising-profile checks
+            ─► group comparison (random effects, permutation, hierarchical Bayes) and validation
 ```
 
-See [`docs/METHODS.md`](docs/METHODS.md) for the model equations and how the
-milestones are defined. [`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md) compares
-WeanAge with WARN, MDSS and WEAN and lists what was adopted from each.
+[`docs/METHODS.md`](docs/METHODS.md) gives the equations.
+[`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md) compares WeanAge with WARN, MDSS and WEAN.
 
-## Project layout
+## Code layout
+
+Everything is written to be readable by someone new to programming: plain functions,
+results as ordinary dictionaries, and comments in everyday language.
 
 ```
 src/weanage/
-  schema.py        Pydantic data models
-  ingest.py        CSV / form ingestion and dataset checks
-  qc.py            collagen quality-control flags
-  growth.py        position → age conversion
-  models.py        logistic, piecewise-linear, exponential, WEAN-style elbow + fitting
-  analysis.py      per-specimen pipeline
-  aggregate.py     site/species summaries, between-model disagreement
-  validation.py    accuracy metrics against known-age animals
-  api.py           FastAPI service used by the frontend
-  cli.py           `weanage` command
-  data/            growth tables, QC + lab parameters (TBD-LAB), template, synthetic example
-  web/             frontend (HTML/CSS/vanilla JS, dependency-free SVG charts)
-tests/             pytest suite (incl. a simulation-based accuracy study)
-packaging/         PyInstaller spec for a single-file app
-scripts/           helper scripts (synthetic data generator)
+  schema.py      the shape of the input data and settings (checked by pydantic)
+  config.py      reads the data files; saved growth tables; the TBD-LAB list
+  ingest.py      reads CSV/Excel/form rows and checks them
+  qc.py          collagen quality flags
+  growth.py      position on the tooth → age
+  models.py      the curves, fitting, uncertainty, model averaging, seasonal test
+  analysis.py    the step-by-step analysis of each specimen (runs in parallel)
+  aggregate.py   group summaries, model disagreement, validation metrics
+  inference.py   group tests and the hierarchical Bayesian model
+  simulate.py    the sampling planner
+  calibrate.py   growth tables from known-age reference points
+  api.py         the web server (and background jobs with progress)
+  cli.py         the `weanage` command
+  data/          growth tables, QC limits, lab parameters, template, synthetic example
+  web/           the app: HTML, CSS and plain JavaScript (no build step, works offline)
+tests/           pytest suite, including a browser test (needs Playwright)
+packaging/       single-file app (PyInstaller)
+paper/           JOSS paper draft
 ```
-
-The frontend is plain HTML and JavaScript with no build step or external libraries,
-so it runs offline and bundles straight into the single-file executable.
 
 ## Development
 
 ```bash
-poetry install
-poetry run pytest
-python scripts/make_synthetic_example.py   # regenerate the bundled example
+pip install -e . pytest httpx ruff mypy
+pytest                       # add `pip install playwright && playwright install chromium` for the browser test
+ruff check src tests && mypy src
+python scripts/make_synthetic_example.py      # regenerate the example data
+pyinstaller packaging/weanage.spec            # single-file app in dist/
 ```
 
-## Single-file app
+GitHub Actions runs the checks on every push. Pushing a tag such as `v0.2.0` builds the
+single-file apps for Linux, Windows and macOS and publishes the package to PyPI (after
+the repository is registered as a trusted publisher on pypi.org).
 
-```bash
-poetry run pyinstaller packaging/weanage.spec
-# → dist/weanage (or weanage.exe on Windows)
-```
+## Citing
+
+See [`CITATION.cff`](CITATION.cff). Archiving a release on Zenodo (metadata in
+`.zenodo.json`) gives a DOI. A draft software paper is in [`paper/`](paper/).
 
 ## Licence
 

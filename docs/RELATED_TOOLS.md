@@ -7,8 +7,8 @@
 | Data | bulk **bone** collagen, one value per individual, cross-sectional population | dentine section geometry | incremental **dentine**, one series per individual | incremental dentine, one series per tooth |
 | Taxa | humans | human incisors, canines, molars | humans | **cattle, pig, horse** (extensible) |
 | Ages | user-estimated skeletal ages | modelled from dentine microstructure | user-assigned per increment | **from tooth position** via species/tooth growth tables |
-| Estimation | ABC, curve forms linear/parabolic/reverse/sigmoid | age range of each section | 4th-degree polynomial + elbow | logistic, piecewise, exponential **and** WEAN-style elbow, compared by AICc |
-| Uncertainty | posterior credible intervals | age range per section | none (R², derivative) | Monte Carlo 95 % intervals + age-model uncertainty |
+| Estimation | ABC, curve forms linear/parabolic/reverse/sigmoid | age range of each section | 4th-degree polynomial + elbow | logistic, piecewise, exponential, two-phase **and** WEAN-style elbow, compared by AICc and averaged |
+| Uncertainty | posterior credible intervals | age range per section | none (R², derivative) | covariance or bootstrap 95 % intervals with shared age-model error; hierarchical Bayesian group comparison |
 | Validation | — | — | RMSE vs. 130 visually estimated published individuals | bias/MAE/RMSE/coverage vs. **known-age animals** and **published estimates** |
 
 ## What was taken from each
@@ -43,9 +43,11 @@
   ±2 SD of it (`constrain_adult_plateau`).
 * WARN's curve forms (linear, sigmoid, and parabolic as a smooth decline) are covered
   by the piecewise, logistic and exponential models.
-* Not adopted (yet): Approximate Bayesian Computation (ABC) and bone-collagen turnover
-  modelling. Turnover does not apply to dentine, which does not remodel after it
-  forms. A Bayesian fitting option remains possible future work.
+* Bayesian inference is used at the group level: a hierarchical model (Gibbs sampler)
+  pools specimen estimates within sites and species and gives direct probabilities
+  such as P(pigs weaned earlier than cattle). WARN's Approximate Bayesian Computation of
+  raw values, and its bone-collagen turnover model, are not adopted; turnover does not
+  apply to dentine, which does not remodel after it forms.
 
 ## Licensing note
 
