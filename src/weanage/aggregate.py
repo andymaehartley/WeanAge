@@ -1,98 +1,113 @@
-"""Site- and species-level summaries of weaning-age estimates."""
-
-from __future__ import annotations
+"""Summaries of the estimate rows: group averages, model disagreement and accuracy."""
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .schema import EstimateRow
 
-DEFAULT_GROUP = ("site", "species")
-
-
-def estimates_frame(rows: list[EstimateRow]) -> pd.DataFrame:
-    return pd.DataFrame([r.model_dump() for r in rows])
+def to_frame(rows):
+    return pd.DataFrame(list(rows))
 
 
-def _t_ci(values: pd.Series) -> pd.Series:
+def describe(values):
+    """n, mean, SD, median, range and the 95 % confidence interval of the mean."""
     v = values.dropna().to_numpy(dtype=float)
-    n = v.size
-    mean = float(v.mean()) if n else np.nan
-    sd = float(v.std(ddof=1)) if n > 1 else np.nan
+    n = len(v)
+    out = {"n": n, "mean": np.nan, "sd": np.nan, "median": np.nan, "min": np.nan, "max": np.nan,
+           "ci95_low": np.nan, "ci95_high": np.nan}
+    if n:
+        out.update(mean=v.mean(), median=np.median(v), min=v.min(), max=v.max())
     if n > 1:
+        sd = v.std(ddof=1)
         half = stats.t.ppf(0.975, n - 1) * sd / np.sqrt(n)
-        lo, hi = mean - half, mean + half
-    else:
-        lo = hi = np.nan
-    return pd.Series(
-        {
-            "n": n,
-            "mean": mean,
-            "sd": sd,
-            "median": float(np.median(v)) if n else np.nan,
-            "min": float(v.min()) if n else np.nan,
-            "max": float(v.max()) if n else np.nan,
-            "ci95_low": lo,
-            "ci95_high": hi,
-        }
-    )
-
-
-def aggregate(
-    rows: list[EstimateRow],
-    *,
-    group_by: tuple[str, ...] | list[str] = DEFAULT_GROUP,
-    milestone: str = "completion",
-    model: str | None = None,
-) -> pd.DataFrame:
-    """Average one milestone per group.
-
-    ``model=None`` uses each specimen's best-supported (lowest AICc) model; pass a
-    model name to summarise that model for every specimen instead.
-    """
-    df = estimates_frame(rows)
-    if df.empty:
-        return pd.DataFrame(columns=[*group_by, "model", "n", "mean", "sd"])
-    df = df[df["is_best"]] if model is None else df[df["model"] == model]
-    group_by = [g for g in group_by if g in df.columns]
-    if df.empty:
-        return pd.DataFrame(columns=[*group_by, "model", "n", "mean", "sd"])
-    df = df.assign(period=df["period"].fillna("—")) if "period" in group_by else df
-    out = (
-        df.groupby(group_by, dropna=False)[milestone]
-        .apply(_t_ci)
-        .unstack()
-        .reset_index()
-    )
-    out.insert(len(group_by), "model", model or "best (AICc)")
-    out["n"] = out["n"].astype(int)
+        out.update(sd=sd, ci95_low=v.mean() - half, ci95_high=v.mean() + half)
     return out
 
 
-def model_disagreement(rows: list[EstimateRow], milestone: str = "completion") -> pd.DataFrame:
-    """Per-specimen spread of a milestone across models (thesis question 1)."""
-    df = estimates_frame(rows)
-    if not df.empty:
-        df = df[df["model"] != "average"]
-    if df.empty:
+def pick(df, model):
+    """model=None: each specimen's best model; otherwise the named model (or "average")."""
+    return df[df["is_best"]] if model is None else df[df["model"] == model]
+
+
+def aggregate(rows, group_by=("site", "species"), milestone="completion", model=None):
+    df = to_frame(rows)
+    group_by = list(group_by)
+    if df.empty or pick(df, model).empty:
+        return pd.DataFrame(columns=[*group_by, "model", "n", "mean", "sd"])
+    df = pick(df, model).copy()
+    df[group_by] = df[group_by].fillna("—")
+    table = []
+    for keys, sub in df.groupby(group_by):
+        keys = keys if isinstance(keys, tuple) else (keys,)
+        table.append({**dict(zip(group_by, keys)), "model": model or "best (AICc)", **describe(sub[milestone])})
+    return pd.DataFrame(table)
+
+
+def model_disagreement(rows, milestone="completion"):
+    """How far apart the models' estimates are for each specimen (thesis question 1)."""
+    df = to_frame(rows)
+    if df.empty or (df["model"] != "average").sum() == 0:
         return pd.DataFrame(columns=["specimen_id", "site", "species", "n_models", "range"])
-    wide = df.pivot_table(
-        index=["specimen_id", "site", "species"], columns="model", values=milestone
-    )
+    df = df[df["model"] != "average"]
+    wide = df.pivot_table(index=["specimen_id", "site", "species"], columns="model", values=milestone)
     models = list(wide.columns)
     wide["n_models"] = wide[models].notna().sum(axis=1)
-    wide["min"] = wide[models].min(axis=1)
-    wide["max"] = wide[models].max(axis=1)
+    wide["min"], wide["max"] = wide[models].min(axis=1), wide[models].max(axis=1)
     wide["range"] = wide["max"] - wide["min"]
     wide.columns.name = None
     return wide.reset_index()
 
 
-def frame_to_records(df: pd.DataFrame) -> list[dict]:
-    """JSON-safe records (NaN -> None, numpy scalars -> Python)."""
-    clean = df.astype(object).where(pd.notna(df), None)
-    return [
-        {k: (v.item() if isinstance(v, np.generic) else v) for k, v in rec.items()}
-        for rec in clean.to_dict(orient="records")
-    ]
+def error_metrics(estimated, known):
+    """Bias (average signed error), MAE, RMSE and correlation between estimates and true values."""
+    est, ref = np.asarray(estimated, dtype=float), np.asarray(known, dtype=float)
+    ok = np.isfinite(est) & np.isfinite(ref)
+    est, ref = est[ok], ref[ok]
+    if len(est) == 0:
+        return {"n": 0, "bias": np.nan, "mae": np.nan, "rmse": np.nan, "pearson_r": np.nan}
+    err = est - ref
+    r = np.corrcoef(est, ref)[0, 1] if len(est) > 2 and est.std() > 0 and ref.std() > 0 else np.nan
+    return {"n": len(est), "bias": err.mean(), "mae": np.abs(err).mean(), "rmse": np.sqrt((err ** 2).mean()),
+            "pearson_r": r}
+
+
+def interval_coverage(low, high, known):
+    """Share of the 95 % intervals that contain the true value."""
+    low, high, ref = (np.asarray(a, dtype=float) for a in (low, high, known))
+    ok = np.isfinite(low) & np.isfinite(high) & np.isfinite(ref)
+    if not ok.any():
+        return np.nan
+    return float(np.mean((ref[ok] >= low[ok]) & (ref[ok] <= high[ok])))
+
+
+REFERENCES = {"known_weaning_age_months": "known age", "published_weaning_age_months": "published estimate"}
+
+
+def validate(rows, milestone="completion"):
+    """Accuracy of each model against known ages and/or published estimates."""
+    df = to_frame(rows)
+    table = []
+    for column, label in REFERENCES.items():
+        if df.empty or column not in df or df[column].isna().all():
+            continue
+        for model, sub in df.groupby("model"):
+            metrics = error_metrics(sub[milestone], sub[column])
+            if metrics["n"]:
+                coverage = np.nan
+                if milestone == "completion":
+                    coverage = interval_coverage(sub["completion_ci_low"], sub["completion_ci_high"], sub[column])
+                table.append({"reference": label, "model": model, **metrics, "ci_coverage": coverage})
+    return pd.DataFrame(table, columns=["reference", "model", "n", "bias", "mae", "rmse", "pearson_r", "ci_coverage"])
+
+
+def plain(value):
+    """numpy numbers -> normal Python numbers, and NaN -> None, so the value can go into JSON."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and np.isnan(value):
+        return None
+    return value
+
+
+def records(df):
+    return [{key: plain(value) for key, value in row.items()} for row in df.to_dict(orient="records")]

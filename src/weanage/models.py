@@ -1,616 +1,461 @@
-"""Weaning curve models and the SciPy fitting engine.
+"""Weaning curves and how they are fitted to the data.
 
-The parametric models describe δ15N as a function of age (months). All share the
-two "level" parameters
+While an animal suckles, its δ15N is raised by about one step in the food chain.
+After weaning it falls to the adult level. Every curve here has
 
-* ``post``  - post-weaning (adult diet) δ15N plateau
-* ``drop``  - nursing enrichment above that plateau (‰, constrained >= 0)
+* post - the adult (after weaning) δ15N level
+* drop - how much higher the suckling level is (so suckling level = post + drop)
 
-so the nursing plateau is ``post + drop``; they differ in the shape of the
-transition, which is exactly the methodological choice whose effect on weaning-age
-estimates the project sets out to measure. ``two_phase`` adds an intermediate
-plateau (supplementary feeding while suckling continues, as expected where milk is
-shared with people). A non-parametric ``elbow`` method re-implements WEAN
-(Ganiatsou et al. 2023).
-
-Options applied by :func:`fit_model`:
-
-* time averaging (after Tsutaya 2020 / MDSS) - each sample is the weighted mean of
-  the curve over the age window its increment spans;
-* a seasonal term ``a·sin(2πt/P) + b·cos(2πt/P)`` added to any parametric curve;
-* uncertainty from the parameter covariance or a residual bootstrap, with the
-  growth-table age uncertainty applied as one shared offset per draw (an error in
-  the age model moves every sample of a tooth together).
+and differs only in the *shape* of the fall. "elbow" copies the method of the WEAN
+tool (Ganiatsou et al. 2023) so its answers can be compared side by side.
 """
-
-from __future__ import annotations
 
 import math
 import warnings
-from dataclasses import dataclass, field
-from typing import Callable, Literal
 
 import numpy as np
 from scipy import stats
-from scipy.optimize import OptimizeWarning, curve_fit
+from scipy.optimize import curve_fit
 
-from .schema import FitResult, ModelName, ValueWithCI
+from .schema import AnalysisOptions
 
-Milestones = dict[str, float]
-MILESTONES = ("onset", "midpoint", "completion")
-
-
-# ───────────────────────── curve functions ─────────────────────────
-def _desc(t, t_mid, scale):
-    """Descending logistic step from 1 to 0 centred on ``t_mid``."""
-    z = np.clip((np.asarray(t, dtype=float) - t_mid) / scale, -60, 60)
-    return 1.0 / (1.0 + np.exp(z))
+MILESTONES = ["onset", "midpoint", "completion"]
 
 
-def _logistic(t, post, drop, t_mid, scale):
-    return post + drop * _desc(t, t_mid, scale)
+# ───────────── curve shapes (t = age in months) ─────────────
+def falling_step(t, middle, width):
+    """Goes smoothly from 1 down to 0 around `middle`."""
+    z = np.clip((np.asarray(t, dtype=float) - middle) / width, -60, 60)
+    return 1 / (1 + np.exp(z))
 
 
-def _piecewise(t, post, drop, t_start, duration):
-    t = np.asarray(t, dtype=float)
-    frac = np.clip((t - t_start) / duration, 0.0, 1.0)
-    return post + drop * (1.0 - frac)
+def logistic(t, post, drop, t_mid, scale):
+    return post + drop * falling_step(t, t_mid, scale)
 
 
-def _exponential(t, post, drop, t_start, tau):
-    t = np.asarray(t, dtype=float)
-    elapsed = np.clip(t - t_start, 0.0, None)
+def piecewise(t, post, drop, t_start, duration):
+    progress = np.clip((np.asarray(t, dtype=float) - t_start) / duration, 0, 1)
+    return post + drop * (1 - progress)
+
+
+def exponential(t, post, drop, t_start, tau):
+    elapsed = np.clip(np.asarray(t, dtype=float) - t_start, 0, None)
     return post + drop * np.exp(-elapsed / tau)
 
 
-def _two_phase(t, post, drop, first_fraction, t1, gap, scale):
-    return post + drop * (
-        first_fraction * _desc(t, t1, scale) + (1 - first_fraction) * _desc(t, t1 + gap, scale)
-    )
+def two_phase(t, post, drop, first_fraction, t1, gap, scale):
+    """Two falls: part of the drop at t1, the rest `gap` months later."""
+    first = first_fraction * falling_step(t, t1, scale)
+    second = (1 - first_fraction) * falling_step(t, t1 + gap, scale)
+    return post + drop * (first + second)
 
 
-# ───────────────────────── milestones ─────────────────────────
-# Each accepts one parameter vector (k,) or a batch of draws (n, k) and returns
-# floats or arrays accordingly.
-def _logistic_milestones(p, q: float) -> Milestones:
-    p = np.asarray(p, dtype=float)
+# ───────────── weaning ages from the fitted parameters ─────────────
+# `p` is one set of parameters, or a table with one row per random draw, so
+# p[..., 2] means "the third parameter" in both cases. q is the threshold (5 %).
+def logistic_ages(p, q):
     t_mid, scale = p[..., 2], p[..., 3]
-    half_width = scale * math.log((1 - q) / q)
-    return {"onset": t_mid - half_width, "midpoint": t_mid, "completion": t_mid + half_width}
+    half = scale * math.log((1 - q) / q)
+    return {"onset": t_mid - half, "midpoint": t_mid, "completion": t_mid + half}
 
 
-def _piecewise_milestones(p, q: float) -> Milestones:
-    p = np.asarray(p, dtype=float)
-    t_start, duration = p[..., 2], p[..., 3]
-    return {"onset": t_start, "midpoint": t_start + duration / 2, "completion": t_start + duration}
+def piecewise_ages(p, q):
+    start, duration = p[..., 2], p[..., 3]
+    return {"onset": start, "midpoint": start + duration / 2, "completion": start + duration}
 
 
-def _exponential_milestones(p, q: float) -> Milestones:
-    p = np.asarray(p, dtype=float)
-    t_start, tau = p[..., 2], p[..., 3]
-    return {
-        "onset": t_start,
-        "midpoint": t_start + tau * math.log(2),
-        "completion": t_start + tau * math.log(1 / q),
-    }
+def exponential_ages(p, q):
+    start, tau = p[..., 2], p[..., 3]
+    return {"onset": start, "midpoint": start + tau * math.log(2), "completion": start + tau * math.log(1 / q)}
 
 
-def _two_phase_milestones(p, q: float) -> Milestones:
-    p = np.asarray(p, dtype=float)
+def two_phase_ages(p, q):
     post, drop, f, t1, gap, scale = (p[..., i] for i in range(6))
-    half_width = scale * math.log((1 - q) / q)
-    # Midpoint: where half the total drop has happened (vectorised bisection on the
-    # monotone curve).
-    lo, hi = t1 - 10 * scale, t1 + gap + 10 * scale
-    target = post + drop / 2
+    half = scale * math.log((1 - q) / q)
+    # Midpoint = where half the drop has happened. Found by halving the search range 40 times.
+    low, high = t1 - 10 * scale, t1 + gap + 10 * scale
     for _ in range(40):
-        mid = (lo + hi) / 2
-        above = _two_phase(mid, post, drop, f, t1, gap, scale) > target
-        lo, hi = np.where(above, mid, lo), np.where(above, hi, mid)
-    return {"onset": t1 - half_width, "midpoint": (lo + hi) / 2, "completion": t1 + gap + half_width}
+        middle = (low + high) / 2
+        still_high = two_phase(middle, post, drop, f, t1, gap, scale) > post + drop / 2
+        low, high = np.where(still_high, middle, low), np.where(still_high, high, middle)
+    return {"onset": t1 - half, "midpoint": (low + high) / 2, "completion": t1 + gap + half}
 
 
-# ───────────────────────── starts & bounds ─────────────────────────
-def _levels(y):
+# Each parameter has a "kind" that decides its starting guess and allowed range.
+MODELS = {
+    "logistic": {
+        "label": "Logistic (sigmoid)", "curve": logistic, "ages": logistic_ages,
+        "params": {"post": "level", "drop": "drop", "t_mid": "time", "scale": "width"},
+        "about": "Smooth S-shaped decline from the nursing to the adult plateau. Onset and completion "
+                 "are where the curve has covered the chosen threshold of the drop.",
+    },
+    "piecewise": {
+        "label": "Piecewise linear (broken stick)", "curve": piecewise, "ages": piecewise_ages,
+        "params": {"post": "level", "drop": "drop", "t_start": "time", "duration": "width"},
+        "about": "Flat nursing plateau, straight-line decline, flat adult plateau. Onset and completion "
+                 "are the two breakpoints.",
+    },
+    "exponential": {
+        "label": "Exponential decay", "curve": exponential, "ages": exponential_ages,
+        "params": {"post": "level", "drop": "drop", "t_start": "time", "tau": "width"},
+        "about": "Nursing plateau followed by an abrupt start to weaning and an exponential approach to "
+                 "the adult value (fast early change, slowing later).",
+    },
+    "two_phase": {
+        "label": "Two-phase (staged weaning)", "curve": two_phase, "ages": two_phase_ages,
+        "params": {"post": "level", "drop": "drop", "first_fraction": "fraction", "t1": "time",
+                   "gap": "gap", "scale": "width"},
+        "about": "Two logistic steps with an intermediate plateau: early supplementary feeding while "
+                 "suckling continues, then final weaning. Expected where milk was shared with people "
+                 "(dairying). Compare its AICc with the logistic model.",
+    },
+}
+ELBOW_ABOUT = ("Re-implementation of WEAN (Ganiatsou et al. 2023): a 4th-degree polynomial is fitted and "
+               "weaning completion is the 'elbow', the point farthest below the line from the δ15N peak "
+               "to the last sample. Reports completion only.")
+MODEL_CATALOG = [{"name": n, "label": m["label"], "description": m["about"], "params": list(m["params"])}
+                 for n, m in MODELS.items()]
+MODEL_CATALOG.append({"name": "elbow", "label": "Elbow on polynomial (WEAN-style)",
+                      "description": ELBOW_ABOUT, "params": ["c4", "c3", "c2", "c1", "c0"]})
+
+
+def limits(kinds, t, y, post_range=None):
+    """Lowest and highest allowed value of each parameter."""
+    span = max(float(np.ptp(t)), 1.0)
+    level_low, level_high = post_range or (y.min() - 5, y.max() + 5)
+    table = {
+        "level": (level_low, level_high),
+        "drop": (0.0, max(float(np.ptp(y)) * 3, 1.0)),
+        "time": (t.min() - span, t.max() + span),
+        "width": (span * 1e-3, span * 4),
+        "fraction": (0.05, 0.95),
+        "gap": (span * 0.02, span * 2),
+    }
+    low = [float(table[k][0]) for k in kinds]
+    high = [float(table[k][1]) for k in kinds]
+    return low, high
+
+
+def starting_guesses(kinds, t, y):
+    """Several sensible starting points; the fit keeps whichever ends up best."""
+    span = max(float(np.ptp(t)), 1.0)
     post = float(np.percentile(y, 15))
     drop = max(float(np.percentile(y, 85)) - post, 0.5)
-    return post, drop
+    guesses = []
+    for centre in np.linspace(0.15, 0.75, 5):
+        for width in (0.03, 0.08):
+            for gap in ((0.15, 0.3) if "gap" in kinds else (0.2,)):
+                values = {"level": post, "drop": drop, "time": t.min() + centre * span,
+                          "width": width * span, "fraction": 0.5, "gap": gap * span}
+                guesses.append([values[k] for k in kinds])
+    return guesses
 
 
-def _span(t):
-    return max(float(np.ptp(t)), 1.0)
-
-
-def _base_bounds(t, y, post_range):
-    span = _span(t)
-    y_lo, y_hi = post_range or (float(y.min()) - 5, float(y.max()) + 5)
-    max_drop = max(float(np.ptp(y)) * 3, 1.0)
-    return span, (y_lo, y_hi), max_drop, float(t.min()) - span, float(t.max()) + span
-
-
-def _four_param_bounds(t, y, post_range):
-    span, (y_lo, y_hi), max_drop, lo_t, hi_t = _base_bounds(t, y, post_range)
-    return [y_lo, 0.0, lo_t, span * 1e-3], [y_hi, max_drop, hi_t, span * 4]
-
-
-def _four_param_starts(kind):
-    def starts(t, y):
-        span, (post, drop) = _span(t), _levels(y)
-        out = []
-        for frac in (0.15, 0.3, 0.45, 0.6, 0.75):
-            centre = float(t.min()) + frac * span
-            for width in (0.1, 0.25):
-                w = width * span
-                out.append([post, drop, centre, w / 3] if kind == "logistic" else [post, drop, centre - w, w])
-        return out
-
-    return starts
-
-
-def _two_phase_bounds(t, y, post_range):
-    span, (y_lo, y_hi), max_drop, lo_t, hi_t = _base_bounds(t, y, post_range)
-    return [y_lo, 0.0, 0.05, lo_t, span * 0.02, span * 1e-3], [y_hi, max_drop, 0.95, hi_t, span * 2, span]
-
-
-def _two_phase_starts(t, y):
-    span, (post, drop) = _span(t), _levels(y)
-    out = []
-    for t1_frac in (0.15, 0.3, 0.45):
-        for gap_frac in (0.15, 0.3):
-            for f in (0.3, 0.6):
-                out.append([post, drop, f, float(t.min()) + t1_frac * span, gap_frac * span, span * 0.03])
-    return out
-
-
-@dataclass(frozen=True)
-class CurveModel:
-    name: ModelName
-    label: str
-    description: str
-    param_names: tuple[str, ...]
-    func: Callable[..., np.ndarray]
-    milestones: Callable[..., Milestones]
-    starts: Callable[[np.ndarray, np.ndarray], list[list[float]]]
-    bounds: Callable[..., tuple[list[float], list[float]]]
-
-    @property
-    def n_params(self) -> int:
-        return len(self.param_names)
-
-
-MODELS: dict[str, CurveModel] = {
-    "logistic": CurveModel(
-        "logistic",
-        "Logistic (sigmoid)",
-        "Smooth S-shaped decline from the nursing to the adult plateau. Onset and "
-        "completion are where the curve has covered the chosen threshold of the drop.",
-        ("post", "drop", "t_mid", "scale"),
-        _logistic, _logistic_milestones, _four_param_starts("logistic"), _four_param_bounds,
-    ),
-    "piecewise": CurveModel(
-        "piecewise",
-        "Piecewise linear (broken stick)",
-        "Flat nursing plateau, straight-line decline, flat adult plateau. Onset and "
-        "completion are the two breakpoints.",
-        ("post", "drop", "t_start", "duration"),
-        _piecewise, _piecewise_milestones, _four_param_starts("piecewise"), _four_param_bounds,
-    ),
-    "exponential": CurveModel(
-        "exponential",
-        "Exponential decay",
-        "Nursing plateau followed by an abrupt start to weaning and an exponential "
-        "approach to the adult value (fast early change, slowing later).",
-        ("post", "drop", "t_start", "tau"),
-        _exponential, _exponential_milestones, _four_param_starts("exponential"), _four_param_bounds,
-    ),
-    "two_phase": CurveModel(
-        "two_phase",
-        "Two-phase (staged weaning)",
-        "Two logistic steps with an intermediate plateau: early supplementary feeding "
-        "while suckling continues, then final weaning. Expected where milk was shared "
-        "with people (dairying). Compare its AICc with the logistic model.",
-        ("post", "drop", "first_fraction", "t1", "gap", "scale"),
-        _two_phase, _two_phase_milestones, _two_phase_starts, _two_phase_bounds,
-    ),
-}
-
-
-# ───────────────────────── settings ─────────────────────────
-@dataclass
-class FitSettings:
-    threshold: float = 0.05
-    analytical_sd: float | None = None
-    min_drop: float = 1.0
-    draws: int = 1000
-    seed: int | None = 42
-    curve_points: int = 200
-    age_uncertainty: float = 0.0
-    age_windows: np.ndarray | None = None
-    window_weights: np.ndarray | None = None
-    post_range: tuple[float, float] | None = None
-    adult_baseline: float | None = None
-    elbow_normalise: bool = True
-    seasonal: bool = False
-    season_period: float = 12.0
-    uncertainty: Literal["covariance", "bootstrap"] = "covariance"
-    bootstrap_draws: int = 200
-    extra: dict = field(default_factory=dict)
-
-
-def aicc(sse: float, n: int, n_params: int) -> float | None:
-    """Small-sample corrected AIC for least squares (variance counted as a parameter)."""
-    k = n_params + 1
+def aicc(sse, n, n_params):
+    """Small-sample AIC: lower = better balance of fit and simplicity."""
+    k = n_params + 1  # the noise level counts as one more parameter
     if n - k - 1 <= 0 or sse <= 0:
         return None
-    return n * math.log(sse / n) + 2 * k + (2 * k * (k + 1)) / (n - k - 1)
+    return n * math.log(sse / n) + 2 * k + 2 * k * (k + 1) / (n - k - 1)
 
 
-def _fit_once(func, t, y, sigma, p0, bounds):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", OptimizeWarning)
-        warnings.simplefilter("ignore", RuntimeWarning)
-        popt, pcov = curve_fit(
-            func, t, y,
-            p0=np.clip(p0, np.array(bounds[0]) + 1e-9, np.array(bounds[1]) - 1e-9),
-            sigma=sigma, absolute_sigma=sigma is not None,
-            bounds=bounds, method="trf", maxfev=20000,
-        )
-    sse = float(np.sum((y - func(t, *popt)) ** 2))
-    return popt, pcov, sse
-
-
-def _ci(values: np.ndarray) -> tuple[float | None, float | None]:
+def interval(values):
+    """The middle 95 % of a set of random draws."""
+    values = np.asarray(values, dtype=float)
     values = values[np.isfinite(values)]
     if values.size < 20:
         return None, None
-    lo, hi = np.percentile(values, [2.5, 97.5])
-    return float(lo), float(hi)
+    low, high = np.percentile(values, [2.5, 97.5])
+    return float(low), float(high)
 
 
-def _summarise(result: FitResult, point: Milestones, draws: dict[str, np.ndarray] | None,
-               age_sd: float, rng: np.random.Generator) -> None:
-    """Attach milestone estimates and intervals; age-model error is one shared shift per draw."""
-    stored: dict[str, np.ndarray] = {}
-    for key, estimate in point.items():
-        lo = hi = None
-        if draws is not None and draws.get(key) is not None and draws[key].size:
-            values = draws[key].copy()
-            if age_sd > 0:
-                values = values + rng.normal(0, age_sd, values.size)
-            lo, hi = _ci(values)
-            stored[key] = values
-        setattr(result, key, ValueWithCI(estimate=float(estimate), ci_low=lo, ci_high=hi))
-    result._draws = stored
+def new_result(name, label):
+    return {"model": name, "label": label, "converged": False, "message": "", "params": {}, "param_se": {},
+            "nursing_d15N": None, "adult_d15N": None, "drop_permil": None, "enrichment_permil": None,
+            "extra": {}, "onset": None, "midpoint": None, "completion": None, "rmse": None, "r2": None,
+            "aicc": None, "delta_aicc": None, "akaike_weight": None, "warnings": [],
+            "curve_age": [], "curve_d15N": [], "_draws": {}}
 
 
-def _seasonal_terms(t, period):
-    w = 2 * math.pi / period
-    t = np.asarray(t, dtype=float)
-    return np.sin(w * t), np.cos(w * t)
+def add_milestones(result, best_guess, draws, age_sd, rng):
+    """Store each weaning age with its 95 % interval.
+
+    The age model's own error moves every sample of a tooth together, so it is
+    added as one random shift per draw.
+    """
+    for key, estimate in best_guess.items():
+        low = high = None
+        if draws is not None and len(draws.get(key, [])):
+            values = np.asarray(draws[key], dtype=float) + rng.normal(0, age_sd, len(draws[key]))
+            low, high = interval(values)
+            result["_draws"][key] = values
+        result[key] = {"estimate": float(estimate), "ci_low": low, "ci_high": high}
 
 
-def fit_model(name: ModelName, age, d15n, settings: FitSettings | None = None, **kwargs) -> FitResult:
-    """Fit one model and derive weaning milestones with 95 % intervals."""
-    s = settings or FitSettings(**kwargs)
-    t = np.asarray(age, dtype=float)
-    y = np.asarray(d15n, dtype=float)
-    order = np.argsort(t, kind="stable")
-    t, y = t[order], y[order]
-    windows = np.asarray(s.age_windows, dtype=float)[order] if s.age_windows is not None else None
+def fit_model(name, ages, d15n, options=None, age_sd=0.0, windows=None, weights=None,
+              post_range=None, baseline=None):
+    """Fit one model to one specimen and work out its weaning ages.
+
+    windows/weights switch on time averaging: row i of `windows` holds the ages
+    mixed into sample i, and the sample is predicted as their weighted average.
+    """
+    options = options or AnalysisOptions()
+    order = np.argsort(ages, kind="stable")
+    t = np.asarray(ages, dtype=float)[order]
+    y = np.asarray(d15n, dtype=float)[order]
+    if windows is not None:
+        windows = np.asarray(windows, dtype=float)[order]
     if name == "elbow":
-        result = fit_elbow(t, y, s)
+        result = fit_elbow(t, y, options, age_sd)
     else:
-        result = _fit_parametric(MODELS[name], t, y, windows, s)
-    if s.adult_baseline is not None and result.nursing_d15N is not None:
-        result.enrichment_permil = result.nursing_d15N - s.adult_baseline
+        result = fit_curve(name, t, y, options, age_sd, windows, weights, post_range)
+    if baseline is not None and result["nursing_d15N"] is not None:
+        result["enrichment_permil"] = result["nursing_d15N"] - baseline
     return result
 
 
-def _fit_parametric(model: CurveModel, t, y, windows, s: FitSettings) -> FitResult:
-    n, k = t.size, model.n_params
-    label = model.label + (" + seasonal" if s.seasonal else "")
-    result = FitResult(model=model.name, label=label, converged=False)
-    n_total = k + (2 if s.seasonal else 0)
-    if n < n_total + 2:
-        result.message = f"Need at least {n_total + 2} samples, got {n}"
+def fit_curve(name, t, y, options, age_sd, windows, weights, post_range):
+    spec = MODELS[name]
+    kinds = list(spec["params"].values())
+    names = list(spec["params"])
+    seasonal = options.seasonal_term
+    if seasonal:  # an extra yearly wave: a·sin + b·cos
+        kinds, names = kinds + ["wave", "wave"], names + ["season_sin", "season_cos"]
+    result = new_result(name, spec["label"] + (" + seasonal" if seasonal else ""))
+    n = len(t)
+    if n < len(kinds) + 2:
+        result["message"] = f"Need at least {len(kinds) + 2} samples, got {n}"
         return result
 
-    def curve(tt, *p):
-        out = model.func(tt, *p[:k])
-        if s.seasonal:
-            sin, cos = _seasonal_terms(tt, s.season_period)
-            out = out + p[k] * sin + p[k + 1] * cos
+    def curve(ages, *p):
+        out = spec["curve"](ages, *p[:len(spec["params"])])
+        if seasonal:
+            angle = 2 * math.pi * np.asarray(ages) / options.season_period_months
+            out = out + p[-2] * np.sin(angle) + p[-1] * np.cos(angle)
         return out
 
-    if windows is not None:
-        wts = s.window_weights if s.window_weights is not None else np.ones(windows.shape[1])
-        wts = np.asarray(wts, dtype=float) / np.sum(wts)
+    def predict(ages, *p):
+        if windows is None:
+            return curve(ages, *p)
+        w = np.ones(windows.shape[1]) if weights is None else np.asarray(weights, dtype=float)
+        return curve(windows, *p) @ (w / w.sum())
 
-        def func(_t, *p):
-            return curve(windows, *p) @ wts
-    else:
-        func = curve
+    base_kinds = [k for k in kinds if k != "wave"]
+    low, high = limits(base_kinds, t, y, post_range)
+    guesses = starting_guesses(base_kinds, t, y)
+    if seasonal:
+        wave = max(float(np.ptp(y)), 0.5)
+        low, high = low + [-wave, -wave], high + [wave, wave]
+        guesses = [g + [0.0, 0.0] for g in guesses]
+    sigma = np.full(n, options.analytical_sd_permil) if options.analytical_sd_permil else None
 
-    lower, upper = model.bounds(t, y, s.post_range)
-    starts = model.starts(t, y)
-    if s.seasonal:
-        amp = max(float(np.ptp(y)), 0.5)
-        lower, upper = lower + [-amp, -amp], upper + [amp, amp]
-        starts = [p + [0.0, 0.0] for p in starts]
-    bounds = (lower, upper)
-
-    sigma = np.full(n, s.analytical_sd) if s.analytical_sd else None
     best = None
-    for p0 in starts:
+    for guess in guesses:
         try:
-            popt, pcov, sse = _fit_once(func, t, y, sigma, p0, bounds)
+            p, cov, sse = least_squares(predict, t, y, sigma, guess, (low, high))
         except (RuntimeError, ValueError):
             continue
         if best is None or sse < best[2]:
-            best = (popt, pcov, sse)
+            best = (p, cov, sse)
     if best is None:
-        result.message = "Optimiser did not converge from any starting point"
+        result["message"] = "Optimiser did not converge from any starting point"
         return result
 
-    popt, pcov, sse = best
-    names = list(model.param_names) + (["season_sin", "season_cos"] if s.seasonal else [])
-    result.converged = True
-    result.params = {nm: float(v) for nm, v in zip(names, popt)}
-    diag = np.diag(pcov) if np.all(np.isfinite(pcov)) else np.full(len(popt), np.nan)
-    result.param_se = {
-        nm: (float(math.sqrt(v)) if np.isfinite(v) and v >= 0 else None) for nm, v in zip(names, diag)
-    }
-    post, drop = float(popt[0]), float(popt[1])
-    result.adult_d15N, result.nursing_d15N, result.drop_permil = post, post + drop, drop
-    if model.name == "two_phase":
-        f, gap = float(popt[2]), float(popt[4])
-        result.extra["intermediate_d15N"] = post + drop * (1 - f)
-        result.extra["first_phase_fraction"] = f
-        result.extra["supplementation_months"] = gap
-    if s.seasonal:
-        result.extra["seasonal_amplitude_permil"] = float(math.hypot(popt[k], popt[k + 1]))
+    p, cov, sse = best
+    se = np.sqrt(np.diag(cov)) if np.all(np.isfinite(cov)) else [None] * len(p)
+    fitted = predict(t, *p)
+    result.update(
+        converged=True,
+        params={k: float(v) for k, v in zip(names, p)},
+        param_se={k: (float(v) if v is not None and np.isfinite(v) else None) for k, v in zip(names, se)},
+        adult_d15N=float(p[0]), nursing_d15N=float(p[0] + p[1]), drop_permil=float(p[1]),
+        rmse=float(np.sqrt(np.mean((y - fitted) ** 2))),
+        r2=float(1 - sse / np.sum((y - y.mean()) ** 2)) if np.ptp(y) > 0 else None,
+        aicc=aicc(sse, n, len(p)),
+    )
+    if name == "two_phase":
+        result["extra"] = {"intermediate_d15N": float(p[0] + p[1] * (1 - p[2])),
+                           "first_phase_fraction": float(p[2]), "supplementation_months": float(p[4])}
+    if seasonal:
+        result["extra"]["seasonal_amplitude_permil"] = float(math.hypot(p[-2], p[-1]))
 
-    fitted = func(t, *popt)
-    resid = y - fitted
-    result.rmse = float(math.sqrt(np.mean(resid**2)))
-    sst = float(np.sum((y - y.mean()) ** 2))
-    result.r2 = float(1 - sse / sst) if sst > 0 else None
-    result.aicc = aicc(sse, n, len(popt))
-
-    rng = np.random.default_rng(s.seed)
-    point = model.milestones(popt, s.threshold)
-    if s.uncertainty == "bootstrap":
-        draws = _bootstrap(func, model, t, fitted, resid, sigma, popt, bounds, s, rng)
-    else:
-        draws = _covariance_draws(model, popt, pcov, bounds, s, rng)
-    _summarise(result, point, draws, s.age_uncertainty, rng)
-    if draws is None:
-        result.warnings.append("Parameter uncertainty unavailable: no confidence intervals")
-
-    if drop < s.min_drop:
-        result.warnings.append(
-            f"δ15N drop of {drop:.2f}‰ is below the {s.min_drop:.2f}‰ minimum: no clear weaning signal"
-        )
-    if point["onset"] < t.min():
-        result.warnings.append("Weaning onset falls before the first sample (nursing plateau not captured)")
-    if point["completion"] > t.max():
-        result.warnings.append("Weaning completion falls after the last sample (extrapolated)")
-
-    grid = np.linspace(t.min(), t.max(), s.curve_points)
-    result.curve_age = [round(float(v), 4) for v in grid]
-    result.curve_d15N = [round(float(v), 4) for v in curve(grid, *popt)]
-    return result
-
-
-def _milestone_draws(model, sims, threshold):
-    return {k: np.asarray(v, dtype=float) for k, v in model.milestones(np.asarray(sims), threshold).items()}
-
-
-def _covariance_draws(model, popt, pcov, bounds, s: FitSettings, rng):
-    if s.draws <= 0 or not np.all(np.isfinite(pcov)):
-        return None
-    try:
-        sims = rng.multivariate_normal(popt, pcov, size=s.draws, check_valid="ignore")
-    except (np.linalg.LinAlgError, ValueError):
-        return None
-    sims = np.clip(sims, bounds[0], bounds[1])
-    return _milestone_draws(model, sims, s.threshold)
-
-
-def _bootstrap(func, model, t, fitted, resid, sigma, popt, bounds, s: FitSettings, rng):
-    """Residual bootstrap: refit to fitted + resampled residuals, starting from the best fit."""
-    if s.bootstrap_draws <= 0:
-        return None
-    sims = []
-    for _ in range(s.bootstrap_draws):
-        y_b = fitted + rng.choice(resid, size=resid.size, replace=True)
-        try:
-            p_b, _, _ = _fit_once(func, t, y_b, sigma, popt, bounds)
-        except (RuntimeError, ValueError):
-            continue
-        sims.append(p_b)
-    if len(sims) < 20:
-        return None
-    return _milestone_draws(model, np.asarray(sims), s.threshold)
-
-
-# ───────────────────────── elbow (WEAN) ─────────────────────────
-def _elbow_index(grid: np.ndarray, curve: np.ndarray, normalise: bool) -> tuple[int, int] | None:
-    """Indices of (peak, elbow) on a fitted curve.
-
-    Following WEAN, the elbow is the point of greatest perpendicular distance below
-    the straight line joining the curve's maximum to its last point. With
-    ``normalise`` both axes are rescaled to [0, 1] first, so the result does not
-    depend on the units (months vs ‰); WEAN itself uses raw units.
-    """
-    start = int(np.argmax(curve))
-    if grid.size - start < 3:
-        return None
-    x, y = grid[start:], curve[start:]
-    if normalise:
-        x = (x - x[0]) / ((x[-1] - x[0]) or 1.0)
-        y = (y - y.min()) / ((y.max() - y.min()) or 1.0)
-    dx, dy = x[-1] - x[0], y[-1] - y[0]
-    # Signed distance: positive when the curve sags below the chord (a convex decline).
-    dist = (dy * (x - x[0]) - dx * (y - y[0])) / (np.hypot(dx, dy) or 1.0)
-    return start, start + int(np.argmax(dist))
-
-
-def fit_elbow(t: np.ndarray, y: np.ndarray, s: FitSettings | None = None, degree: int = 4) -> FitResult:
-    """WEAN-style estimate: 4th-degree polynomial fit, weaning age at its elbow."""
-    s = s or FitSettings()
-    result = FitResult(model="elbow", label="Elbow on polynomial (WEAN-style)", converged=False)
-    n = t.size
-    if n < degree + 3:
-        result.message = f"Need at least {degree + 3} samples, got {n}"
-        return result
-
-    weights = np.full(n, 1 / s.analytical_sd) if s.analytical_sd else None
-    t0 = float(t.mean())  # centred ages keep the polynomial well conditioned
-    coef, cov = np.polyfit(t - t0, y, degree, w=weights, cov="unscaled" if weights is not None else True)
-    grid = np.linspace(t.min(), t.max(), s.curve_points)
-    vander = np.vander(grid - t0, degree + 1)
-    curve = vander @ coef
-    idx = _elbow_index(grid, curve, s.elbow_normalise)
-    if idx is None:
-        result.message = "δ15N peaks at the end of the series: no declining segment to analyse"
-        return result
-
-    peak, elbow = idx
-    fitted = np.polyval(coef, t - t0)
-    resid = y - fitted
-    sse = float(np.sum(resid**2))
-    sst = float(np.sum((y - y.mean()) ** 2))
-    result.converged = True
-    result.params = {f"c{degree - i}": float(c) for i, c in enumerate(coef)}
-    se = np.sqrt(np.clip(np.diag(cov), 0, None)) if np.all(np.isfinite(cov)) else [None] * len(coef)
-    result.param_se = {f"c{degree - i}": (float(v) if v is not None else None) for i, v in enumerate(se)}
-    result.rmse = float(np.sqrt(sse / n))
-    result.r2 = float(1 - sse / sst) if sst > 0 else None
-    result.aicc = aicc(sse, n, degree + 1)
-
-    t_elbow = float(grid[elbow])
-    post_mask = t >= t_elbow
-    result.nursing_d15N = float(curve[peak])
-    result.adult_d15N = float(y[post_mask].mean()) if post_mask.any() else float(curve[-1])
-    result.drop_permil = result.nursing_d15N - result.adult_d15N
-
-    rng = np.random.default_rng(s.seed)
-    sims = None
-    if s.uncertainty == "bootstrap" and s.bootstrap_draws > 0:
-        sims = np.array([
-            np.polyfit(t - t0, fitted + rng.choice(resid, n), degree, w=weights)
-            for _ in range(s.bootstrap_draws)
-        ])
-    elif s.draws > 0 and np.all(np.isfinite(cov)):
-        sims = rng.multivariate_normal(coef, cov, size=s.draws, check_valid="ignore")
+    # Uncertainty: re-compute the weaning ages for many plausible versions of the fit.
+    rng = np.random.default_rng(options.random_seed)
     draws = None
-    if sims is not None:
-        ages = [grid[i[1]] for c in sims @ vander.T if (i := _elbow_index(grid, c, s.elbow_normalise))]
-        draws = {"completion": np.asarray(ages)}
-    _summarise(result, {"completion": t_elbow}, draws, s.age_uncertainty, rng)
-    result.onset = ValueWithCI(estimate=float(grid[peak]))
+    if options.uncertainty == "bootstrap" and options.bootstrap_draws > 0:
+        refits = []
+        for _ in range(options.bootstrap_draws):  # refit to the curve plus reshuffled leftovers
+            y_new = fitted + rng.choice(y - fitted, size=n)
+            try:
+                refits.append(least_squares(predict, t, y_new, sigma, p, (low, high))[0])
+            except (RuntimeError, ValueError):
+                pass
+        if len(refits) >= 20:
+            draws = spec["ages"](np.array(refits), options.transition_threshold)
+    elif options.monte_carlo_draws > 0 and np.all(np.isfinite(cov)):
+        samples = rng.multivariate_normal(p, cov, size=options.monte_carlo_draws, check_valid="ignore")
+        draws = spec["ages"](np.clip(samples, low, high), options.transition_threshold)
+    best_guess = spec["ages"](np.asarray(p), options.transition_threshold)
+    add_milestones(result, best_guess, draws, age_sd, rng)
+    if draws is None:
+        result["warnings"].append("Parameter uncertainty unavailable: no confidence intervals")
 
-    slope = float(np.polyval(np.polyder(coef), t_elbow - t0))
-    if slope > 0:
-        result.warnings.append(
-            f"Curve is rising at the elbow (slope {slope:+.2f}‰/month): possible false estimate"
-        )
-    if result.drop_permil < s.min_drop:
-        result.warnings.append(
-            f"δ15N drop of {result.drop_permil:.2f}‰ is below the {s.min_drop:.2f}‰ minimum: no clear weaning signal"
-        )
-    if elbow >= s.curve_points - 2:
-        result.warnings.append("Elbow falls at the last sample: weaning may not be complete within the series")
-    if curve.max() > y.max() + 0.5 or curve.min() < y.min() - 0.5:
-        result.warnings.append("Polynomial overshoots the observed δ15N range (>0.5‰); check the curve visually")
-    result.curve_age = [round(float(v), 4) for v in grid]
-    result.curve_d15N = [round(float(v), 4) for v in curve]
+    if p[1] < options.min_weaning_drop_permil:
+        result["warnings"].append(f"δ15N drop of {p[1]:.2f}‰ is below the {options.min_weaning_drop_permil:.2f}‰ "
+                                  "minimum: no clear weaning signal")
+    if best_guess["onset"] < t.min():
+        result["warnings"].append("Weaning onset falls before the first sample (nursing plateau not captured)")
+    if best_guess["completion"] > t.max():
+        result["warnings"].append("Weaning completion falls after the last sample (extrapolated)")
+    grid = np.linspace(t.min(), t.max(), 200)
+    result["curve_age"] = [round(float(v), 4) for v in grid]
+    result["curve_d15N"] = [round(float(v), 4) for v in curve(grid, *p)]
     return result
 
 
-MODEL_CATALOG = [
-    {"name": m.name, "label": m.label, "description": m.description, "params": list(m.param_names)}
-    for m in MODELS.values()
-] + [
-    {
-        "name": "elbow",
-        "label": "Elbow on polynomial (WEAN-style)",
-        "description": "Re-implementation of WEAN (Ganiatsou et al. 2023): a 4th-degree polynomial "
-        "is fitted and weaning completion is the 'elbow', the point farthest below the line from "
-        "the δ15N peak to the last sample. Reports completion only.",
-        "params": ["c4", "c3", "c2", "c1", "c0"],
-    }
-]
-MODEL_NAMES = {m["name"] for m in MODEL_CATALOG}
+def least_squares(predict, t, y, sigma, guess, bounds):
+    """SciPy's curve_fit, starting from `guess` (nudged inside the bounds)."""
+    guess = np.clip(guess, np.array(bounds[0]) + 1e-9, np.array(bounds[1]) - 1e-9)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        p, cov = curve_fit(predict, t, y, p0=guess, sigma=sigma, absolute_sigma=sigma is not None,
+                           bounds=bounds, method="trf", maxfev=20000)
+    return p, cov, float(np.sum((y - predict(t, *p)) ** 2))
 
 
-# ───────────────────────── comparison & averaging ─────────────────────────
-def compare_fits(fits: list[FitResult]) -> ModelName | None:
-    """Fill in ΔAICc and Akaike weights; return the best-supported model."""
-    scored = [f for f in fits if f.converged and f.aicc is not None]
+# ───────────── the WEAN-style elbow method ─────────────
+def find_elbow(grid, curve, normalise):
+    """Index of the curve's peak, and of the point farthest below the line from the peak to the end."""
+    peak = int(np.argmax(curve))
+    if len(grid) - peak < 3:
+        return None
+    x, y = grid[peak:], curve[peak:]
+    if normalise:  # rescale both axes to 0–1 so months and ‰ count equally
+        x = (x - x[0]) / ((x[-1] - x[0]) or 1)
+        y = (y - y.min()) / ((y.max() - y.min()) or 1)
+    dx, dy = x[-1] - x[0], y[-1] - y[0]
+    distance_below_line = dy * (x - x[0]) - dx * (y - y[0])
+    return peak, peak + int(np.argmax(distance_below_line))
+
+
+def fit_elbow(t, y, options, age_sd, degree=4):
+    result = new_result("elbow", "Elbow on polynomial (WEAN-style)")
+    n = len(t)
+    if n < degree + 3:
+        result["message"] = f"Need at least {degree + 3} samples, got {n}"
+        return result
+    weights = np.full(n, 1 / options.analytical_sd_permil) if options.analytical_sd_permil else None
+    centre = t.mean()  # centring the ages keeps the polynomial maths accurate
+    coef, cov = np.polyfit(t - centre, y, degree, w=weights, cov="unscaled" if weights is not None else True)
+    grid = np.linspace(t.min(), t.max(), 200)
+    powers = np.vander(grid - centre, degree + 1)  # polynomial value = powers @ coefficients
+    curve = powers @ coef
+    found = find_elbow(grid, curve, options.elbow_normalise)
+    if found is None:
+        result["message"] = "δ15N peaks at the end of the series: no declining segment to analyse"
+        return result
+    peak, elbow = found
+    fitted = np.polyval(coef, t - centre)
+    sse = float(np.sum((y - fitted) ** 2))
+    after = y[t >= grid[elbow]]
+    names = [f"c{degree - i}" for i in range(degree + 1)]
+    result.update(
+        converged=True,
+        params={k: float(c) for k, c in zip(names, coef)},
+        param_se={k: float(s) for k, s in zip(names, np.sqrt(np.clip(np.diag(cov), 0, None)))},
+        rmse=float(np.sqrt(sse / n)),
+        r2=float(1 - sse / np.sum((y - y.mean()) ** 2)) if np.ptp(y) > 0 else None,
+        aicc=aicc(sse, n, degree + 1),
+        nursing_d15N=float(curve[peak]),
+        adult_d15N=float(after.mean() if len(after) else curve[-1]),
+    )
+    result["drop_permil"] = result["nursing_d15N"] - result["adult_d15N"]
+
+    rng = np.random.default_rng(options.random_seed)
+    many = None  # many plausible sets of polynomial coefficients
+    if options.uncertainty == "bootstrap" and options.bootstrap_draws > 0:
+        many = np.array([np.polyfit(t - centre, fitted + rng.choice(y - fitted, n), degree, w=weights)
+                         for _ in range(options.bootstrap_draws)])
+    elif options.monte_carlo_draws > 0:
+        many = rng.multivariate_normal(coef, cov, size=options.monte_carlo_draws, check_valid="ignore")
+    draws = None
+    if many is not None:
+        elbows = [find_elbow(grid, c, options.elbow_normalise) for c in many @ powers.T]
+        draws = {"completion": [grid[e[1]] for e in elbows if e is not None]}
+    add_milestones(result, {"completion": grid[elbow]}, draws, age_sd, rng)
+    result["onset"] = {"estimate": float(grid[peak]), "ci_low": None, "ci_high": None}
+
+    slope = float(np.polyval(np.polyder(coef), grid[elbow] - centre))
+    if slope > 0:
+        result["warnings"].append(f"Curve is rising at the elbow (slope {slope:+.2f}‰/month): possible false estimate")
+    if result["drop_permil"] < options.min_weaning_drop_permil:
+        result["warnings"].append(f"δ15N drop of {result['drop_permil']:.2f}‰ is below the "
+                                  f"{options.min_weaning_drop_permil:.2f}‰ minimum: no clear weaning signal")
+    if elbow >= len(grid) - 2:
+        result["warnings"].append("Elbow falls at the last sample: weaning may not be complete within the series")
+    if curve.max() > y.max() + 0.5 or curve.min() < y.min() - 0.5:
+        result["warnings"].append("Polynomial overshoots the observed δ15N range (>0.5‰); check the curve visually")
+    result["curve_age"] = [round(float(v), 4) for v in grid]
+    result["curve_d15N"] = [round(float(v), 4) for v in curve]
+    return result
+
+
+# ───────────── comparing and averaging models ─────────────
+def compare_fits(fits):
+    """Add ΔAICc and Akaike weights (shares of support that add up to 1); return the best model."""
+    scored = [f for f in fits if f["converged"] and f["aicc"] is not None]
     if not scored:
         return None
-    best = min(f.aicc for f in scored)
-    rel = {f.model: math.exp(-0.5 * (f.aicc - best)) for f in scored}
-    total = sum(rel.values())
-    for f in scored:
-        f.delta_aicc = f.aicc - best
-        f.akaike_weight = rel[f.model] / total
-    return min(scored, key=lambda f: f.aicc).model
+    lowest = min(f["aicc"] for f in scored)
+    support = [math.exp(-0.5 * (f["aicc"] - lowest)) for f in scored]
+    for f, s in zip(scored, support):
+        f["delta_aicc"] = f["aicc"] - lowest
+        f["akaike_weight"] = s / sum(support)
+    return min(scored, key=lambda f: f["aicc"])["model"]
 
 
-def model_average(fits: list[FitResult], seed: int | None = 42, n_draws: int = 4000) -> dict[str, ValueWithCI]:
-    """Akaike-weighted average of each milestone across models.
+def model_average(fits, seed=42, n_draws=4000):
+    """Each weaning age averaged over the models, weighted by their support.
 
-    The point estimate is the weighted mean over the models that report the
-    milestone (weights renormalised); the interval comes from a weighted mixture of
-    the models' own Monte Carlo / bootstrap draws.
+    The interval comes from mixing the models' own random draws in the same proportions.
     """
     rng = np.random.default_rng(seed)
-    out: dict[str, ValueWithCI] = {}
+    average = {}
     for key in MILESTONES:
-        members = [
-            (f, getattr(f, key)) for f in fits
-            if f.akaike_weight is not None and getattr(f, key) is not None
-            and getattr(f, key).estimate is not None
-        ]
+        members = [f for f in fits if f["akaike_weight"] is not None and f.get(key)]
         if not members:
             continue
-        w = np.array([f.akaike_weight for f, _ in members])
-        w = w / w.sum()
-        estimate = float(np.sum(w * [v.estimate for _, v in members]))
-        pools = [(wi, f._draws.get(key)) for wi, (f, _) in zip(w, members)]
-        lo = hi = None
-        if all(p is not None and p.size for _, p in pools):
-            counts = rng.multinomial(n_draws, w)
-            mix = np.concatenate([rng.choice(p, c) for (_, p), c in zip(pools, counts) if c])
-            lo, hi = _ci(mix)
-        out[key] = ValueWithCI(estimate=estimate, ci_low=lo, ci_high=hi)
-    return out
+        weights = np.array([f["akaike_weight"] for f in members])
+        weights = weights / weights.sum()
+        estimate = float(sum(w * f[key]["estimate"] for w, f in zip(weights, members)))
+        low = high = None
+        if all(len(f["_draws"].get(key, [])) for f in members):
+            counts = rng.multinomial(n_draws, weights)
+            mixed = np.concatenate([rng.choice(f["_draws"][key], c) for f, c in zip(members, counts) if c])
+            low, high = interval(mixed)
+        average[key] = {"estimate": estimate, "ci_low": low, "ci_high": high}
+    return average
 
 
-# ───────────────────────── seasonality diagnostics ─────────────────────────
-def seasonal_test(t, values, period: float = 12.0, detrend: int = 1) -> tuple[float, float] | None:
-    """F-test for an annual sinusoid in a series after removing a polynomial trend.
+def seasonal_test(t, values, period=12.0, detrend=1):
+    """Is there a yearly up-and-down cycle in `values`? Returns (size of the cycle, p-value).
 
-    Returns ``(amplitude, p_value)`` or ``None`` when the series spans too little
-    of a cycle (< 0.75 period) or is too short to test.
+    Compares a straight-line trend with the same trend plus a sine wave (an F-test).
+    Returns None if the series is too short or covers less than 3/4 of a year.
     """
-    t = np.asarray(t, dtype=float)
-    v = np.asarray(values, dtype=float)
-    mask = np.isfinite(t) & np.isfinite(v)
-    t, v = t[mask], v[mask]
-    if t.size < detrend + 6 or np.ptp(t) < 0.75 * period:
+    t, v = np.asarray(t, dtype=float), np.asarray(values, dtype=float)
+    keep = np.isfinite(t) & np.isfinite(v)
+    t, v = t[keep], v[keep]
+    if len(t) < detrend + 6 or np.ptp(t) < 0.75 * period:
         return None
-    base = np.vander(t - t.mean(), detrend + 1)
-    sin, cos = _seasonal_terms(t, period)
-    full = np.column_stack([base, sin, cos])
-    rss0 = float(np.sum((v - base @ np.linalg.lstsq(base, v, rcond=None)[0]) ** 2))
-    coef, *_ = np.linalg.lstsq(full, v, rcond=None)
-    rss1 = float(np.sum((v - full @ coef) ** 2))
-    df1, df2 = 2, t.size - full.shape[1]
-    if rss1 <= 0 or df2 <= 0:
+    trend = np.vander(t - t.mean(), detrend + 1)
+    angle = 2 * math.pi * t / period
+    with_wave = np.column_stack([trend, np.sin(angle), np.cos(angle)])
+    leftover_trend = np.sum((v - trend @ np.linalg.lstsq(trend, v, rcond=None)[0]) ** 2)
+    coef = np.linalg.lstsq(with_wave, v, rcond=None)[0]
+    leftover_wave = np.sum((v - with_wave @ coef) ** 2)
+    spare = len(t) - with_wave.shape[1]
+    if leftover_wave <= 0 or spare <= 0:
         return None
-    f_stat = ((rss0 - rss1) / df1) / (rss1 / df2)
-    return float(math.hypot(coef[-2], coef[-1])), float(stats.f.sf(f_stat, df1, df2))
+    f_stat = ((leftover_trend - leftover_wave) / 2) / (leftover_wave / spare)
+    return float(math.hypot(coef[-2], coef[-1])), float(stats.f.sf(f_stat, 2, spare))

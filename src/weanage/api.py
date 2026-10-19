@@ -1,63 +1,44 @@
-"""FastAPI service exposing the backend to the web frontend.
+"""The web server: the browser sends data here and gets results back as JSON.
 
-The API is stateless apart from saved growth tables (in the user directory) and
-short-lived background jobs: the browser holds the dataset and sends it with each
-request, so the same server works for one desktop user or a shared lab install.
+The server keeps no data of its own (apart from saved growth tables and short-lived
+background jobs), so it works for one person or a whole lab.
 """
 
-from __future__ import annotations
-
-from typing import Any
+import traceback
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__
-from .aggregate import aggregate, frame_to_records, model_disagreement
+from . import __version__, config
+from .aggregate import aggregate, model_disagreement, records, validate
 from .analysis import analyze, estimate_rows
-from .calibrate import CalibrationPoint, CalibrationResult, Method, calibrate_growth_table
-from .config import (
-    DATA_DIR, WEB_DIR, bundled_growth_tables, default_options, delete_saved_growth_table,
-    growth_tables, save_growth_table, saved_growth_tables, tbd_items, user_tables_path,
-)
-from .inference import GroupComparison, compare_groups
-from .ingest import IngestReport, ingest_csv, ingest_file, ingest_records
-from .jobs import JobQueue
-from .models import MODEL_CATALOG, MODEL_NAMES
+from .calibrate import CalibrationPoint, Method, calibrate_growth_table
+from .inference import compare_groups
+from .ingest import ingest_csv, ingest_file, ingest_records
+from .models import MODEL_CATALOG
 from .qc import FLAG_DESCRIPTIONS
-from .schema import AnalysisOptions, EstimateRow, GrowthTable, IsotopeSample, SpecimenResult
+from .schema import MODEL_NAMES, AnalysisOptions, GrowthTable, IsotopeSample
 from .simulate import SimulationScenario, SweepParam, run_simulation, sweep
-from .validation import validate
 
 app = FastAPI(title="WeanAge", version=__version__)
-jobs = JobQueue()
-
-ALLOWED_GROUPS = {"site", "species", "period"}
-ALLOWED_MILESTONES = {"onset", "midpoint", "completion"}
-ESTIMATE_MODELS = MODEL_NAMES | {"average"}
 
 
-class RecordsIn(BaseModel):
-    records: list[dict[str, Any]]
-
-
+# ───────────── request bodies ─────────────
 class AnalyzeIn(BaseModel):
     samples: list[IsotopeSample] = Field(min_length=1)
-    options: AnalysisOptions | None = None
-
-
-class AnalyzeOut(BaseModel):
-    results: list[SpecimenResult]
-    estimates: list[EstimateRow]
+    options: Optional[AnalysisOptions] = None
 
 
 class AggregateIn(BaseModel):
-    estimates: list[EstimateRow]
-    group_by: list[str] = Field(default_factory=lambda: ["site", "species"])
+    estimates: list[dict[str, Any]]
+    group_by: list[str] = ["site", "species"]
     milestone: str = "completion"
-    model: str | None = None
+    model: Optional[str] = None
     bayes: bool = True
 
 
@@ -71,142 +52,160 @@ class CalibrateIn(BaseModel):
 
 
 class SimulateIn(BaseModel):
-    scenario: SimulationScenario = Field(default_factory=SimulationScenario)
-    options: AnalysisOptions | None = None
-    sweep_param: SweepParam | None = None
-    sweep_values: list[float] = Field(default_factory=list, max_length=12)
+    scenario: SimulationScenario = SimulationScenario()
+    options: Optional[AnalysisOptions] = None
+    sweep_param: Optional[SweepParam] = None
+    sweep_values: list[float] = Field(default=[], max_length=12)
 
 
-def _check_aggregate(body: AggregateIn) -> None:
-    if not set(body.group_by) <= ALLOWED_GROUPS or not body.group_by:
-        raise HTTPException(400, f"group_by must be a non-empty subset of {sorted(ALLOWED_GROUPS)}")
-    if body.milestone not in ALLOWED_MILESTONES:
-        raise HTTPException(400, f"milestone must be one of {sorted(ALLOWED_MILESTONES)}")
-    if body.model is not None and body.model not in ESTIMATE_MODELS:
-        raise HTTPException(400, f"unknown model {body.model!r}")
+# ───────────── background jobs (so long runs can show a progress bar) ─────────────
+JOBS = {}
+WORKERS = ThreadPoolExecutor(max_workers=2)
 
 
-# ───────────────────────── configuration & data ─────────────────────────
+def start_job(kind, work):
+    """Run work(progress) in the background; the browser polls /api/jobs/<id>."""
+    job = {"id": uuid.uuid4().hex[:12], "kind": kind, "status": "queued", "done": 0, "total": 0, "error": None}
+    JOBS[job["id"]] = job
+    while len(JOBS) > 50:  # forget the oldest jobs
+        JOBS.pop(next(iter(JOBS)))
+
+    def progress(done, total):
+        job["done"], job["total"] = done, total
+
+    def run():
+        job["status"] = "running"
+        try:
+            job["result"] = work(progress)
+            job["status"] = "done"
+        except Exception as err:
+            job["status"], job["error"] = "error", f"{type(err).__name__}: {err}"
+            traceback.print_exc()
+
+    WORKERS.submit(run)
+    return {k: v for k, v in job.items() if k != "result"}
+
+
+@app.get("/api/jobs/{job_id}")
+def job_status(job_id: str):
+    if job_id not in JOBS:
+        raise HTTPException(404, "unknown job")
+    job = dict(JOBS[job_id])
+    if job["status"] != "done":
+        job.pop("result", None)
+    return job
+
+
+# ───────────── settings and data ─────────────
 @app.get("/api/config")
-def get_config() -> dict[str, Any]:
-    saved = saved_growth_tables()
+def get_config():
+    saved = config.saved_growth_tables()
     return {
         "version": __version__,
-        "defaults": default_options().model_dump(),
+        "defaults": config.default_options().model_dump(),
         "models": MODEL_CATALOG,
-        "growth_tables": [{**t.model_dump(), "saved": t.key in saved} for t in growth_tables().values()],
-        "bundled_table_keys": list(bundled_growth_tables()),
-        "user_tables_path": str(user_tables_path()),
+        "growth_tables": [{**t.model_dump(), "saved": key in saved} for key, t in config.growth_tables().items()],
+        "user_tables_path": str(config.user_tables_path()),
         "qc_flags": FLAG_DESCRIPTIONS,
-        "tbd": tbd_items(),
+        "tbd": config.tbd_items(),
     }
 
 
-@app.post("/api/ingest/file", response_model=IngestReport)
-async def upload_file(file: UploadFile = File(...)) -> IngestReport:
-    content = await file.read()
+def report_json(report):
+    return {**report, "samples": [s.model_dump() for s in report["samples"]]}
+
+
+@app.post("/api/ingest/file")
+@app.post("/api/ingest/csv")  # older name, kept so existing scripts still work
+async def upload_file(file: UploadFile = File(...)):
     try:
-        return ingest_file(file.filename or "upload.csv", content)
-    except Exception as exc:  # malformed files surface as a readable message
-        raise HTTPException(status_code=400, detail=f"Could not read file: {exc}") from exc
+        return report_json(ingest_file(file.filename or "upload.csv", await file.read()))
+    except Exception as err:
+        raise HTTPException(400, f"Could not read file: {err}") from err
 
 
-# Kept for scripts written against the first release.
-app.post("/api/ingest/csv", response_model=IngestReport)(upload_file)
+@app.post("/api/ingest/records")
+def validate_records(body: dict):
+    return report_json(ingest_records(body.get("records", [])))
 
 
-@app.post("/api/ingest/records", response_model=IngestReport)
-def validate_records(body: RecordsIn) -> IngestReport:
-    return ingest_records(body.records)
-
-
-@app.get("/api/example", response_model=IngestReport)
-def example_dataset() -> IngestReport:
-    return ingest_csv(DATA_DIR / "examples" / "synthetic_example.csv")
+@app.get("/api/example")
+def example_dataset():
+    return report_json(ingest_csv(config.DATA_DIR / "examples" / "synthetic_example.csv"))
 
 
 @app.get("/api/template.csv")
-def template_csv() -> FileResponse:
-    return FileResponse(DATA_DIR / "templates" / "isotope_template.csv",
-                        media_type="text/csv", filename="weanage_template.csv")
+def template_csv():
+    return FileResponse(config.DATA_DIR / "templates" / "isotope_template.csv", media_type="text/csv",
+                        filename="weanage_template.csv")
 
 
-# ───────────────────────── growth tables ─────────────────────────
-@app.post("/api/growth-tables", response_model=GrowthTable)
-def save_table(table: GrowthTable) -> GrowthTable:
-    save_growth_table(table)
+@app.post("/api/growth-tables")
+def save_table(table: GrowthTable):
+    config.save_growth_table(table)
     return table
 
 
 @app.delete("/api/growth-tables/{species}/{tooth}")
-def delete_table(species: str, tooth: str) -> dict[str, bool]:
-    return {"deleted": delete_saved_growth_table(f"{species.lower()}:{tooth}")}
+def delete_table(species: str, tooth: str):
+    return {"deleted": config.delete_saved_growth_table(f"{species.lower()}:{tooth}")}
 
 
-@app.post("/api/growth-tables/calibrate", response_model=CalibrationResult)
-def calibrate(body: CalibrateIn) -> CalibrationResult:
+@app.post("/api/growth-tables/calibrate")
+def calibrate(body: CalibrateIn):
     try:
-        return calibrate_growth_table(body.species, body.tooth, body.points, body.method,
-                                      body.n_knots, body.source)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        return calibrate_growth_table(body.species, body.tooth, body.points, body.method, body.n_knots, body.source)
+    except ValueError as err:
+        raise HTTPException(400, str(err)) from err
 
 
-# ───────────────────────── analysis ─────────────────────────
-def _analyze(body: AnalyzeIn, progress=None) -> dict:
-    results = analyze(body.samples, body.options or default_options(), progress=progress)
-    return AnalyzeOut(results=results, estimates=estimate_rows(results)).model_dump(mode="json")
+# ───────────── analysis, simulation, comparison ─────────────
+def run_analysis(body, progress=None):
+    results = analyze(body.samples, body.options or config.default_options(), progress=progress)
+    return {"results": results, "estimates": estimate_rows(results)}
 
 
-@app.post("/api/analyze", response_model=AnalyzeOut)
-def run_analysis(body: AnalyzeIn) -> dict:
-    return _analyze(body)
+@app.post("/api/analyze")
+def analyze_now(body: AnalyzeIn):
+    return run_analysis(body)
 
 
 @app.post("/api/jobs/analyze")
-def start_analysis(body: AnalyzeIn) -> dict:
-    job = jobs.submit("analyze", lambda progress: _analyze(body, progress))
-    return job.snapshot()
+def analyze_in_background(body: AnalyzeIn):
+    return start_job("analyze", lambda progress: run_analysis(body, progress))
 
 
 @app.post("/api/jobs/simulate")
-def start_simulation(body: SimulateIn) -> dict:
+def simulate_in_background(body: SimulateIn):
     def work(progress):
         if body.sweep_param and body.sweep_values:
             runs = sweep(body.scenario, body.sweep_param, body.sweep_values, body.options, progress)
         else:
             runs = [run_simulation(body.scenario, body.options, progress)]
-        return {"sweep_param": body.sweep_param, "runs": [r.model_dump(mode="json") for r in runs]}
+        return {"sweep_param": body.sweep_param, "runs": runs}
 
-    return jobs.submit("simulate", work).snapshot()
-
-
-@app.get("/api/jobs/{job_id}")
-def job_status(job_id: str) -> dict:
-    job = jobs.get(job_id)
-    if job is None:
-        raise HTTPException(404, "unknown job")
-    return job.snapshot()
+    return start_job("simulate", work)
 
 
-# ───────────────────────── comparison ─────────────────────────
 @app.post("/api/aggregate")
-def run_aggregate(body: AggregateIn) -> dict[str, Any]:
-    _check_aggregate(body)
-    summary = aggregate(body.estimates, group_by=body.group_by, milestone=body.milestone, model=body.model)
-    tests: GroupComparison = compare_groups(body.estimates, group_by=body.group_by,
-                                            milestone=body.milestone, model=body.model, bayes=body.bayes)
+def compare(body: AggregateIn):
+    if not body.group_by or not set(body.group_by) <= {"site", "species", "period"}:
+        raise HTTPException(400, "group_by must be a non-empty subset of ['period', 'site', 'species']")
+    if body.milestone not in {"onset", "midpoint", "completion"}:
+        raise HTTPException(400, "milestone must be onset, midpoint or completion")
+    if body.model is not None and body.model not in MODEL_NAMES + ["average"]:
+        raise HTTPException(400, f"unknown model {body.model!r}")
     return {
-        "summary": frame_to_records(summary),
-        "disagreement": frame_to_records(model_disagreement(body.estimates, body.milestone)),
-        "validation": frame_to_records(validate(body.estimates, body.milestone)),
-        "tests": tests.model_dump(mode="json"),
+        "summary": records(aggregate(body.estimates, body.group_by, body.milestone, body.model)),
+        "disagreement": records(model_disagreement(body.estimates, body.milestone)),
+        "validation": records(validate(body.estimates, body.milestone)),
+        "tests": compare_groups(body.estimates, body.group_by, body.milestone, body.model, body.bayes),
     }
 
 
 @app.get("/", include_in_schema=False)
-def index() -> RedirectResponse:
+def index():
     return RedirectResponse("/app/")
 
 
-app.mount("/app", StaticFiles(directory=WEB_DIR, html=True), name="web")
+app.mount("/app", StaticFiles(directory=config.WEB_DIR, html=True), name="web")

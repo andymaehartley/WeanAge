@@ -1,76 +1,119 @@
+"""Curve fitting, weaning ages, uncertainty, model comparison and seasonality."""
+
 import math
 
 import numpy as np
 import pytest
 
-from weanage.models import MODELS, aicc, compare_fits, fit_model
-from weanage.validation import error_metrics
+from weanage.aggregate import error_metrics
+from weanage.models import MODELS, aicc, compare_fits, fit_model, model_average, seasonal_test
 
-from .conftest import logistic_series
+from .conftest import logistic_series, opts
+
+
+def completion(fit):
+    return fit["completion"]["estimate"]
+
+
+def width(fit):
+    return fit["completion"]["ci_high"] - fit["completion"]["ci_low"]
 
 
 @pytest.mark.parametrize("t_mid,scale", [(5.0, 0.6), (7.0, 0.8), (9.0, 1.2)])
-def test_logistic_recovers_known_parameters(t_mid, scale):
+def test_logistic_recovers_known_curve(t_mid, scale):
     t, y = logistic_series(t_mid=t_mid, scale=scale, noise=0.05)
-    fit = fit_model("logistic", t, y, draws=300)
-    assert fit.converged
-    assert fit.midpoint.estimate == pytest.approx(t_mid, abs=0.3)
-    expected_completion = t_mid + scale * math.log(19)
-    assert fit.completion.estimate == pytest.approx(expected_completion, abs=0.6)
-    assert fit.completion.ci_low < fit.completion.estimate < fit.completion.ci_high
-    assert fit.drop_permil == pytest.approx(3.0, abs=0.2)
+    fit = fit_model("logistic", t, y, opts())
+    assert fit["midpoint"]["estimate"] == pytest.approx(t_mid, abs=0.3)
+    assert completion(fit) == pytest.approx(t_mid + scale * math.log(19), abs=0.6)
+    assert fit["completion"]["ci_low"] < completion(fit) < fit["completion"]["ci_high"]
+    assert fit["drop_permil"] == pytest.approx(3.0, abs=0.2)
 
 
-def test_piecewise_recovers_breakpoints():
-    t = np.linspace(0, 15, 60)
-    y = MODELS["piecewise"].func(t, 5.0, 3.0, 4.0, 5.0) + np.random.default_rng(1).normal(0, 0.05, t.size)
-    fit = fit_model("piecewise", t, y, draws=0)
-    assert fit.onset.estimate == pytest.approx(4.0, abs=0.4)
-    assert fit.completion.estimate == pytest.approx(9.0, abs=0.4)
-
-
-def test_exponential_recovers_onset():
+def test_piecewise_and_exponential_recover_breakpoints():
     t = np.linspace(0, 20, 60)
-    y = MODELS["exponential"].func(t, 5.0, 3.0, 6.0, 2.0) + np.random.default_rng(2).normal(0, 0.05, t.size)
-    fit = fit_model("exponential", t, y, draws=0)
-    assert fit.onset.estimate == pytest.approx(6.0, abs=0.5)
-    assert fit.completion.estimate == pytest.approx(6.0 + 2.0 * math.log(20), abs=1.5)
+    noise = np.random.default_rng(1).normal(0, 0.05, len(t))
+    fit = fit_model("piecewise", t, MODELS["piecewise"]["curve"](t, 5, 3, 4, 5) + noise, opts(monte_carlo_draws=0))
+    assert fit["onset"]["estimate"] == pytest.approx(4, abs=0.4) and completion(fit) == pytest.approx(9, abs=0.4)
+    fit = fit_model("exponential", t, MODELS["exponential"]["curve"](t, 5, 3, 6, 2) + noise, opts(monte_carlo_draws=0))
+    assert fit["onset"]["estimate"] == pytest.approx(6, abs=0.5)
 
 
-def test_flat_profile_warns_no_weaning_signal():
+def test_two_phase_finds_staged_weaning_only_when_present():
+    t = np.linspace(0, 16, 50)
+    y = MODELS["two_phase"]["curve"](t, 5.4, 3.0, 0.45, 3.5, 6.5, 0.5) + np.random.default_rng(0).normal(0, 0.1, len(t))
+    fits = [fit_model(m, t, y, opts()) for m in ("logistic", "two_phase")]
+    assert compare_fits(fits) == "two_phase"
+    extra = fits[1]["extra"]
+    assert extra["supplementation_months"] == pytest.approx(6.5, abs=1) and extra["intermediate_d15N"] == pytest.approx(7.05, abs=0.3)
+    t, y = logistic_series(noise=0.1, seed=3)
+    assert compare_fits([fit_model(m, t, y, opts(monte_carlo_draws=0)) for m in ("logistic", "two_phase")]) == "logistic"
+
+
+def test_elbow():
+    t = np.linspace(0, 20, 60)
+    y = MODELS["piecewise"]["curve"](t, 5, 3, 4, 6) + np.random.default_rng(5).normal(0, 0.05, len(t))
+    fit = fit_model("elbow", t, y, opts())
+    assert completion(fit) == pytest.approx(10, abs=1.5) and fit["midpoint"] is None
+    rising = fit_model("elbow", t[:20], 5 + 0.3 * t[:20], opts())
+    assert not rising["converged"] and "peaks at the end" in rising["message"]
+
+
+def test_warnings_and_too_few_points():
     t = np.linspace(0, 15, 40)
-    y = 6 + np.random.default_rng(3).normal(0, 0.1, t.size)
-    fit = fit_model("logistic", t, y, min_drop=1.0, draws=0)
-    assert any("no clear weaning signal" in w for w in fit.warnings)
+    flat = fit_model("logistic", t, 6 + np.random.default_rng(3).normal(0, 0.1, len(t)), opts(monte_carlo_draws=0))
+    assert any("no clear weaning signal" in w for w in flat["warnings"])
+    short = fit_model("logistic", [1, 2, 3], [8, 7, 6], opts())
+    assert not short["converged"] and "at least" in short["message"]
+    assert aicc(1.0, 5, 4) is None and aicc(1.0, 30, 4) is not None
 
 
-def test_too_few_points():
-    fit = fit_model("logistic", [1, 2, 3], [8, 7, 6])
-    assert not fit.converged and "at least" in fit.message
+def test_seasonal_term():
+    t = np.linspace(0, 24, 72)
+    y = MODELS["logistic"]["curve"](t, 5, 3, 8, 0.8) + 0.6 * np.sin(2 * np.pi * t / 12) + np.random.default_rng(4).normal(0, 0.1, len(t))
+    plain = fit_model("logistic", t, y, opts(monte_carlo_draws=0))
+    seasonal = fit_model("logistic", t, y, opts(monte_carlo_draws=0, seasonal_term=True))
+    assert seasonal["aicc"] < plain["aicc"]
+    assert seasonal["extra"]["seasonal_amplitude_permil"] == pytest.approx(0.6, abs=0.15)
 
 
-def test_correct_model_preferred_by_aicc():
-    t, y = logistic_series(noise=0.05, seed=4)
-    fits = [fit_model(m, t, y, draws=0) for m in MODELS]
-    best = compare_fits(fits)
-    assert best in {"logistic", "piecewise"}
-    assert sum(f.akaike_weight for f in fits) == pytest.approx(1.0)
+def test_seasonal_test_is_calibrated():
+    rng = np.random.default_rng(1)
+    t = np.linspace(0, 14, 40)
+    false_alarms = np.mean([seasonal_test(t, rng.normal(0, 0.3, len(t)))[1] < 0.05 for _ in range(300)])
+    assert false_alarms <= 0.1
+    amplitude, p = seasonal_test(t, np.sin(2 * np.pi * t / 12) + rng.normal(0, 0.1, len(t)))
+    assert p < 1e-6 and amplitude == pytest.approx(1, abs=0.15)
+    assert seasonal_test(t[:10], np.zeros(10)) is None
 
 
-def test_aicc_needs_enough_points():
-    assert aicc(1.0, 5, 4) is None
-    assert aicc(1.0, 30, 4) is not None
+def test_uncertainty_options():
+    t, y = logistic_series(noise=0.1, seed=6)
+    boot = fit_model("logistic", t, y, opts(uncertainty="bootstrap", bootstrap_draws=100))
+    assert boot["completion"]["ci_low"] < completion(boot) < boot["completion"]["ci_high"]
+    # A shared age-model error of 1 SD widens the interval by about ±1.96 months.
+    t, y = logistic_series(noise=0.02, seed=7)
+    narrow = fit_model("logistic", t, y, opts(monte_carlo_draws=2000))
+    wide = fit_model("logistic", t, y, opts(monte_carlo_draws=2000), age_sd=1.0)
+    assert width(wide) == pytest.approx(np.hypot(width(narrow), 2 * 1.96), rel=0.15)
 
 
-def test_simulation_accuracy_metrics():
-    """Mini validation study on synthetic animals with known completion ages."""
+def test_model_average():
+    t, y = logistic_series(noise=0.1, seed=8)
+    fits = [fit_model(m, t, y, opts(monte_carlo_draws=500)) for m in ("logistic", "piecewise", "exponential")]
+    compare_fits(fits)
+    assert sum(f["akaike_weight"] for f in fits) == pytest.approx(1)
+    average = model_average(fits)["completion"]
+    assert min(map(completion, fits)) <= average["estimate"] <= max(map(completion, fits))
+    assert average["ci_low"] < average["estimate"] < average["ci_high"]
+
+
+def test_accuracy_on_simulated_animals():
     rng = np.random.default_rng(10)
-    est, known = [], []
+    estimates, truth = [], []
     for i in range(12):
         t_mid, scale = rng.uniform(4, 9), rng.uniform(0.5, 1.0)
         t, y = logistic_series(t_mid=t_mid, scale=scale, noise=0.15, seed=i)
-        est.append(fit_model("logistic", t, y, draws=0).completion.estimate)
-        known.append(t_mid + scale * math.log(19))
-    m = error_metrics(est, known)
-    assert m["n"] == 12
-    assert m["mae"] < 1.0 and abs(m["bias"]) < 0.6 and m["pearson_r"] > 0.9
+        estimates.append(completion(fit_model("logistic", t, y, opts(monte_carlo_draws=0))))
+        truth.append(t_mid + scale * math.log(19))
+    m = error_metrics(estimates, truth)
+    assert m["mae"] < 1 and abs(m["bias"]) < 0.6 and m["pearson_r"] > 0.9

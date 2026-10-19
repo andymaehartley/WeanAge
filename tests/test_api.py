@@ -1,3 +1,7 @@
+"""The web API, called the same way the browser calls it."""
+
+import time
+
 from fastapi.testclient import TestClient
 
 from weanage.api import app
@@ -5,36 +9,43 @@ from weanage.api import app
 client = TestClient(app)
 
 
-def test_config_lists_tbd_items():
+def wait_for(job):
+    for _ in range(300):
+        state = client.get(f"/api/jobs/{job['id']}").json()
+        if state["status"] in {"done", "error"}:
+            return state
+        time.sleep(0.05)
+    return state
+
+
+def test_config():
     body = client.get("/api/config").json()
-    assert body["tbd"], "placeholders should be reported until lab values are filled in"
-    assert {m["name"] for m in body["models"]} == {"logistic", "piecewise", "exponential", "two_phase", "elbow"}
+    assert body["tbd"] and {m["name"] for m in body["models"]} == {"logistic", "piecewise", "exponential", "two_phase", "elbow"}
 
 
-def test_full_round_trip():
-    example = client.get("/api/example").json()
-    samples = [s for s in example["samples"] if s["specimen_id"] in {"SYN-C01", "SYN-C04"}]
-    out = client.post("/api/analyze", json={"samples": samples, "options": {"monte_carlo_draws": 100}})
-    assert out.status_code == 200, out.text
-    estimates = out.json()["estimates"]
-    agg = client.post("/api/aggregate", json={"estimates": estimates, "group_by": ["site"]})
-    assert agg.status_code == 200
-    assert len(agg.json()["summary"]) == 2
-
-
-def test_upload_and_manual_records():
+def test_upload_and_records():
     csv = b"specimen_id,site,species,tooth,position_mm,d15N\nA,S,cattle,M2,0.5,8\n"
-    r = client.post("/api/ingest/csv", files={"file": ("x.csv", csv, "text/csv")})
-    assert r.status_code == 200 and len(r.json()["samples"]) == 1
-    r = client.post("/api/ingest/records", json={"records": [{"specimen_id": "A", "d15N": "x"}]})
-    assert r.json()["issues"]
+    assert len(client.post("/api/ingest/file", files={"file": ("x.csv", csv)}).json()["samples"]) == 1
+    assert client.post("/api/ingest/records", json={"records": [{"specimen_id": "A", "d15N": "x"}]}).json()["issues"]
 
 
-def test_rejects_bad_aggregate_args():
-    r = client.post("/api/aggregate", json={"estimates": [], "group_by": ["drop table"]})
-    assert r.status_code == 400
+def test_analysis_job_and_comparison():
+    samples = [s for s in client.get("/api/example").json()["samples"] if s["specimen_id"] in {"SYN-C01", "SYN-C04"}]
+    job = client.post("/api/jobs/analyze", json={"samples": samples, "options": {"monte_carlo_draws": 50}}).json()
+    state = wait_for(job)
+    assert state["status"] == "done" and state["done"] == state["total"] == 2
+    out = client.post("/api/aggregate", json={"estimates": state["result"]["estimates"], "group_by": ["site"]})
+    assert out.status_code == 200 and len(out.json()["summary"]) == 2 and "tests" in out.json()
+    assert client.post("/api/aggregate", json={"estimates": [], "group_by": ["bad"]}).status_code == 400
 
 
-def test_frontend_served():
-    r = client.get("/app/")
-    assert r.status_code == 200 and "WeanAge" in r.text
+def test_simulation_job_and_calibration():
+    body = {"scenario": {"n_specimens": 3}, "options": {"models": ["logistic"], "monte_carlo_draws": 0}}
+    assert wait_for(client.post("/api/jobs/simulate", json=body).json())["status"] == "done"
+    points = [{"position_mm": p, "age_months": 1 + p / 3} for p in range(0, 40, 5)]
+    assert client.post("/api/growth-tables/calibrate", json={"species": "cattle", "tooth": "M2", "points": points}).status_code == 200
+
+
+def test_frontend_is_served():
+    page = client.get("/app/")
+    assert page.status_code == 200 and "WeanAge" in page.text

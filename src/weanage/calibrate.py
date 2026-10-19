@@ -1,13 +1,10 @@
-"""Build tooth growth tables from known-age reference measurements.
+"""Build a growth table from reference points of known age.
 
-Input is a set of ``(position_mm, age_months)`` pairs for one species and tooth,
-e.g. the position of the forming edge in animals of known age at death, or ages
-from incremental-line counts in thin sections. The fitted relation is resampled
-to knots so it slots into the normal piecewise-linear age model, and the residual
-SD becomes the table's ``age_uncertainty_months``.
+Each point is (position on the tooth in mm, age in months), e.g. the forming edge
+of a tooth from an animal of known age at death. We fit a line, a curve or an
+"any increasing shape" (isotonic) fit, and the scatter around it becomes the
+table's age uncertainty.
 """
-
-from __future__ import annotations
 
 from typing import Literal
 
@@ -15,7 +12,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 from scipy.optimize import isotonic_regression
 
-from .schema import GrowthKnot, GrowthTable
+from .schema import GrowthTable
 
 Method = Literal["linear", "quadratic", "isotonic"]
 
@@ -25,24 +22,7 @@ class CalibrationPoint(BaseModel):
     age_months: float
 
 
-class CalibrationResult(BaseModel):
-    table: GrowthTable
-    method: Method
-    n: int
-    residual_sd: float
-    r2: float | None
-    fitted: list[float]
-    warnings: list[str] = Field(default_factory=list)
-
-
-def calibrate_growth_table(
-    species: str,
-    tooth: str,
-    points: list[CalibrationPoint],
-    method: Method = "linear",
-    n_knots: int = 6,
-    source: str = "",
-) -> CalibrationResult:
+def calibrate_growth_table(species, tooth, points, method="linear", n_knots=6, source=""):
     if len(points) < 3:
         raise ValueError("at least 3 reference points are needed")
     pos = np.array([p.position_mm for p in points], dtype=float)
@@ -51,15 +31,14 @@ def calibrate_growth_table(
     pos, age = pos[order], age[order]
     if np.ptp(pos) == 0:
         raise ValueError("reference points must span more than one position")
-    warnings: list[str] = []
+    warnings = []
 
     if method == "isotonic":
         fitted = isotonic_regression(age, increasing=True).x
-        # Knots at the distinct positions, averaging tied fitted values.
-        knot_pos, inverse = np.unique(pos, return_inverse=True)
-        knot_age = np.bincount(inverse, fitted) / np.bincount(inverse)
-        # Effective degrees of freedom of isotonic regression = number of fitted steps.
-        n_params = len(np.unique(np.round(fitted, 9)))
+        knot_pos = np.unique(pos)
+        knot_age = np.array([fitted[pos == p].mean() for p in knot_pos])
+        n_params = len(np.unique(np.round(fitted, 9)))  # one per step of the fitted staircase
+        warnings.append("Isotonic fits follow the points closely, so their uncertainty is usually too small")
     else:
         degree = 1 if method == "linear" else 2
         if len(points) < degree + 2:
@@ -73,27 +52,20 @@ def calibrate_growth_table(
             knot_age = np.maximum.accumulate(knot_age)
         n_params = degree + 1
 
-    resid = age - fitted
-    dof = max(len(points) - n_params, 1)
-    residual_sd = float(np.sqrt(np.sum(resid**2) / dof))
-    sst = float(np.sum((age - age.mean()) ** 2))
-    r2 = float(1 - np.sum(resid**2) / sst) if sst > 0 else None
+    leftovers = age - fitted
+    residual_sd = float(np.sqrt(np.sum(leftovers ** 2) / max(len(points) - n_params, 1)))
+    spread = np.sum((age - age.mean()) ** 2)
+    r2 = float(1 - np.sum(leftovers ** 2) / spread) if spread > 0 else None
     if len(points) < 8:
         warnings.append(f"Only {len(points)} reference points: treat the uncertainty estimate with caution")
 
-    # Strictly increasing positions are required; drop duplicates from isotonic ties.
-    keep = np.concatenate([[True], np.diff(knot_pos) > 0])
     table = GrowthTable(
-        species=species.lower(),
-        tooth=tooth,
+        species=species.lower(), tooth=tooth,
         label=f"{species.capitalize()} - {tooth} (calibrated, {method})",
-        knots=[GrowthKnot(position_mm=round(float(p), 3), age_months=round(float(a), 3))
-               for p, a in zip(knot_pos[keep], knot_age[keep])],
+        knots=[{"position_mm": round(float(p), 3), "age_months": round(float(a), 3)} for p, a in zip(knot_pos, knot_age)],
         age_uncertainty_months=round(residual_sd, 3),
         source=source or f"Calibrated from {len(points)} known-age reference points ({method} fit)",
         placeholder=False,
     )
-    return CalibrationResult(
-        table=table, method=method, n=len(points), residual_sd=residual_sd, r2=r2,
-        fitted=[float(v) for v in fitted], warnings=warnings,
-    )
+    return {"table": table.model_dump(), "method": method, "n": len(points), "residual_sd": residual_sd,
+            "r2": r2, "fitted": [float(v) for v in fitted], "warnings": warnings}

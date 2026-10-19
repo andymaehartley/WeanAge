@@ -1,296 +1,167 @@
-"""Ingestion of isotope data from CSV/Excel files or manually entered form rows."""
-
-from __future__ import annotations
+"""Reads isotope data from CSV/Excel files or the manual-entry form and checks it."""
 
 import io
 import math
 import re
 from pathlib import Path
-from typing import Any, Iterable
 
 import pandas as pd
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from .config import find_growth_table
 from .schema import IsotopeSample
 
-# Minimum samples per specimen for a 4-parameter curve plus an AICc comparison.
-MIN_SAMPLES_PER_SPECIMEN = 6
+MIN_SAMPLES = 6  # fewer than this is too few to fit a curve
 
-# Lower-cased, punctuation-stripped header -> canonical field name.
-COLUMN_ALIASES: dict[str, str] = {
-    "specimen": "specimen_id",
-    "specimenid": "specimen_id",
-    "sampleid": "specimen_id",
-    "individual": "individual_id",
-    "individualid": "individual_id",
-    "animal": "individual_id",
-    "animalid": "individual_id",
-    "positionreference": "position_reference",
-    "measuredfrom": "position_reference",
-    "positionorigin": "position_reference",
-    "crownheightmm": "crown_height_mm",
-    "crownheight": "crown_height_mm",
-    "toothid": "specimen_id",
-    "site": "site",
-    "sitename": "site",
-    "species": "species",
-    "taxon": "species",
-    "tooth": "tooth",
-    "element": "tooth",
-    "sampleindex": "sample_index",
-    "increment": "sample_index",
-    "sampleno": "sample_index",
-    "positionmm": "position_mm",
-    "position": "position_mm",
-    "distancemm": "position_mm",
-    "distancefromapexmm": "position_mm",
-    "heightmm": "position_mm",
-    "d15n": "d15N",
-    "δ15n": "d15N",
-    "delta15n": "d15N",
-    "d15nair": "d15N",
-    "d13c": "d13C",
-    "δ13c": "d13C",
-    "delta13c": "d13C",
-    "d13cvpdb": "d13C",
-    "pctn": "pct_N",
-    "n": "pct_N",
-    "percentn": "pct_N",
-    "pctc": "pct_C",
-    "c": "pct_C",
-    "percentc": "pct_C",
-    "cn": "cn_ratio",
-    "cnratio": "cn_ratio",
-    "atomiccn": "cn_ratio",
-    "collagenyield": "collagen_yield_pct",
-    "collagenyieldpct": "collagen_yield_pct",
-    "yield": "collagen_yield_pct",
-    "yieldpct": "collagen_yield_pct",
-    "period": "period",
-    "phase": "period",
-    "notes": "notes",
-    "comment": "notes",
-    "knownweaningagemonths": "known_weaning_age_months",
-    "knownweaningage": "known_weaning_age_months",
-    "publishedweaningagemonths": "published_weaning_age_months",
-    "publishedweaningage": "published_weaning_age_months",
-    "incrementwidthmm": "increment_width_mm",
-    "incrementwidth": "increment_width_mm",
-    "incrementheightmm": "increment_width_mm",
+# Other ways people write each column name (compared without spaces, case or symbols).
+ALIASES = {
+    "specimen_id": ["specimen", "specimenid", "sampleid", "toothid"],
+    "individual_id": ["individual", "individualid", "animal", "animalid"],
+    "site": ["sitename"],
+    "species": ["taxon"],
+    "tooth": ["element"],
+    "sample_index": ["increment", "sampleno"],
+    "position_mm": ["position", "distancemm", "distancefromapexmm", "heightmm"],
+    "position_reference": ["measuredfrom", "positionorigin"],
+    "crown_height_mm": ["crownheight"],
+    "d15N": ["δ15n", "delta15n", "d15nair"],
+    "d13C": ["δ13c", "delta13c", "d13cvpdb"],
+    "pct_N": ["n", "percentn"],
+    "pct_C": ["c", "percentc"],
+    "cn_ratio": ["cn", "atomiccn"],
+    "collagen_yield_pct": ["collagenyield", "yield", "yieldpct"],
+    "increment_width_mm": ["incrementwidth", "incrementheightmm"],
+    "period": ["phase"],
+    "notes": ["comment"],
+    "known_weaning_age_months": ["knownweaningage"],
+    "published_weaning_age_months": ["publishedweaningage"],
 }
 
 
-class RowIssue(BaseModel):
-    row: int | None = Field(description="1-based data row (header excluded)")
-    field: str | None = None
-    message: str
-    severity: str = "error"
+def squash(name):
+    """Lower-case a column name and drop spaces, brackets, %, ‰ etc."""
+    return re.sub(r"[\s_\-().%‰:/]+", "", str(name).lower()).replace("permil", "")
 
 
-class SpecimenSummary(BaseModel):
-    specimen_id: str
-    individual_id: str | None = None
-    site: str
-    species: str
-    tooth: str
-    n_samples: int
-    has_growth_table: bool
+LOOKUP = {squash(field): field for field in IsotopeSample.model_fields}
+for field, spellings in ALIASES.items():
+    for spelling in spellings:
+        LOOKUP[squash(spelling)] = field
 
 
-class IngestReport(BaseModel):
-    samples: list[IsotopeSample]
-    issues: list[RowIssue]
-    specimens: list[SpecimenSummary]
-    unrecognised_columns: list[str] = Field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        return not any(i.severity == "error" for i in self.issues)
+def canonical_column(name):
+    return LOOKUP.get(squash(name))
 
 
-def canonical_column(name: str) -> str | None:
-    if name in IsotopeSample.model_fields:
-        return name
-    key = re.sub(r"[\s_\-().%‰:/]+", "", str(name).strip().lower())
-    key = key.replace("permil", "")
-    return COLUMN_ALIASES.get(key)
+def issue(message, row=None, field=None, severity="error"):
+    return {"row": row, "field": field, "message": message, "severity": severity}
 
 
-def _clean(value: Any) -> Any:
-    if value is None:
-        return None
-    if isinstance(value, float) and math.isnan(value):
-        return None
-    if isinstance(value, str) and not value.strip():
-        return None
-    return value
+def is_blank(value):
+    return value is None or (isinstance(value, float) and math.isnan(value))
 
 
-def ingest_records(records: Iterable[dict[str, Any]]) -> IngestReport:
-    """Validate already-keyed rows (e.g. from the manual-entry form)."""
-    samples: list[IsotopeSample] = []
-    issues: list[RowIssue] = []
-    for i, raw in enumerate(records, start=1):
-        row = {k: _clean(v) for k, v in raw.items()}
+def ingest_records(records):
+    """Check a list of row dictionaries; returns samples, problems and a per-specimen summary."""
+    samples, issues = [], []
+    for row_number, raw in enumerate(records, start=1):
+        row = {key: (None if is_blank(value) else value) for key, value in raw.items()}
         try:
             samples.append(IsotopeSample(**row))
-        except ValidationError as exc:
-            for err in exc.errors():
-                field = ".".join(str(p) for p in err["loc"]) or None
-                issues.append(RowIssue(row=i, field=field, message=err["msg"]))
-    issues.extend(_dataset_checks(samples))
-    return IngestReport(samples=samples, issues=issues, specimens=summarise(samples))
+        except ValidationError as err:
+            for e in err.errors():
+                field = ".".join(str(part) for part in e["loc"]) or None
+                issues.append(issue(e["msg"], row_number, field))
+    issues += dataset_checks(samples)
+    return {"samples": samples, "issues": issues, "specimens": summarise(samples), "unrecognised_columns": []}
 
 
-def ingest_dataframe(df: pd.DataFrame) -> IngestReport:
-    mapping: dict[str, str] = {}
-    unrecognised: list[str] = []
-    for col in df.columns:
-        canon = canonical_column(col)
-        if canon and canon not in mapping.values():
-            mapping[col] = canon
+def ingest_dataframe(df):
+    renames, unknown = {}, []
+    for column in df.columns:
+        field = canonical_column(column)
+        if field and field not in renames.values():
+            renames[column] = field
         else:
-            unrecognised.append(str(col))
-    df = df.rename(columns=mapping)[list(mapping.values())]
-    missing = [
-        f for f, info in IsotopeSample.model_fields.items() if info.is_required() and f not in df
-    ]
+            unknown.append(str(column))
+    df = df.rename(columns=renames)[list(renames.values())]
+    required = [f for f, info in IsotopeSample.model_fields.items() if info.is_required()]
+    missing = [f for f in required if f not in df]
     if missing:
-        issue = RowIssue(row=None, message=f"Missing required column(s): {', '.join(missing)}")
-        return IngestReport(samples=[], issues=[issue], specimens=[], unrecognised_columns=unrecognised)
-
-    for text_col in ("specimen_id", "individual_id", "site", "species", "tooth", "period", "notes",
-                     "position_reference"):
-        if text_col in df:
-            df[text_col] = df[text_col].map(lambda v: None if pd.isna(v) else str(v))
+        return {"samples": [], "issues": [issue(f"Missing required column(s): {', '.join(missing)}")],
+                "specimens": [], "unrecognised_columns": unknown}
+    for column in ["specimen_id", "individual_id", "site", "species", "tooth", "period", "notes", "position_reference"]:
+        if column in df:  # IDs like 001 must stay text, not become the number 1
+            df[column] = df[column].map(lambda v: None if pd.isna(v) else str(v))
     report = ingest_records(df.to_dict(orient="records"))
-    report.unrecognised_columns = unrecognised
-    if unrecognised:
-        report.issues.append(
-            RowIssue(
-                row=None,
-                message=f"Ignored unrecognised column(s): {', '.join(unrecognised)}",
-                severity="warning",
-            )
-        )
+    report["unrecognised_columns"] = unknown
+    if unknown:
+        report["issues"].append(issue(f"Ignored unrecognised column(s): {', '.join(unknown)}", severity="warning"))
     return report
 
 
-EXCEL_SUFFIXES = {".xlsx", ".xlsm", ".xls"}
+def is_excel(name):
+    return Path(str(name)).suffix.lower() in {".xlsx", ".xlsm", ".xls"}
 
 
-def ingest_file(filename: str, content: bytes) -> IngestReport:
-    """Dispatch an uploaded file on its extension (Excel: first sheet is read)."""
-    if Path(filename).suffix.lower() in EXCEL_SUFFIXES:
-        return ingest_dataframe(pd.read_excel(io.BytesIO(content), sheet_name=0))
+def ingest_file(filename, content):
+    """Read an uploaded file (Excel: first sheet; anything else is treated as CSV)."""
+    if is_excel(filename):
+        return ingest_dataframe(pd.read_excel(io.BytesIO(content)))
     return ingest_csv(content)
 
 
-def ingest_csv(source: str | Path | bytes) -> IngestReport:
-    """Read a CSV from a path or raw bytes (as uploaded through the UI)."""
+def ingest_csv(source):
+    """Read a CSV from a file path or raw bytes. The separator (comma, tab, ;) is detected."""
     if isinstance(source, bytes):
-        text = source.decode("utf-8-sig")
-        df = pd.read_csv(io.StringIO(text), sep=None, engine="python")
-    elif Path(source).suffix.lower() in EXCEL_SUFFIXES:
-        df = pd.read_excel(source, sheet_name=0)
-    else:
-        df = pd.read_csv(source, sep=None, engine="python", encoding="utf-8-sig")
-    return ingest_dataframe(df)
+        source = io.StringIO(source.decode("utf-8-sig"))
+    elif is_excel(source):
+        return ingest_dataframe(pd.read_excel(source))
+    return ingest_dataframe(pd.read_csv(source, sep=None, engine="python"))
 
 
-def samples_to_dataframe(samples: list[IsotopeSample]) -> pd.DataFrame:
-    return pd.DataFrame([s.model_dump() for s in samples])
-
-
-def summarise(samples: list[IsotopeSample]) -> list[SpecimenSummary]:
-    groups: dict[str, list[IsotopeSample]] = {}
+def group(samples, attribute):
+    groups = {}
     for s in samples:
-        groups.setdefault(s.specimen_id, []).append(s)
-    return [
-        SpecimenSummary(
-            specimen_id=sid,
-            individual_id=rows[0].individual_id,
-            site=rows[0].site,
-            species=rows[0].species,
-            tooth=rows[0].tooth,
-            n_samples=len(rows),
-            has_growth_table=find_growth_table(rows[0].species, rows[0].tooth) is not None,
-        )
-        for sid, rows in groups.items()
-    ]
+        groups.setdefault(getattr(s, attribute), []).append(s)
+    return groups
 
 
-def _dataset_checks(samples: list[IsotopeSample]) -> list[RowIssue]:
-    issues: list[RowIssue] = []
-    groups: dict[str, list[IsotopeSample]] = {}
-    for s in samples:
-        groups.setdefault(s.specimen_id, []).append(s)
-    for sid, rows in groups.items():
-        for attr in ("site", "species", "tooth"):
-            values = {getattr(r, attr) for r in rows}
+def summarise(samples):
+    return [{"specimen_id": sid, "individual_id": rows[0].individual_id, "site": rows[0].site,
+             "species": rows[0].species, "tooth": rows[0].tooth, "n_samples": len(rows),
+             "has_growth_table": find_growth_table(rows[0].species, rows[0].tooth) is not None}
+            for sid, rows in group(samples, "specimen_id").items()]
+
+
+def dataset_checks(samples):
+    """Problems that only show up when looking at a whole specimen or animal."""
+    issues = []
+    for sid, rows in group(samples, "specimen_id").items():
+        for attr in ["site", "species", "tooth"]:
+            values = sorted({getattr(r, attr) for r in rows})
             if len(values) > 1:
-                issues.append(
-                    RowIssue(
-                        row=None,
-                        field=attr,
-                        message=f"Specimen {sid} has more than one {attr}: {sorted(values)}",
-                    )
-                )
+                issues.append(issue(f"Specimen {sid} has more than one {attr}: {values}", field=attr))
         positions = [r.position_mm for r in rows]
-        if len(set(positions)) != len(positions):
-            issues.append(
-                RowIssue(
-                    row=None,
-                    field="position_mm",
-                    message=f"Specimen {sid} has duplicate positions; replicate measurements will be fitted as separate points",
-                    severity="warning",
-                )
-            )
-        if len(rows) < MIN_SAMPLES_PER_SPECIMEN:
-            issues.append(
-                RowIssue(
-                    row=None,
-                    message=f"Specimen {sid} has only {len(rows)} samples; at least {MIN_SAMPLES_PER_SPECIMEN} are needed for curve fitting",
-                    severity="warning",
-                )
-            )
+        if len(set(positions)) < len(positions):
+            issues.append(issue(f"Specimen {sid} has duplicate positions; repeats are fitted as separate points",
+                                field="position_mm", severity="warning"))
+        if len(rows) < MIN_SAMPLES:
+            issues.append(issue(f"Specimen {sid} has only {len(rows)} samples; at least {MIN_SAMPLES} are needed "
+                                "for curve fitting", severity="warning"))
         if find_growth_table(rows[0].species, rows[0].tooth) is None:
-            issues.append(
-                RowIssue(
-                    row=None,
-                    field="tooth",
-                    message=f"No growth table for {rows[0].species} {rows[0].tooth} (specimen {sid}); supply a custom age model in Settings",
-                    severity="warning",
-                )
-            )
-    issues.extend(_individual_checks(samples))
-    return issues
+            issues.append(issue(f"No growth table for {rows[0].species} {rows[0].tooth} (specimen {sid}); "
+                                "supply a custom age model in Settings", field="tooth", severity="warning"))
 
-
-def _individual_checks(samples: list[IsotopeSample]) -> list[RowIssue]:
-    """Teeth combined into one animal must agree on site and species."""
-    issues: list[RowIssue] = []
-    animals: dict[str, list[IsotopeSample]] = {}
-    for s in samples:
-        if s.individual_id:
-            animals.setdefault(s.individual_id, []).append(s)
-    for ind, rows in animals.items():
-        for attr in ("site", "species"):
-            values = {getattr(r, attr) for r in rows}
+    animals = group([s for s in samples if s.individual_id], "individual_id")
+    for animal, rows in animals.items():
+        for attr in ["site", "species"]:
+            values = sorted({getattr(r, attr) for r in rows})
             if len(values) > 1:
-                issues.append(RowIssue(
-                    row=None, field=attr,
-                    message=f"Individual {ind} has teeth with different {attr}s: {sorted(values)}",
-                ))
-        per_tooth: dict[str, set[str]] = {}
-        for r in rows:
-            per_tooth.setdefault(r.tooth, set()).add(r.specimen_id)
-        for tooth, ids in per_tooth.items():
+                issues.append(issue(f"Individual {animal} has teeth with different {attr} values: {values}", field=attr))
+        for tooth, tooth_rows in group(rows, "tooth").items():
+            ids = sorted({r.specimen_id for r in tooth_rows})
             if len(ids) > 1:
-                issues.append(RowIssue(
-                    row=None, field="tooth", severity="warning",
-                    message=f"Individual {ind} has several {tooth} specimens ({', '.join(sorted(ids))}); "
-                    "left and right teeth will be fitted together",
-                ))
+                issues.append(issue(f"Individual {animal} has several {tooth} specimens ({', '.join(ids)}); "
+                                    "left and right teeth will be fitted together", field="tooth", severity="warning"))
     return issues

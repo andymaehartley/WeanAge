@@ -1,162 +1,108 @@
-"""Loading of bundled reference data and the registry of lab-pending (TBD-LAB) values."""
-
-from __future__ import annotations
+"""Reads the bundled data files and keeps track of values still waiting on lab work (TBD-LAB)."""
 
 import json
 import os
 import sys
-from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
 from .schema import AnalysisOptions, GrowthTable, QCThresholds
 
-
-def package_dir() -> Path:
-    """Directory holding ``data/`` and ``web/`` (works inside a PyInstaller bundle)."""
-    bundle = getattr(sys, "_MEIPASS", None)
-    if bundle:
-        return Path(bundle) / "weanage"
-    return Path(__file__).resolve().parent
+# Inside the single-file app (PyInstaller) files are unpacked to sys._MEIPASS.
+HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent.parent)) / "weanage"
+DATA_DIR = HERE / "data"
+WEB_DIR = HERE / "web"
 
 
-DATA_DIR = package_dir() / "data"
-WEB_DIR = package_dir() / "web"
+def read_json(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def _read_json(name: str) -> dict[str, Any]:
-    return json.loads((DATA_DIR / name).read_text(encoding="utf-8"))
+def user_tables_path():
+    """Where tables saved from the app are kept: $WEANAGE_HOME or ~/.weanage."""
+    home = os.environ.get("WEANAGE_HOME") or Path.home() / ".weanage"
+    return Path(home) / "growth_tables.json"
 
 
-def user_dir() -> Path:
-    """Per-user data directory (``$WEANAGE_HOME`` or ``~/.weanage``)."""
-    return Path(os.environ.get("WEANAGE_HOME") or Path.home() / ".weanage")
-
-
-def user_tables_path() -> Path:
-    return user_dir() / "growth_tables.json"
-
-
-def bundled_growth_tables() -> dict[str, GrowthTable]:
-    tables = [GrowthTable(**t) for t in _read_json("growth_tables.json")["tables"]]
+def bundled_growth_tables():
+    tables = [GrowthTable(**t) for t in read_json(DATA_DIR / "growth_tables.json")["tables"]]
     return {t.key: t for t in tables}
 
 
-def saved_growth_tables() -> dict[str, GrowthTable]:
+def saved_growth_tables():
     path = user_tables_path()
     if not path.exists():
         return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return {t.key: t for t in (GrowthTable(**row) for row in data.get("tables", []))}
+    tables = [GrowthTable(**t) for t in read_json(path)["tables"]]
+    return {t.key: t for t in tables}
 
 
-@lru_cache
-def growth_tables() -> dict[str, GrowthTable]:
-    """Bundled tables, overridden by any the user has saved from the app."""
+def growth_tables():
+    """The bundled tables, replaced by any the user has saved."""
     return {**bundled_growth_tables(), **saved_growth_tables()}
 
 
-def save_growth_table(table: GrowthTable) -> Path:
-    """Persist an edited/calibrated table to the user directory (never the package)."""
-    saved = saved_growth_tables()
-    saved[table.key] = table
+def write_saved_tables(tables):
     path = user_tables_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"tables": [t.model_dump() for t in saved.values()]}, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    growth_tables.cache_clear()
-    return path
+    rows = [t.model_dump() for t in tables.values()]
+    path.write_text(json.dumps({"tables": rows}, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def delete_saved_growth_table(key: str) -> bool:
-    saved = saved_growth_tables()
-    if key not in saved:
+def save_growth_table(table):
+    tables = saved_growth_tables()
+    tables[table.key] = table
+    write_saved_tables(tables)
+
+
+def delete_saved_growth_table(key):
+    tables = saved_growth_tables()
+    if key not in tables:
         return False
-    del saved[key]
-    user_tables_path().write_text(
-        json.dumps({"tables": [t.model_dump() for t in saved.values()]}, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    growth_tables.cache_clear()
+    del tables[key]
+    write_saved_tables(tables)
     return True
 
 
-def find_growth_table(
-    species: str, tooth: str, extra: list[GrowthTable] | None = None
-) -> GrowthTable | None:
-    """Look up a table, preferring ``extra`` (per-analysis) over saved and bundled ones."""
-    wanted = (species.lower(), tooth.lower())
-    for table in [*(extra or []), *growth_tables().values()]:
-        if (table.species.lower(), table.tooth.lower()) == wanted:
+def find_growth_table(species, tooth, extra_tables=()):
+    """Find the table for a species and tooth; tables sent with an analysis win."""
+    for table in list(extra_tables) + list(growth_tables().values()):
+        if table.species.lower() == species.lower() and table.tooth.lower() == tooth.lower():
             return table
     return None
 
 
-@lru_cache
-def qc_config() -> dict[str, Any]:
-    return _read_json("qc_thresholds.json")
+def qc_config():
+    return read_json(DATA_DIR / "qc_thresholds.json")
 
 
-@lru_cache
-def lab_parameters() -> dict[str, Any]:
-    return {k: v for k, v in _read_json("lab_parameters.json").items() if not k.startswith("_")}
+def lab_parameters():
+    data = read_json(DATA_DIR / "lab_parameters.json")
+    return {key: value for key, value in data.items() if not key.startswith("_")}
 
 
-def default_options() -> AnalysisOptions:
-    """Analysis options seeded from the bundled config files."""
-    qc_fields = set(QCThresholds.model_fields)
-    qc = QCThresholds(**{k: v for k, v in qc_config().items() if k in qc_fields})
-    lab = lab_parameters()
-    kwargs: dict[str, Any] = {"qc": qc}
-    for name in (
-        "analytical_sd_permil",
-        "min_weaning_drop_permil",
-        "transition_threshold",
-        "growth_layer_offset_mm",
-        "inner_dentine_weight",
-    ):
-        value = lab.get(name, {}).get("value")
-        if value is not None:
-            kwargs[name] = value
-    return AnalysisOptions(**kwargs)
+def default_options():
+    """Analysis settings, starting from the values in the data files."""
+    qc = QCThresholds(**{k: v for k, v in qc_config().items() if k in QCThresholds.model_fields})
+    settings = {"qc": qc}
+    for name, entry in lab_parameters().items():
+        if name in AnalysisOptions.model_fields and entry.get("value") is not None:
+            settings[name] = entry["value"]
+    return AnalysisOptions(**settings)
 
 
-def tbd_items() -> list[dict[str, str]]:
-    """Every value still flagged as a placeholder awaiting lab work."""
-    items: list[dict[str, str]] = []
+def tbd_items():
+    """A list of every placeholder value, shown highlighted in the app."""
+    items = []
     for table in growth_tables().values():
         if table.placeholder:
-            items.append(
-                {
-                    "id": f"growth:{table.key}",
-                    "area": "Tooth growth table",
-                    "label": table.label,
-                    "note": table.tbd_note or "",
-                    "file": "src/weanage/data/growth_tables.json",
-                }
-            )
+            items.append({"id": f"growth:{table.key}", "area": "Tooth growth table", "label": table.label,
+                          "note": table.tbd_note or "", "file": "src/weanage/data/growth_tables.json"})
     qc = qc_config()
     if qc.get("placeholder"):
-        items.append(
-            {
-                "id": "qc:thresholds",
-                "area": "Collagen QC",
-                "label": "Quality-control thresholds",
-                "note": qc.get("tbd_note", ""),
-                "file": "src/weanage/data/qc_thresholds.json",
-            }
-        )
-    for key, entry in lab_parameters().items():
+        items.append({"id": "qc:thresholds", "area": "Collagen QC", "label": "Quality-control thresholds",
+                      "note": qc.get("tbd_note", ""), "file": "src/weanage/data/qc_thresholds.json"})
+    for name, entry in lab_parameters().items():
         if entry.get("placeholder"):
-            items.append(
-                {
-                    "id": f"lab:{key}",
-                    "area": "Lab / method parameter",
-                    "label": key,
-                    "note": entry.get("tbd_note", ""),
-                    "file": "src/weanage/data/lab_parameters.json",
-                }
-            )
+            items.append({"id": f"lab:{name}", "area": "Lab / method parameter", "label": name,
+                          "note": entry.get("tbd_note", ""), "file": "src/weanage/data/lab_parameters.json"})
     return items

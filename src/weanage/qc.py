@@ -1,11 +1,4 @@
-"""Collagen quality-control flags for individual samples."""
-
-from __future__ import annotations
-
-from .schema import IsotopeSample, QCThresholds
-
-# Flags that make a sample unreliable; "qc_not_assessed" is informational only.
-FAILING_FLAGS = {"cn_out_of_range", "pct_C_low", "pct_N_low", "yield_low"}
+"""Collagen quality-control flags for single samples."""
 
 FLAG_DESCRIPTIONS = {
     "cn_out_of_range": "Atomic C:N outside the accepted range (possible contamination or degradation)",
@@ -14,25 +7,23 @@ FLAG_DESCRIPTIONS = {
     "yield_low": "Collagen yield below the minimum",
     "qc_not_assessed": "No C:N, %C or %N supplied, so collagen quality could not be checked",
 }
+FAILING = {"cn_out_of_range", "pct_C_low", "pct_N_low", "yield_low"}  # "not assessed" is only a note
 
 
-def qc_flags(sample: IsotopeSample, thresholds: QCThresholds) -> list[str]:
-    flags: list[str] = []
-    if sample.cn_ratio is not None and not thresholds.cn_min <= sample.cn_ratio <= thresholds.cn_max:
+def qc_flags(s, limits):
+    flags = []
+    if s.cn_ratio is not None and not limits.cn_min <= s.cn_ratio <= limits.cn_max:
         flags.append("cn_out_of_range")
-    if sample.pct_C is not None and sample.pct_C < thresholds.pct_C_min:
+    if s.pct_C is not None and s.pct_C < limits.pct_C_min:
         flags.append("pct_C_low")
-    if sample.pct_N is not None and sample.pct_N < thresholds.pct_N_min:
+    if s.pct_N is not None and s.pct_N < limits.pct_N_min:
         flags.append("pct_N_low")
-    if (
-        sample.collagen_yield_pct is not None
-        and sample.collagen_yield_pct < thresholds.collagen_yield_min
-    ):
+    if s.collagen_yield_pct is not None and s.collagen_yield_pct < limits.collagen_yield_min:
         flags.append("yield_low")
-    if sample.cn_ratio is None and sample.pct_C is None and sample.pct_N is None:
+    if s.cn_ratio is None and s.pct_C is None and s.pct_N is None:
         flags.append("qc_not_assessed")
     return flags
 
 
-def passes_qc(flags: list[str]) -> bool:
-    return not FAILING_FLAGS.intersection(flags)
+def passes_qc(flags):
+    return not FAILING & set(flags)
