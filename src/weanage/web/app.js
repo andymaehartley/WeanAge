@@ -1,10 +1,10 @@
 // The main page: holds the app's state and draws each of the five views.
 import { api } from "./api.js";
-import { curveChart, curveOptions, forestChart, svgToBlob } from "./chart.js";
+import { curveChart, curveOptions, forestChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
-import { buildReport } from "./report.js";
+import { buildReport, offscreen } from "./report.js";
 import { $, $$, ci, download, esc, help, MILESTONES, num, progressBar, pval, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
 
 const state = {
@@ -603,8 +603,11 @@ function bind() {
   on("#btn-export-csv", "click", () => download("weanage_estimates.csv", new Blob([toCsv(state.estimates)], { type: "text/csv" })));
   on("#btn-export-json", "click", () => download("weanage_results.json", new Blob([JSON.stringify({ options: state.options, results: state.results }, null, 2)])));
   on("#btn-export-svg", "click", () => {
-    const svg = $("#res-chart svg");
-    if (svg) download(`${state.current}_weaning_curve.svg`, svgToBlob(svg));
+    // Redraw the chart in light colours on white, which suits papers and slides.
+    const res = state.results.find((r) => r.specimen_id === state.current) || state.results[0];
+    if (!res?.points.length) return;
+    const options = { visible: state.visible, milestone: state.options.reported_milestone, xRange: state.zoom, showD13C: $("#opt-show13c").checked, palette: "light" };
+    download(`${res.specimen_id}_weaning_curve.svg`, new Blob([offscreen((box) => curveChart(box, curveOptions(res, options)))], { type: "image/svg+xml" }));
   });
   for (const input of $$('input[name="group"], #cmp-milestone, #cmp-model')) input.addEventListener("change", refreshCompare);
 
@@ -619,6 +622,27 @@ function bind() {
   });
   on("#btn-report", "click", makeReport);
   on("#btn-help", "click", () => startTour(show));
+  on("#btn-theme", "click", () => setLook("theme", document.documentElement.dataset.theme === "light" ? "dark" : "light"));
+  on("#btn-text", "click", () => setLook("text", document.documentElement.dataset.text === "large" ? "normal" : "large"));
+}
+
+// ───────────── dark/light colours and text size ─────────────
+// `key` is "theme" (dark/light) or "text" (normal/large). The choice is remembered.
+function setLook(key, value) {
+  document.documentElement.dataset[key] = value;
+  try { localStorage.setItem(`weanage-${key}`, value); } catch {}
+  showLook();
+  if (state.results?.length) renderResults(); // charts pick their colours when drawn
+  if (state.plan) renderPlan(state);
+}
+
+function showLook() {
+  const light = document.documentElement.dataset.theme === "light";
+  const large = document.documentElement.dataset.text === "large";
+  $("#btn-theme").textContent = light ? "Dark mode" : "Light mode";
+  $("#btn-theme").setAttribute("aria-pressed", String(light));
+  $("#btn-text").textContent = large ? "Normal text" : "Larger text";
+  $("#btn-text").setAttribute("aria-pressed", String(large));
 }
 
 // ───────────── start ─────────────
@@ -634,6 +658,7 @@ async function init() {
   for (const slot of $$("[data-helpslot]")) slot.innerHTML = help(slot.dataset.helpslot);
   initGlossary();
   bind();
+  showLook();
   renderData();
   offerRestore();
   if (!tourSeen()) startTour(show);

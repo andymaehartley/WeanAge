@@ -38,6 +38,11 @@ plain-language explanation. The app has five tabs:
 5. **Plan sampling**: simulate teeth with known weaning ages to compare sampling
    intervals, sample sizes or noise levels.
 
+The app opens in a **high-contrast dark theme**; *Light mode* and *Larger text* in the
+header switch it, and the choice is remembered. All text meets WCAG AAA contrast (7:1),
+curves are at least 4.5:1 and also differ by dash pattern (checked by `tests/test_contrast.py`).
+Saved charts and reports always use the light colours so they print well.
+
 **Save** and **Open** store the whole project in a file, and work is also kept in the
 browser automatically. **Report** downloads a self-contained HTML report (print it to
 get a PDF).

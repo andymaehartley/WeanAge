@@ -24,7 +24,7 @@ const htmlTable = (headers, rows) =>
 const withCI = (v) => (v ? `${num(v.estimate, 1)}${v.ci_low != null ? ` <span class="muted">(${num(v.ci_low, 1)}–${num(v.ci_high, 1)})</span>` : ""}` : "—");
 
 // Draw a chart off-screen and return its SVG text.
-function offscreen(draw) {
+export function offscreen(draw) {
   const box = Object.assign(document.createElement("div"), { style: "position:absolute;left:-9999px;width:760px" });
   document.body.appendChild(box);
   const markup = svgMarkup(draw(box));
@@ -34,7 +34,7 @@ function offscreen(draw) {
 
 function specimenSection(r, milestone) {
   const visible = new Set([...r.fits.map((f) => f.model), "average"]);
-  const chart = r.points.length ? offscreen((box) => curveChart(box, curveOptions(r, { visible, milestone, showD13C: r.points.some((p) => p.d13C != null) }))) : "";
+  const chart = r.points.length ? offscreen((box) => curveChart(box, curveOptions(r, { visible, milestone, showD13C: r.points.some((p) => p.d13C != null), palette: "light" }))) : "";
   const rows = r.fits.map((f) => [`${esc(f.label)}${f.model === r.best_model ? " <b>(best)</b>" : ""}`, ...MILESTONES.map((k) => withCI(f[k])),
     num(f.drop_permil), num(f.rmse, 3), num(f.delta_aicc), num(f.akaike_weight)]);
   if (Object.keys(r.model_average).length) rows.push(["<i>Model average</i>", ...MILESTONES.map((k) => withCI(r.model_average[k])), "", "", "", ""]);

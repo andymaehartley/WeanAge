@@ -1,16 +1,18 @@
 // Shared helpers for the WeanAge frontend.
 
-// Okabe-Ito colour-blind-safe palette, plus a distinct dash pattern per model so
-// curves stay distinguishable in greyscale and for colour-vision deficiency.
-export const MODEL_STYLE = {
-  logistic: { color: "#0072B2", dash: null },
-  piecewise: { color: "#009E73", dash: "9 4" },
-  exponential: { color: "#CC79A7", dash: "2 3" },
-  two_phase: { color: "#D55E00", dash: "10 3 2 3" },
-  elbow: { color: "#B07C00", dash: "5 2" },
-  average: { color: "#444444", dash: null },
+// Colour-blind-safe colours (based on Okabe-Ito), one set per theme so every curve has at
+// least 4.5:1 contrast with the background. Each model also has its own dash pattern, so
+// curves can be told apart without colour at all.
+export const PALETTE = {
+  dark: { logistic: "#56b4e9", piecewise: "#3fd8a8", exponential: "#f0a6d8", two_phase: "#ff9e5e", elbow: "#f0e442", average: "#f0f3f6" },
+  light: { logistic: "#0060a8", piecewise: "#00765a", exponential: "#a3407a", two_phase: "#b04500", elbow: "#6e5a00", average: "#24292f" },
 };
-export const color = (m) => (MODEL_STYLE[m] || MODEL_STYLE.average).color;
+export const MODEL_STYLE = {
+  logistic: { dash: null }, piecewise: { dash: "9 4" }, exponential: { dash: "2 3" },
+  two_phase: { dash: "10 3 2 3" }, elbow: { dash: "5 2" }, average: { dash: null },
+};
+export const theme = () => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
+export const color = (m, which = theme()) => PALETTE[which][m] || PALETTE[which].average;
 export const MILESTONES = ["onset", "midpoint", "completion"];
 
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -64,7 +66,7 @@ export const tbdBadge = '<span class="tbd-badge" title="Placeholder awaiting lab
 
 export function swatch(model) {
   const s = MODEL_STYLE[model] || MODEL_STYLE.average;
-  return `<svg class="swatch-line" width="22" height="10" aria-hidden="true"><line x1="1" y1="5" x2="21" y2="5" stroke="${s.color}" stroke-width="3" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""}/></svg>`;
+  return `<svg class="swatch-line" width="22" height="10" aria-hidden="true"><line x1="1" y1="5" x2="21" y2="5" stroke="${color(model)}" stroke-width="3" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""}/></svg>`;
 }
 
 /** A small "?" button that opens the glossary entry for ``term``. */

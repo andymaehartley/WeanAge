@@ -1,5 +1,5 @@
 // Charts drawn as SVG (no chart library): weaning curves, group "forest" plots and line charts.
-import { color, esc, MODEL_STYLE, num } from "./util.js";
+import { color, esc, MODEL_STYLE, num, theme } from "./util.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const SHAPES = ["circle", "square", "diamond", "triangle"];
@@ -126,7 +126,7 @@ export function curveChart(box, o) {
   const plot = el("g", { "clip-path": `url(#${id}-clip)` }, svg);
   for (const m of o.markers) {
     if (m.lo != null) el("rect", { x: xs(m.lo), y: area.top, width: Math.max(xs(m.hi) - xs(m.lo), 1), height: area.bottom - area.top, fill: m.color, opacity: 0.1 }, plot);
-    el("line", { x1: xs(m.x), x2: xs(m.x), y1: area.bottom, y2: area.top, stroke: m.color, "stroke-dasharray": "5 4", "stroke-width": 1.5 }, plot);
+    el("line", { x1: xs(m.x), x2: xs(m.x), y1: area.bottom, y2: area.top, stroke: m.color, "stroke-dasharray": "5 4", "stroke-width": 2 }, plot);
   }
 
   // δ13C on its own axis on the right.
@@ -142,7 +142,7 @@ export function curveChart(box, o) {
     for (const p of carbon) marker("diamond", xs(p.x), cs(p.d13C), 3, { class: "c13-pt" }, plot);
   }
 
-  for (const c of o.curves) el("path", { d: path(c.xs.map((x, i) => [x, c.ys[i]]), xs, ys), fill: "none", stroke: c.color, "stroke-width": 2.5, "stroke-dasharray": c.dash }, plot);
+  for (const c of o.curves) el("path", { d: path(c.xs.map((x, i) => [x, c.ys[i]]), xs, ys), fill: "none", stroke: c.color, "stroke-width": 3.5, "stroke-dasharray": c.dash }, plot);
   for (const p of o.points) if (p.xMin != null) el("line", { x1: xs(p.xMin), x2: xs(p.xMax), y1: ys(p.y), y2: ys(p.y), class: "win" }, plot);
   const groups = [...new Set(o.points.map((p) => p.group ?? ""))]; // one marker shape per tooth
   for (const p of o.points) {
@@ -220,7 +220,7 @@ export function forestChart(box, groups, xTitle) {
     const y = area.top + 36 * (i + 0.5);
     el("text", { x: area.left - 10, y: y + 4, "text-anchor": "end", class: "row-label" }, svg).textContent = g.label;
     if (isFinite(g.lo) && isFinite(g.hi)) el("line", { x1: xs(g.lo), x2: xs(g.hi), y1: y, y2: y, class: "ci" }, svg);
-    for (const v of g.values) hover(box, el("circle", { cx: xs(v.v), cy: y + 9, r: 3.5, class: "pt pt-small" }, svg), v.label);
+    for (const v of g.values) hover(box, el("circle", { cx: xs(v.v), cy: y + 9, r: 4.5, class: "pt pt-small" }, svg), v.label);
     if (isFinite(g.mean)) el("rect", { x: xs(g.mean) - 5, y: y - 5, width: 10, height: 10, class: "mean" }, svg);
   });
   return svg;
@@ -242,30 +242,31 @@ export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   xAxis(axes, area, xs, xt, xLabel);
   series.forEach((s, i) => {
     const ok = s.points.filter(hasValue);
-    el("path", { d: path(ok.map((p) => [p.x, p.y]), xs, ys), fill: "none", stroke: s.color, "stroke-width": 2.2, "stroke-dasharray": s.dash }, svg);
-    for (const p of ok) marker(SHAPES[i % 4], xs(p.x), ys(p.y), 4, { fill: s.color }, svg);
+    el("path", { d: path(ok.map((p) => [p.x, p.y]), xs, ys), fill: "none", stroke: s.color, "stroke-width": 3, "stroke-dasharray": s.dash }, svg);
+    for (const p of ok) marker(SHAPES[i % 4], xs(p.x), ys(p.y), 5, { fill: s.color }, svg);
     const y = area.top + 12 + i * 18; // legend
-    el("line", { x1: area.right + 12, x2: area.right + 34, y1: y, y2: y, stroke: s.color, "stroke-width": 2.2, "stroke-dasharray": s.dash }, svg);
+    el("line", { x1: area.right + 12, x2: area.right + 34, y1: y, y2: y, stroke: s.color, "stroke-width": 3, "stroke-dasharray": s.dash }, svg);
     el("text", { x: area.right + 40, y: y + 4, class: "legend-text" }, svg).textContent = s.name;
   });
   return svg;
 }
 
 /** Everything the weaning chart needs for one specimen's results. */
-export function curveOptions(res, { visible, milestone, xRange = null, showD13C = false, onZoom = null }) {
+// `palette` is "dark" or "light"; the report always uses light so it prints well.
+export function curveOptions(res, { visible, milestone, xRange = null, showD13C = false, onZoom = null, palette = theme() }) {
   const fits = res.fits.filter((f) => f.converged && visible.has(f.model));
   const multiTooth = new Set(res.points.map((p) => p.tooth)).size > 1;
   const markers = fits.filter((f) => f[milestone]?.estimate != null)
-    .map((f) => ({ x: f[milestone].estimate, lo: f[milestone].ci_low, hi: f[milestone].ci_high, color: color(f.model), label: `${num(f[milestone].estimate, 1)} mo` }));
+    .map((f) => ({ x: f[milestone].estimate, lo: f[milestone].ci_low, hi: f[milestone].ci_high, color: color(f.model, palette), label: `${num(f[milestone].estimate, 1)} mo` }));
   const avg = res.model_average?.[milestone];
-  if (visible.has("average") && avg) markers.push({ x: avg.estimate, lo: avg.ci_low, hi: avg.ci_high, color: color("average"), label: `avg ${num(avg.estimate, 1)} mo` });
+  if (visible.has("average") && avg) markers.push({ x: avg.estimate, lo: avg.ci_low, hi: avg.ci_high, color: color("average", palette), label: `avg ${num(avg.estimate, 1)} mo` });
   return {
     title: `Weaning curve for ${res.specimen_id}`,
     desc: `${res.points.length} samples of δ15N against age; ${fits.length} model curve(s) shown.`,
     xLabel: "Age at dentine formation (months)",
     yLabel: "δ¹⁵N (‰ AIR)",
     xRange, showD13C, onZoom, positionAxis: !multiTooth, markers,
-    curves: fits.map((f) => ({ color: color(f.model), dash: MODEL_STYLE[f.model].dash, xs: f.curve_age, ys: f.curve_d15N })),
+    curves: fits.map((f) => ({ color: color(f.model, palette), dash: MODEL_STYLE[f.model].dash, xs: f.curve_age, ys: f.curve_d15N })),
     points: res.points.map((p) => ({
       x: p.age_months, y: p.d15N, xMin: p.age_min, xMax: p.age_max, d13C: p.d13C, position: p.position_mm,
       group: multiTooth ? p.tooth : null, used: p.used_in_fit, extrapolated: p.extrapolated,
@@ -281,12 +282,11 @@ export function svgMarkup(svg) {
   copy.setAttribute("xmlns", SVG);
   copy.querySelectorAll(".zoom-hit, .zoom-sel").forEach((n) => n.remove());
   const style = document.createElementNS(SVG, "style");
-  style.textContent = `text{font:12px sans-serif;fill:#333}.grid{stroke:#e5e5e5}.axis,.tick{stroke:#555}.pt{fill:#222}
-    .pt-excluded{fill:none;stroke:#c0392b;stroke-width:1.5}.pt-extra{fill:#888}.pt-small{fill:#0072B2;opacity:.65}.ci{stroke:#333;stroke-width:2}
-    .mean{fill:#333}.label{font-weight:600}.win{stroke:#888;stroke-width:1.5;opacity:.55}.c13,.c13-pt{fill:#7a5c00}
-    .c13-line{fill:none;stroke:#7a5c00;stroke-width:1.2;stroke-dasharray:2 3}`;
+  // Exported charts always use the light colours, on a white background.
+  style.textContent = `svg{background:#fff}text{font:13px sans-serif;fill:#24292f}.grid{stroke:#d0d7de}.axis,.tick{stroke:#30363d}.pt{fill:#0d1117}
+    .pt-excluded{fill:none;stroke:#a40e26;stroke-width:2}.pt-extra{fill:#57606a}.pt-small{fill:#0060a8}.ci{stroke:#24292f;stroke-width:2}
+    .mean{fill:#24292f}.label{font-weight:700}.win{stroke:#57606a;stroke-width:2}.c13,.c13-pt{fill:#6a4300}
+    .c13-line{fill:none;stroke:#6a4300;stroke-width:1.5;stroke-dasharray:2 3}`;
   copy.prepend(style);
   return new XMLSerializer().serializeToString(copy);
 }
-
-export const svgToBlob = (svg) => new Blob([svgMarkup(svg)], { type: "image/svg+xml" });
