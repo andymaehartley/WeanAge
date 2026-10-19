@@ -10,6 +10,7 @@ Nobody needs to install anything: the page downloads Python (Pyodide) the first 
 import argparse
 import functools
 import http.server
+import json
 import shutil
 import zipfile
 from pathlib import Path
@@ -37,6 +38,11 @@ def build():
                 zf.write(path, Path("weanage") / relative)
     # 4. The blank data template, as a plain download.
     shutil.copy(PACKAGE / "data" / "templates" / "isotope_template.csv", OUT / "weanage_template.csv")
+    # 5. Tell the offline helper (sw.js) which of the app's files to keep copies of.
+    files = ["./"] + sorted(p.name for p in OUT.iterdir() if p.is_file() and p.name != "sw.js")
+    worker = OUT / "sw.js"
+    worker.write_text(worker.read_text(encoding="utf-8").replace(
+        "const APP_FILES = [];", f"const APP_FILES = {json.dumps(files)};"), encoding="utf-8")
     (OUT / ".nojekyll").touch()  # tells GitHub Pages to serve the files exactly as they are
     print(f"Browser version built in {OUT}")
 

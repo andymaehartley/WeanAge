@@ -50,6 +50,7 @@ self.onmessage = async ({ data }) => {
   try {
     ready ??= start().finally(() => status(null));
     const weanage = await ready;
+    if (name === "analyze" || name === "simulate") await syncFiles(true); // growth tables saved by another engine
     const progress = (done, total) => postMessage({ id, progress: [done, total] });
     const answer = JSON.parse(weanage.call(name, JSON.stringify(request ?? {}), progress, content));
     if (name === "save_table" || name === "delete_table") await syncFiles(false);

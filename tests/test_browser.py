@@ -88,17 +88,28 @@ def test_browser_version():
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.add_init_script("localStorage.setItem('weanage-tour-done', '1')")
-        page.goto(f"http://127.0.0.1:{static.server_port}/")
-        page.wait_for_selector("#model-options input", state="attached", timeout=240000)  # the engine has loaded
-        click(page, "#btn-example")
-        page.wait_for_selector("#specimens-card:not([hidden])", timeout=60000)
-        click(page, '.step[data-view="settings"]')
-        page.fill("#opt-draws", "100")  # fewer random draws: the browser uses one processor core
-        click(page, "#btn-run")
-        page.wait_for_selector("#view-results.active", timeout=600000)
-        assert "Best-supported model" in page.text_content("#res-summary")
+        url = f"http://127.0.0.1:{static.server_port}/"
+
+        def run_example():
+            page.wait_for_selector("#model-options input", state="attached", timeout=240000)  # the engine has loaded
+            click(page, "#btn-example")
+            page.wait_for_selector("#specimens-card:not([hidden])", timeout=60000)
+            click(page, '.step[data-view="settings"]')
+            page.fill("#opt-draws", "100")
+            click(page, "#btn-run")  # 11 specimens: shared between several engines on a multi-core machine
+            page.wait_for_selector("#view-results.active", timeout=600000)
+            assert "Best-supported model" in page.text_content("#res-summary")
+            ids = page.eval_on_selector_all("#result-list [data-specimen]", "els => els.map(e => e.dataset.specimen)")
+            assert ids[0] == "SYN-C01" and len(ids) == 11  # every specimen, in the original order
+
+        page.goto(url)
+        run_example()
         click(page, '.step[data-view="compare"]')
         page.wait_for_selector("#tests-body .summary", timeout=120000)
+        # Offline: the saved copies of the app and of Python should be enough.
+        page.context.set_offline(True)
+        page.reload()
+        run_example()
         browser.close()
     static.shutdown()
     assert not errors, errors

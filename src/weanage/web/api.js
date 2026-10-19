@@ -61,28 +61,52 @@ const server = {
 };
 
 // ───────────── browser version ─────────────
-let worker = null;
+// Python runs in background "engines" (web workers, see pyworker.js). Engine 0 does
+// everything; big analyses are shared out to extra engines, one per spare processor core.
+const engines = []; // promises of { worker, waiting }
 let nextId = 0;
-const waiting = new Map(); // request id -> { resolve, reject, onProgress }
 let showStatus = () => {};
 
-function python(name, request = {}, onProgress = null, content = undefined) {
-  if (!worker) {
-    worker = new Worker("pyworker.js");
-    worker.onmessage = ({ data }) => {
-      if ("status" in data) return showStatus(data.status);
-      const job = waiting.get(data.id);
-      if (!job) return;
-      if (data.progress) return job.onProgress?.(...data.progress);
-      waiting.delete(data.id);
-      data.ok ? job.resolve(data.result) : job.reject(new Error(data.error));
-    };
-    worker.onerror = (event) => { // the engine crashed: fail every waiting request instead of hanging
-      showStatus(null);
-      for (const job of waiting.values()) job.reject(new Error(event.message || "the analysis engine stopped"));
-      waiting.clear();
-    };
+// sw.js keeps copies of the app and of Python so the page also works offline. It must be
+// in charge before the first engine starts, or Python's files would not be kept.
+async function offlineCopies() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    await navigator.serviceWorker.register("sw.js");
+    if (!navigator.serviceWorker.controller) { // first visit: give it up to 3 s to take over
+      await Promise.race([
+        new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true })),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+    }
+  } catch {
+    // Offline copies are a convenience; the app works without them.
   }
+}
+
+async function startEngine(index) {
+  if (index === 0) await offlineCopies();
+  const worker = new Worker("pyworker.js");
+  const waiting = new Map(); // request id -> { resolve, reject, onProgress }
+  worker.onmessage = ({ data }) => {
+    if ("status" in data) return index === 0 && showStatus(data.status);
+    const job = waiting.get(data.id);
+    if (!job) return;
+    if (data.progress) return job.onProgress?.(...data.progress);
+    waiting.delete(data.id);
+    data.ok ? job.resolve(data.result) : job.reject(new Error(data.error));
+  };
+  worker.onerror = (event) => { // the engine crashed: fail every waiting request instead of hanging
+    showStatus(null);
+    for (const job of waiting.values()) job.reject(new Error(event.message || "the analysis engine stopped"));
+    waiting.clear();
+  };
+  return { worker, waiting };
+}
+
+async function python(name, request = {}, onProgress = null, content = undefined, index = 0) {
+  if (index > 0) await (engines[0] ??= startEngine(0)); // extra engines start after the first is in charge
+  const { worker, waiting } = await (engines[index] ??= startEngine(index));
   const id = ++nextId;
   return new Promise((resolve, reject) => {
     waiting.set(id, { resolve, reject, onProgress });
@@ -90,12 +114,32 @@ function python(name, request = {}, onProgress = null, content = undefined) {
   });
 }
 
+/** Split the specimens between several engines when there are enough of them. */
+async function analyzeInParallel(samples, options, onProgress) {
+  const specimenOf = (s) => s.individual_id || s.specimen_id; // as analysis.group_by_specimen
+  const specimens = [...new Set(samples.map(specimenOf))];
+  const spareCores = (navigator.hardwareConcurrency || 2) - 1;
+  const memoryLimit = navigator.deviceMemory ? Math.floor(navigator.deviceMemory / 2) : 3; // each engine needs ~0.3 GB
+  const count = Math.min(3, spareCores, memoryLimit, Math.floor(specimens.length / 3));
+  if (count < 2) return python("analyze", { samples, options }, onProgress);
+  // Consecutive blocks of specimens, so the joined results keep the original order.
+  const size = Math.ceil(specimens.length / count);
+  const blocks = Array.from({ length: count }, (_, i) => new Set(specimens.slice(i * size, (i + 1) * size)))
+    .filter((block) => block.size);
+  const done = blocks.map(() => 0);
+  const parts = await Promise.all(blocks.map((block, i) => python(
+    "analyze", { samples: samples.filter((s) => block.has(specimenOf(s))), options },
+    (finished) => { done[i] = finished; onProgress?.(done.reduce((a, b) => a + b, 0), specimens.length); },
+    undefined, i)));
+  return { results: parts.flatMap((p) => p.results), estimates: parts.flatMap((p) => p.estimates) };
+}
+
 const browser = {
   config: () => python("config"),
   example: () => python("example"),
   uploadFile: async (file) => python("upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
   validateRecords: (records) => python("records", { records }),
-  analyze: (samples, options, onProgress) => python("analyze", { samples, options }, onProgress),
+  analyze: analyzeInParallel,
   simulate: (body, onProgress) => python("simulate", body, onProgress),
   aggregate: (body) => python("aggregate", body),
   saveTable: (table) => python("save_table", table),
