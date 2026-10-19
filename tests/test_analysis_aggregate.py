@@ -15,7 +15,7 @@ def test_end_to_end_specimen(make_samples, opts):
     [res] = analyze(make_samples(), opts)
     assert res.growth_placeholder
     assert any("PLACEHOLDER" in w for w in res.warnings)
-    assert {f.model for f in res.fits} == {"logistic", "piecewise", "exponential", "elbow"}
+    assert {f.model for f in res.fits} == {"logistic", "piecewise", "exponential", "two_phase", "elbow"}
     assert res.best_model is not None
     logistic = next(f for f in res.fits if f.model == "logistic")
     assert logistic.completion.estimate == pytest.approx(7.0 + 0.8 * 2.944, abs=0.7)

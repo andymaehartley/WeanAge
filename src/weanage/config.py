@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -27,21 +28,70 @@ def _read_json(name: str) -> dict[str, Any]:
     return json.loads((DATA_DIR / name).read_text(encoding="utf-8"))
 
 
-@lru_cache
-def growth_tables() -> dict[str, GrowthTable]:
+def user_dir() -> Path:
+    """Per-user data directory (``$WEANAGE_HOME`` or ``~/.weanage``)."""
+    return Path(os.environ.get("WEANAGE_HOME") or Path.home() / ".weanage")
+
+
+def user_tables_path() -> Path:
+    return user_dir() / "growth_tables.json"
+
+
+def bundled_growth_tables() -> dict[str, GrowthTable]:
     tables = [GrowthTable(**t) for t in _read_json("growth_tables.json")["tables"]]
     return {t.key: t for t in tables}
 
 
-def find_growth_table(species: str, tooth: str) -> GrowthTable | None:
-    return growth_tables().get(f"{species.lower()}:{tooth}") or next(
-        (
-            t
-            for t in growth_tables().values()
-            if t.species == species.lower() and t.tooth.lower() == tooth.lower()
-        ),
-        None,
+def saved_growth_tables() -> dict[str, GrowthTable]:
+    path = user_tables_path()
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {t.key: t for t in (GrowthTable(**row) for row in data.get("tables", []))}
+
+
+@lru_cache
+def growth_tables() -> dict[str, GrowthTable]:
+    """Bundled tables, overridden by any the user has saved from the app."""
+    return {**bundled_growth_tables(), **saved_growth_tables()}
+
+
+def save_growth_table(table: GrowthTable) -> Path:
+    """Persist an edited/calibrated table to the user directory (never the package)."""
+    saved = saved_growth_tables()
+    saved[table.key] = table
+    path = user_tables_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"tables": [t.model_dump() for t in saved.values()]}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
     )
+    growth_tables.cache_clear()
+    return path
+
+
+def delete_saved_growth_table(key: str) -> bool:
+    saved = saved_growth_tables()
+    if key not in saved:
+        return False
+    del saved[key]
+    user_tables_path().write_text(
+        json.dumps({"tables": [t.model_dump() for t in saved.values()]}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    growth_tables.cache_clear()
+    return True
+
+
+def find_growth_table(
+    species: str, tooth: str, extra: list[GrowthTable] | None = None
+) -> GrowthTable | None:
+    """Look up a table, preferring ``extra`` (per-analysis) over saved and bundled ones."""
+    wanted = (species.lower(), tooth.lower())
+    for table in [*(extra or []), *growth_tables().values()]:
+        if (table.species.lower(), table.tooth.lower()) == wanted:
+            return table
+    return None
 
 
 @lru_cache

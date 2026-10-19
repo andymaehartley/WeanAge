@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 # Ratio of atomic masses used to convert a weight-% C:N ratio to an atomic ratio.
 N_TO_C_MASS = 14.007 / 12.011
 
-ModelName = Literal["logistic", "piecewise", "exponential", "elbow"]
+ModelName = Literal["logistic", "piecewise", "exponential", "two_phase", "elbow"]
 Milestone = Literal["onset", "midpoint", "completion"]
 
 
@@ -27,11 +27,23 @@ class IsotopeSample(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    specimen_id: str = Field(min_length=1, description="Unique tooth/individual ID")
+    specimen_id: str = Field(min_length=1, description="Unique tooth ID")
+    individual_id: str | None = Field(
+        default=None, description="Animal ID; teeth sharing it are analysed as one timeline"
+    )
     site: str = Field(min_length=1)
     species: str = Field(min_length=1, description="e.g. cattle, pig, horse")
     tooth: str = Field(min_length=1, description="Tooth element, e.g. M1, M2, dp4")
     position_mm: float = Field(ge=0, le=200, description="Distance from cusp apex (mm)")
+    position_reference: Literal["apex", "cervix"] = Field(
+        default="apex", description="Origin the position was measured from"
+    )
+    crown_height_mm: float | None = Field(
+        default=None, gt=0, le=200, description="Needed to convert cervix-referenced positions"
+    )
+    position_measured_mm: float | None = Field(
+        default=None, description="Position as originally measured (set on conversion)"
+    )
     d15N: float = Field(ge=-10, le=30, description="δ15N (‰ AIR)")
     sample_index: int | None = Field(default=None, ge=0)
     d13C: float | None = Field(default=None, ge=-45, le=5, description="δ13C (‰ VPDB)")
@@ -56,12 +68,31 @@ class IsotopeSample(BaseModel):
     def _lower_species(cls, value: str) -> str:
         return value.lower()
 
-    @field_validator("period", "notes", mode="before")
+    @field_validator("position_reference", mode="before")
+    @classmethod
+    def _lower_reference(cls, value):
+        return value.strip().lower() if isinstance(value, str) and value.strip() else "apex"
+
+    @field_validator("period", "notes", "individual_id", mode="before")
     @classmethod
     def _blank_to_none(cls, value):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @model_validator(mode="after")
+    def _to_apex(self) -> "IsotopeSample":
+        """Convert cervix-referenced positions to distance from the apex (idempotent)."""
+        if self.position_reference == "cervix":
+            if self.crown_height_mm is None:
+                raise ValueError("crown_height_mm is required when position_reference is 'cervix'")
+            if self.position_mm > self.crown_height_mm:
+                raise ValueError("position from the cervix exceeds crown_height_mm")
+            self.position_measured_mm = self.position_mm
+            self.position_mm = round(self.crown_height_mm - self.position_mm, 4)
+            self.position_reference = "apex"
+            self.notes = ((self.notes + "; ") if self.notes else "") + "position converted from cervix"
+        return self
 
     @model_validator(mode="after")
     def _derive_cn(self) -> "IsotopeSample":
@@ -129,7 +160,7 @@ class AdultBaseline(BaseModel):
 
 class AnalysisOptions(BaseModel):
     models: list[ModelName] = Field(
-        default_factory=lambda: ["logistic", "piecewise", "exponential", "elbow"]
+        default_factory=lambda: ["logistic", "piecewise", "exponential", "two_phase", "elbow"]
     )
     # Fraction of the nursing-to-adult δ15N drop treated as "begun" / "complete"
     # for smooth models (0.05 => onset at 5 % of drop, completion at 95 %).
@@ -149,8 +180,19 @@ class AnalysisOptions(BaseModel):
     time_averaging: bool = False
     increment_width_mm: float = Field(default=1.0, gt=0, le=20)
     growth_layer_offset_mm: float = Field(default=0.0, ge=0, le=50)
+    # Relative contribution of the latest-formed (innermost) dentine in a section;
+    # 1 = uniform, < 1 = linearly less volume towards the pulp (cf. MDSS volumes).
+    inner_dentine_weight: float = Field(default=1.0, gt=0, le=1)
+    # Seasonality: optional annual sinusoid added to every parametric curve.
+    seasonal_term: bool = False
+    season_period_months: float = Field(default=12.0, gt=0)
+    # Uncertainty: parameter covariance (fast) or residual bootstrap (robust).
+    uncertainty: Literal["covariance", "bootstrap"] = "covariance"
+    bootstrap_draws: int = Field(default=200, ge=0, le=5000)
     # Adult-female δ15N baselines keyed "site:species" (or just "species").
     adult_baselines: dict[str, AdultBaseline] = Field(default_factory=dict)
+    # Extra or edited growth tables supplied with this analysis (take precedence).
+    growth_tables: list["GrowthTable"] = Field(default_factory=list)
     constrain_adult_plateau: bool = False
     # Elbow method (after WEAN): normalise both axes before measuring distance.
     elbow_normalise: bool = True
@@ -181,6 +223,7 @@ class FitResult(BaseModel):
     adult_d15N: float | None = None
     drop_permil: float | None = None
     enrichment_permil: float | None = None
+    extra: dict[str, float] = Field(default_factory=dict)
     onset: ValueWithCI | None = None
     midpoint: ValueWithCI | None = None
     completion: ValueWithCI | None = None
@@ -192,12 +235,16 @@ class FitResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     curve_age: list[float] = Field(default_factory=list)
     curve_d15N: list[float] = Field(default_factory=list)
+    # Milestone draws (after age-model error) kept for model averaging; not serialised.
+    _draws: dict = PrivateAttr(default_factory=dict)
 
 
 class SamplePoint(BaseModel):
     position_mm: float
     age_months: float
     d15N: float
+    d13C: float | None = None
+    tooth: str | None = None
     age_min: float | None = None
     age_max: float | None = None
     extrapolated: bool = False
@@ -216,6 +263,8 @@ class SpecimenResult(BaseModel):
     points: list[SamplePoint]
     fits: list[FitResult]
     best_model: ModelName | None = None
+    model_average: dict[str, ValueWithCI] = Field(default_factory=dict)
+    diagnostics: dict[str, float] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     known_weaning_age_months: float | None = None
     published_weaning_age_months: float | None = None
@@ -229,7 +278,7 @@ class EstimateRow(BaseModel):
     site: str
     species: str
     period: str | None = None
-    model: ModelName
+    model: str  # a ModelName, or "average" for the Akaike-weighted average
     is_best: bool = False
     onset: float | None = None
     midpoint: float | None = None
@@ -238,3 +287,4 @@ class EstimateRow(BaseModel):
     completion_ci_high: float | None = None
     known_weaning_age_months: float | None = None
     published_weaning_age_months: float | None = None
+    akaike_weight: float | None = None

@@ -73,6 +73,8 @@ def aggregate(
 def model_disagreement(rows: list[EstimateRow], milestone: str = "completion") -> pd.DataFrame:
     """Per-specimen spread of a milestone across models (thesis question 1)."""
     df = estimates_frame(rows)
+    if not df.empty:
+        df = df[df["model"] != "average"]
     if df.empty:
         return pd.DataFrame(columns=["specimen_id", "site", "species", "n_models", "range"])
     wide = df.pivot_table(

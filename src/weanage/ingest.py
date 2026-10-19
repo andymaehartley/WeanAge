@@ -1,4 +1,4 @@
-"""Ingestion of isotope data from CSV files or manually entered form rows."""
+"""Ingestion of isotope data from CSV/Excel files or manually entered form rows."""
 
 from __future__ import annotations
 
@@ -22,7 +22,15 @@ COLUMN_ALIASES: dict[str, str] = {
     "specimen": "specimen_id",
     "specimenid": "specimen_id",
     "sampleid": "specimen_id",
-    "individual": "specimen_id",
+    "individual": "individual_id",
+    "individualid": "individual_id",
+    "animal": "individual_id",
+    "animalid": "individual_id",
+    "positionreference": "position_reference",
+    "measuredfrom": "position_reference",
+    "positionorigin": "position_reference",
+    "crownheightmm": "crown_height_mm",
+    "crownheight": "crown_height_mm",
     "toothid": "specimen_id",
     "site": "site",
     "sitename": "site",
@@ -82,6 +90,7 @@ class RowIssue(BaseModel):
 
 class SpecimenSummary(BaseModel):
     specimen_id: str
+    individual_id: str | None = None
     site: str
     species: str
     tooth: str
@@ -151,7 +160,8 @@ def ingest_dataframe(df: pd.DataFrame) -> IngestReport:
         issue = RowIssue(row=None, message=f"Missing required column(s): {', '.join(missing)}")
         return IngestReport(samples=[], issues=[issue], specimens=[], unrecognised_columns=unrecognised)
 
-    for text_col in ("specimen_id", "site", "species", "tooth", "period", "notes"):
+    for text_col in ("specimen_id", "individual_id", "site", "species", "tooth", "period", "notes",
+                     "position_reference"):
         if text_col in df:
             df[text_col] = df[text_col].map(lambda v: None if pd.isna(v) else str(v))
     report = ingest_records(df.to_dict(orient="records"))
@@ -167,11 +177,23 @@ def ingest_dataframe(df: pd.DataFrame) -> IngestReport:
     return report
 
 
+EXCEL_SUFFIXES = {".xlsx", ".xlsm", ".xls"}
+
+
+def ingest_file(filename: str, content: bytes) -> IngestReport:
+    """Dispatch an uploaded file on its extension (Excel: first sheet is read)."""
+    if Path(filename).suffix.lower() in EXCEL_SUFFIXES:
+        return ingest_dataframe(pd.read_excel(io.BytesIO(content), sheet_name=0))
+    return ingest_csv(content)
+
+
 def ingest_csv(source: str | Path | bytes) -> IngestReport:
     """Read a CSV from a path or raw bytes (as uploaded through the UI)."""
     if isinstance(source, bytes):
         text = source.decode("utf-8-sig")
         df = pd.read_csv(io.StringIO(text), sep=None, engine="python")
+    elif Path(source).suffix.lower() in EXCEL_SUFFIXES:
+        df = pd.read_excel(source, sheet_name=0)
     else:
         df = pd.read_csv(source, sep=None, engine="python", encoding="utf-8-sig")
     return ingest_dataframe(df)
@@ -188,6 +210,7 @@ def summarise(samples: list[IsotopeSample]) -> list[SpecimenSummary]:
     return [
         SpecimenSummary(
             specimen_id=sid,
+            individual_id=rows[0].individual_id,
             site=rows[0].site,
             species=rows[0].species,
             tooth=rows[0].tooth,
@@ -241,4 +264,33 @@ def _dataset_checks(samples: list[IsotopeSample]) -> list[RowIssue]:
                     severity="warning",
                 )
             )
+    issues.extend(_individual_checks(samples))
+    return issues
+
+
+def _individual_checks(samples: list[IsotopeSample]) -> list[RowIssue]:
+    """Teeth combined into one animal must agree on site and species."""
+    issues: list[RowIssue] = []
+    animals: dict[str, list[IsotopeSample]] = {}
+    for s in samples:
+        if s.individual_id:
+            animals.setdefault(s.individual_id, []).append(s)
+    for ind, rows in animals.items():
+        for attr in ("site", "species"):
+            values = {getattr(r, attr) for r in rows}
+            if len(values) > 1:
+                issues.append(RowIssue(
+                    row=None, field=attr,
+                    message=f"Individual {ind} has teeth with different {attr}s: {sorted(values)}",
+                ))
+        per_tooth: dict[str, set[str]] = {}
+        for r in rows:
+            per_tooth.setdefault(r.tooth, set()).add(r.specimen_id)
+        for tooth, ids in per_tooth.items():
+            if len(ids) > 1:
+                issues.append(RowIssue(
+                    row=None, field="tooth", severity="warning",
+                    message=f"Individual {ind} has several {tooth} specimens ({', '.join(sorted(ids))}); "
+                    "left and right teeth will be fitted together",
+                ))
     return issues

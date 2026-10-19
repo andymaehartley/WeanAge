@@ -85,7 +85,7 @@ def test_validation_against_published_estimates(make_samples):
     samples = [s.model_copy(update={"published_weaning_age_months": 9.0}) for s in make_samples()]
     table = validate(estimate_rows(analyze(samples, AnalysisOptions(monte_carlo_draws=0))))
     assert set(table["reference"]) == {"published estimate"}
-    assert set(table["model"]) == {"logistic", "piecewise", "exponential", "elbow"}
+    assert set(table["model"]) == {"logistic", "piecewise", "exponential", "two_phase", "elbow", "average"}
 
 
 def test_new_column_aliases():
