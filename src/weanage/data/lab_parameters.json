@@ -1,0 +1,23 @@
+{
+  "_README": "Instrument- and method-level values that can only be known after lab work. Each entry with placeholder=true is shown highlighted in the app until it is filled in. Search for TBD-LAB.",
+  "analytical_sd_permil": {
+    "value": null,
+    "placeholder": true,
+    "tbd_note": "EA-IRMS analytical precision for δ15N (1 SD of replicate standards / check samples, ‰). Used to weight curve fits."
+  },
+  "min_weaning_drop_permil": {
+    "value": 1.0,
+    "placeholder": true,
+    "tbd_note": "Minimum nursing-to-adult δ15N drop (‰) treated as a real weaning signal rather than noise. Calibrate against known-age reference animals."
+  },
+  "transition_threshold": {
+    "value": 0.05,
+    "placeholder": true,
+    "tbd_note": "Fraction of the δ15N drop used to define weaning onset/completion for smooth curves (0.05 = 5 % / 95 %). Decide after validation against known-age animals."
+  },
+  "reference_dataset": {
+    "value": null,
+    "placeholder": true,
+    "tbd_note": "CSV of known-age modern reference animals (with known_weaning_age_months) used by the validation suite."
+  }
+}

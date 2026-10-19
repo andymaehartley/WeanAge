@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeanAge</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232f6fdf%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Georgia%27%3E%CE%B4%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">δ</span>
+      <div>
+        <h1>WeanAge</h1>
+        <p class="subtitle">Weaning-age estimation from incremental dentine δ<sup>15</sup>N</p>
+      </div>
+    </div>
+    <nav class="steps" aria-label="Workflow steps">
+      <button class="step active" data-view="data"><span>1</span> Data</button>
+      <button class="step" data-view="settings"><span>2</span> Settings</button>
+      <button class="step" data-view="results" disabled><span>3</span> Results</button>
+      <button class="step" data-view="compare" disabled><span>4</span> Compare</button>
+    </nav>
+  </header>
+
+  <!-- Highlighted list of every value still waiting on lab work (TBD-LAB). -->
+  <details id="tbd-banner" class="tbd-banner" hidden>
+    <summary><strong>Lab data still needed:</strong> <span id="tbd-count"></span> placeholder value(s) are in use.
+      Results are illustrative until these are filled in.</summary>
+    <ul id="tbd-list"></ul>
+  </details>
+
+  <main>
+    <!-- ───────────── 1. DATA ───────────── -->
+    <section id="view-data" class="view active">
+      <div class="grid-2">
+        <article class="card">
+          <h2>Load isotope data</h2>
+          <p class="hint">One row per dentine increment. Required columns:
+            <code>specimen_id, site, species, tooth, position_mm, d15N</code>.
+            <code>position_mm</code> is the distance from the cusp apex to the middle of the increment.</p>
+          <label id="dropzone" class="dropzone">
+            <input id="csv-input" type="file" accept=".csv,.tsv,.txt" hidden>
+            <strong>Drop a CSV here</strong> or click to choose a file
+          </label>
+          <div class="row gap">
+            <button id="btn-example" class="secondary">Load synthetic example</button>
+            <a class="button secondary" id="btn-template" download>Download blank template</a>
+            <button id="btn-clear" class="ghost">Clear all data</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Add samples by hand</h2>
+          <p class="hint">Specimen details are kept between entries, and position steps forward by the sampling interval.</p>
+          <form id="manual-form" class="form-grid" novalidate>
+            <label>Specimen ID<input name="specimen_id" required></label>
+            <label>Site<input name="site" required></label>
+            <label>Species
+              <select name="species">
+                <option>cattle</option><option>pig</option><option>horse</option>
+              </select>
+            </label>
+            <label>Tooth<input name="tooth" value="M2" required></label>
+            <label>Position (mm from apex)<input name="position_mm" type="number" step="0.1" min="0" value="0.5" required></label>
+            <label>δ¹⁵N (‰)<input name="d15N" type="number" step="0.01" required></label>
+            <label>δ¹³C (‰)<input name="d13C" type="number" step="0.01"></label>
+            <label>%C<input name="pct_C" type="number" step="0.1"></label>
+            <label>%N<input name="pct_N" type="number" step="0.1"></label>
+            <label>C:N (atomic)<input name="cn_ratio" type="number" step="0.01"></label>
+            <label>Collagen yield (%)<input name="collagen_yield_pct" type="number" step="0.1"></label>
+            <label>Sampling interval (mm)<input name="step" type="number" step="0.1" value="1"></label>
+            <div class="form-actions">
+              <button type="submit">Add sample</button>
+              <span id="manual-msg" class="inline-msg" role="status"></span>
+            </div>
+          </form>
+        </article>
+      </div>
+
+      <article class="card" id="issues-card" hidden>
+        <h2>Checks</h2>
+        <ul id="issues" class="issues"></ul>
+      </article>
+
+      <article class="card" id="specimens-card" hidden>
+        <div class="row between">
+          <h2>Specimens <span id="sample-count" class="muted"></span></h2>
+          <button id="btn-to-settings">Next: settings →</button>
+        </div>
+        <div class="table-wrap"><table id="specimen-table"></table></div>
+        <details class="samples-details">
+          <summary>Show all samples</summary>
+          <div class="table-wrap tall"><table id="sample-table"></table></div>
+        </details>
+      </article>
+    </section>
+
+    <!-- ───────────── 2. SETTINGS ───────────── -->
+    <section id="view-settings" class="view">
+      <div class="grid-2">
+        <article class="card">
+          <h2>Curve models</h2>
+          <p class="hint">Each model is fitted to every specimen so you can see how much the choice of method changes the estimate.</p>
+          <div id="model-options" class="checklist"></div>
+
+          <h3>Which age to report</h3>
+          <div class="form-grid">
+            <label>Weaning milestone
+              <select id="opt-milestone">
+                <option value="completion">Completion (weaning finished)</option>
+                <option value="midpoint">Midpoint (half of the δ¹⁵N drop)</option>
+                <option value="onset">Onset (weaning begins)</option>
+              </select>
+            </label>
+            <label data-tbd="lab:transition_threshold">Transition threshold (% of drop)
+              <input id="opt-threshold" type="number" min="1" max="49" step="1">
+            </label>
+            <label data-tbd="lab:analytical_sd_permil">Analytical precision, 1 SD (‰)
+              <input id="opt-sd" type="number" min="0" step="0.01" placeholder="TBD-LAB">
+            </label>
+            <label data-tbd="lab:min_weaning_drop_permil">Minimum weaning drop (‰)
+              <input id="opt-mindrop" type="number" min="0" step="0.1">
+            </label>
+            <label>Monte Carlo draws (uncertainty)
+              <input id="opt-draws" type="number" min="0" max="20000" step="100">
+            </label>
+          </div>
+        </article>
+
+        <article class="card" data-tbd="qc:thresholds">
+          <h2>Collagen quality control</h2>
+          <p class="hint">Samples outside these limits are flagged (and by default left out of the fit).</p>
+          <div class="form-grid">
+            <label>Min C:N<input id="qc-cn_min" type="number" step="0.01"></label>
+            <label>Max C:N<input id="qc-cn_max" type="number" step="0.01"></label>
+            <label>Min %C<input id="qc-pct_C_min" type="number" step="0.1"></label>
+            <label>Min %N<input id="qc-pct_N_min" type="number" step="0.1"></label>
+            <label>Min yield (%)<input id="qc-collagen_yield_min" type="number" step="0.1"></label>
+            <label class="check"><input id="qc-exclude_failed" type="checkbox"> Exclude failed samples from fitting</label>
+          </div>
+        </article>
+      </div>
+
+      <article class="card">
+        <h2>Age models (tooth growth)</h2>
+        <p class="hint">Converts position along the tooth into age at formation. Use the bundled table,
+          or enter a simple linear model (age at crown initiation + growth rate) for any species/tooth.</p>
+        <div id="growth-list" class="growth-list"></div>
+      </article>
+
+      <div class="run-bar">
+        <span id="run-msg" class="inline-msg" role="status"></span>
+        <button id="btn-run" class="primary">Run analysis</button>
+      </div>
+    </section>
+
+    <!-- ───────────── 3. RESULTS ───────────── -->
+    <section id="view-results" class="view">
+      <div class="results-layout">
+        <aside class="card specimen-list">
+          <h2>Specimens</h2>
+          <ul id="result-list"></ul>
+        </aside>
+        <div class="results-main">
+          <article class="card">
+            <div class="row between wrap">
+              <div>
+                <h2 id="res-title"></h2>
+                <p id="res-meta" class="muted"></p>
+              </div>
+              <div id="curve-toggles" class="toggles" aria-label="Show curves"></div>
+            </div>
+            <p id="res-summary" class="summary"></p>
+            <div id="res-chart" class="chart-box"></div>
+            <div class="legend">
+              <span><i class="dot"></i> sample</span>
+              <span><i class="dot extra"></i> age extrapolated</span>
+              <span><i class="dot excluded"></i> failed QC (not fitted)</span>
+              <span><i class="dash"></i> reported milestone ± 95% interval</span>
+            </div>
+            <ul id="res-warnings" class="issues"></ul>
+          </article>
+          <article class="card">
+            <h2>Model comparison</h2>
+            <p class="hint">Ages in months. Lower ΔAICc = better supported; the weight is the relative support among the models fitted.</p>
+            <div class="table-wrap"><table id="fit-table"></table></div>
+            <div class="row gap export">
+              <button id="btn-export-csv" class="secondary">Export all estimates (CSV)</button>
+              <button id="btn-export-json" class="secondary">Export full results (JSON)</button>
+              <button id="btn-export-svg" class="secondary">Save chart (SVG)</button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── 4. COMPARE ───────────── -->
+    <section id="view-compare" class="view">
+      <article class="card">
+        <h2>Compare sites and species</h2>
+        <div class="row gap wrap controls">
+          <fieldset class="inline">
+            <legend>Group by</legend>
+            <label class="check"><input type="checkbox" name="group" value="site" checked> Site</label>
+            <label class="check"><input type="checkbox" name="group" value="species" checked> Species</label>
+            <label class="check"><input type="checkbox" name="group" value="period"> Period</label>
+          </fieldset>
+          <label>Milestone
+            <select id="cmp-milestone">
+              <option value="completion">Completion</option>
+              <option value="midpoint">Midpoint</option>
+              <option value="onset">Onset</option>
+            </select>
+          </label>
+          <label>Model
+            <select id="cmp-model"><option value="">Best per specimen (AICc)</option></select>
+          </label>
+        </div>
+        <div id="cmp-chart" class="chart-box"></div>
+        <div class="table-wrap"><table id="cmp-table"></table></div>
+      </article>
+
+      <article class="card">
+        <h2>How much do the methods disagree?</h2>
+        <p class="hint">Spread of the estimate across curve models for each specimen. Large ranges mean the
+          conclusion depends on the method, not just the data.</p>
+        <div class="table-wrap"><table id="dis-table"></table></div>
+      </article>
+
+      <article class="card">
+        <h2>Validation against known-age animals</h2>
+        <div id="val-body"></div>
+      </article>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="alert" hidden></div>
+</body>
+</html>

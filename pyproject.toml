@@ -1,0 +1,40 @@
+[project]
+name = "weanage"
+version = "0.1.0"
+description = "Open-source weaning-age estimation from sequentially sampled dentine δ15N for zooarchaeology."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Annabelle Hartley" }]
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "pydantic>=2.5",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "python-multipart>=0.0.9",
+]
+
+[project.scripts]
+weanage = "weanage.cli:main"
+
+[tool.poetry]
+packages = [{ include = "weanage", from = "src" }]
+include = [
+    { path = "src/weanage/data/**/*", format = ["sdist", "wheel"] },
+    { path = "src/weanage/web/**/*", format = ["sdist", "wheel"] },
+]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"
+httpx = ">=0.27"
+pyinstaller = ">=6.3"
+
+[build-system]
+requires = ["poetry-core>=2.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
