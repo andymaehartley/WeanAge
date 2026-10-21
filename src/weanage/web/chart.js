@@ -125,10 +125,15 @@ export function curveChart(box, o) {
 
   el("clipPath", { id: `${id}-clip` }, svg).appendChild(el("rect", { x: area.left, y: area.top, width: area.right - area.left, height: area.bottom - area.top }));
   const plot = el("g", { "clip-path": `url(#${id}-clip)` }, svg);
-  for (const m of o.markers) {
-    if (m.lo != null) el("rect", { x: xs(m.lo), y: area.top, width: Math.max(xs(m.hi) - xs(m.lo), 1), height: area.bottom - area.top, fill: m.color, opacity: 0.1 }, plot);
+  // Each weaning age: a dashed line, and its 95% interval as a thin bar stacked just above the age
+  // axis, where ages are read. (Shaded full-height bands turned into a muddy overlap with five models.)
+  o.markers.forEach((m, i) => {
     el("line", { x1: xs(m.x), x2: xs(m.x), y1: area.bottom, y2: area.top, stroke: m.color, "stroke-dasharray": "5 4", "stroke-width": 2 }, plot);
-  }
+    if (m.lo == null) return;
+    const y = area.bottom - 7 - i * 8;
+    el("line", { x1: xs(m.lo), x2: xs(m.hi), y1: y, y2: y, stroke: m.color, "stroke-width": 3, "stroke-linecap": "butt", class: "interval" }, plot);
+    for (const end of [m.lo, m.hi]) el("line", { x1: xs(end), x2: xs(end), y1: y - 3, y2: y + 3, stroke: m.color, "stroke-width": 2 }, plot);
+  });
 
   // δ13C on its own axis on the right.
   const carbon = o.showD13C ? o.points.filter((p) => p.d13C != null).sort((a, b) => a.x - b.x) : [];

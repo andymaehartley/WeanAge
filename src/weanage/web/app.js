@@ -7,7 +7,7 @@ import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, pval, renderIssues, renderReady, renderWarnings, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
+import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, pval, readout, renderIssues, renderReady, renderWarnings, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
@@ -398,10 +398,10 @@ function summaryText(res, milestone) {
   if (!age) return `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${num(avg.estimate, 1)} months</strong>${beyond(avg)}` : ""}.`;
   const staged = best.model === "two_phase"
     ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${num(best.extra.supplementation_months, 1)} months (supplementary feeding while suckling).` : "";
-  return `Best-supported model: <strong>${esc(best.label)}</strong>. Estimated weaning ${milestone}: <strong>${num(age.estimate, 1)} months</strong>${age.ci_low != null ? ` (95% interval ${ci(age)})` : ""}.
+  return `${readout(age, `weaning ${milestone}`)}<p>Best-supported model: <strong>${esc(best.label)}</strong>.
     ${avg ? `Averaged over all models: <strong>${num(avg.estimate, 1)} months</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}${beyond(avg)}.` : ""}
     Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `; ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${staged}
-    ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}`;
+    ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}</p>`;
 }
 
 /** Shown after an averaged age that rests mostly on models extrapolating past the samples. */
@@ -754,7 +754,6 @@ async function init() {
   } catch (e) {
     return toast(`Could not start WeanAge: ${e.message}`);
   }
-  $("#app-version").textContent = `v${state.config.version}`;
   $("#sb-mode").textContent = inBrowser ? "Running in this browser" : "Local app";
   initSettings();
   initBone(state, { show, autosave, refreshNav: enableResults, qc: () => settings().qc });

@@ -110,3 +110,8 @@ export function renderWarnings(box, summary, list, items, classOf) {
   $(summary).classList.toggle("warn-text", problems > 0);
   $(list).innerHTML = items.map((w) => `<li class="${classOf(w)}">${esc(w)}</li>`).join("");
 }
+
+/** The headline figure of a result: "9.3 months · weaning completion, 95% interval 7.3–11.5". */
+export const readout = (value, what) => (value?.estimate == null ? "" :
+  `<p class="readout"><span class="figure">${num(value.estimate, 1)}</span><span class="unit">months</span>
+    <span class="what">${what}${value.ci_low != null ? ` · 95% interval ${ci(value)}` : ""}</span></p>`);

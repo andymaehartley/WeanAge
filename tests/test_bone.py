@@ -130,3 +130,19 @@ def test_flat_data_is_flagged_as_having_no_nursing_signal():
     result = analyze_bones(young + adults, QUICK)[0]
     assert result["nursing_check"]["p_value"] > 0.05
     assert any("no nursing signal" in w for w in result["warnings"])
+
+
+@pytest.mark.parametrize("name", ["cima_wharram_percy", "cima_york_fishergate", "cima_newark_bay"])
+def test_real_human_bone_examples_load(name):
+    data = service.bone_example(name)
+    assert not [i for i in data["issues"] if i["severity"] == "error"]
+    group = data["groups"][0]
+    assert group["n_young"] >= 40 and group["n_adult_females"] >= 10
+
+
+def test_wharram_percy_matches_the_published_weaning_age():
+    """Richards, Mays & Fuller (2002): rib δ15N falls to adult levels after about 2 years."""
+    samples = [BoneSample(**s) for s in service.bone_example("cima_wharram_percy")["samples"]]
+    result = analyze_bones(samples, QUICK)[0]
+    end = result["estimates"]["completion"]
+    assert end["ci_low"] < 24 < end["ci_high"] and result["nursing_check"]["p_value"] < 0.05

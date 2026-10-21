@@ -54,6 +54,15 @@
 * `weanage isoarch` converts sequential dentine series from IsoArcH exports, and a real-data
   example (Khami and Bornais cattle, CC BY 4.0) can be loaded in the app.
 
+* **Real human examples from CIMA**: bone collagen from Wharram Percy, York Fishergate House and Newark Bay
+  (bone calculation) and dentine sections of Mikulčice first molars (tooth calculation), made by
+  `scripts/make_cima_examples.py` (CC BY-SA). Wharram Percy reproduces the published weaning age.
+* **Interface review** against the web-design-engineer skill (garden-skills), in "preserve" mode: warmer
+  neutral greys instead of a code-editor near-black (still WCAG AAA), a large headline figure for each
+  result, 95% intervals drawn as bars above the age axis instead of overlapping shaded bands, no
+  left-border accent blocks, a 4 px spacing scale, `text-wrap: pretty`, tabular numerals, larger small
+  buttons, and the version number moved out of the header into About.
+
 ### Project
 * Known-answer tests pin the results on the synthetic example.
 * `docs/USER_GUIDE.md` (step-by-step guide with screenshots) and a printable methods

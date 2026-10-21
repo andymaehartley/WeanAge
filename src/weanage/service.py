@@ -103,6 +103,10 @@ EXAMPLES = {
     "isoarch_cattle": ("isoarch_cattle_khami_bornais.csv", "Real cattle: Khami & Bornais (IsoArcH)",
                        "Loaded real cattle data from IsoArcH (CC-BY 4.0; Dyvart et al. 2018; Griffith & Mulville "
                        "2020). Slice positions are ASSUMED: see each sample's notes."),
+    "cima_teeth_mikulcice": ("cima_teeth_mikulcice.csv", "Real human teeth: Mikulčice (CIMA)",
+                             "Loaded real human first molars from Mikulčice, 9th-10th c. AD (Kaupová et al. 2024, via CIMA, "
+                             "CC BY-SA). Section positions are ASSUMED (ten equal sections per tooth) and the human tooth age "
+                             "model is provisional."),
 }
 
 
@@ -121,6 +125,15 @@ BONE_EXAMPLES = {
     "synthetic_bone": ("synthetic_bone_example.csv", "Synthetic cattle bones (simulated)",
                        "Loaded SYNTHETIC bone data (simulated, not real measurements): Site A weans at "
                        "3–9 months, Site B at 1–4 months."),
+    "cima_wharram_percy": ("cima_bone_wharram_percy.csv", "Real human bones: Wharram Percy (CIMA)",
+                           "Loaded medieval rib collagen from Wharram Percy, England (Richards, Mays & Fuller 2002, via CIMA, "
+                           "CC BY-SA). The authors placed the end of weaning at about 2 years."),
+    "cima_york_fishergate": ("cima_bone_york_fishergate.csv", "Real human bones: York, Fishergate House (CIMA)",
+                             "Loaded late medieval bone collagen from Fishergate House, York (Burt 2013, via CIMA, CC BY-SA). "
+                             "Burt found weaning complete by about 2 years."),
+    "cima_newark_bay": ("cima_bone_newark_bay.csv", "Real human bones: Newark Bay, Orkney (CIMA)",
+                        "Loaded medieval bone collagen from Newark Bay, Orkney (Richards, Fuller & Molleson 2006, via CIMA, "
+                        "CC BY-SA). Phases are pooled, as in the original weaning comparison."),
 }
 
 

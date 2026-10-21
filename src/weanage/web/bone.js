@@ -3,7 +3,7 @@
 import { api } from "./api.js";
 import { curveChart } from "./chart.js";
 import { offscreen } from "./report.js";
-import { $, ci, color, download, esc, help, num, plural, progressBar, renderIssues, renderReady, renderWarnings, table, tbdBadge, toast, toCsv } from "./util.js";
+import { $, ci, color, download, esc, help, num, plural, progressBar, readout, renderIssues, renderReady, renderWarnings, table, tbdBadge, toast, toCsv } from "./util.js";
 
 // Bone settings and the form box that holds each (all numbers).
 const FIELDS = ["max_weaning_age_months", "enrichment_prior_mean", "enrichment_prior_sd", "newborn_offset_mean",
@@ -220,9 +220,9 @@ function summary(res) {
   const signal = c?.p_value == null ? "" : c.p_value < 0.05
     ? ` The youngest animals are ${num(c.difference_permil, 1)}‰ above the mothers (p ${c.p_value < 0.001 ? "< 0.001" : `= ${num(c.p_value, 3)}`}), so there is a nursing signal ${help("nursing_check")}.`
     : ` <span class="warn-text">The youngest animals are not clearly above the mothers ${help("nursing_check")}.</span>`;
-  return `Weaning ran from about <strong>${num(e.onset.estimate, 1)}</strong> months; suckling ended at about <strong>${num(e.completion.estimate, 1)} months</strong>
-    (95% interval ${ci(e.completion)}). Milk-fed young were about ${num(e.enrichment_permil.estimate, 1)}‰ above their mothers.${signal}
-    ${res.turnover_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder bone turnover.</span>' : ""}`;
+  return `${readout(e.completion, "suckling ends")}<p>Weaning started at about ${num(e.onset.estimate, 1)} months
+    (95% interval ${ci(e.onset)}). Milk-fed young were about ${num(e.enrichment_permil.estimate, 1)}‰ above their mothers.${signal}
+    ${res.turnover_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder bone turnover.</span>' : ""}</p>`;
 }
 
 function chartOptions(res, palette) {

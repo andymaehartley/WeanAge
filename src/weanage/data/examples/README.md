@@ -51,3 +51,37 @@ weaning ages from this example are illustrative.
 The same export also holds sequential series for Khami sheep/goat (5 animals, M1–M3) and
 several wild species; sheep/goat can be converted the same way once a sheep/goat growth
 table is added.
+
+## CIMA examples (`cima_*.csv`)
+
+Taken from the human data of CIMA, the Compendium Isotoporum Medii Aevi (Cocozza et al. 2022,
+*Scientific Data*; doi:10.48493/s9nf-1q80), by `scripts/make_cima_examples.py`. **Licence: CC BY-SA**
+(these files are shared under the same licence; WeanAge's code stays MIT). Each row's notes give the
+original study and its CIMA entry number. Each example comes from one study, so laboratory methods
+are consistent within it.
+
+| file | calculation | site and date | from | what is in it |
+|---|---|---|---|---|
+| `cima_bone_wharram_percy.csv` | bone | Wharram Percy, England, medieval | Richards, Mays & Fuller 2002, *Am. J. Phys. Anthropol.* 119: 205–210 | 43 children (0–10 y), 10 adult women, 7 other adults; mostly rib |
+| `cima_bone_york_fishergate.csv` | bone | Fishergate House, York, late medieval | Burt 2013, *Am. J. Phys. Anthropol.* 152: 407–416 | 54 children, 10 adult women; rib |
+| `cima_bone_newark_bay.csv` | bone | Newark Bay, Orkney, early to late medieval | Richards, Fuller & Molleson 2006, *J. Archaeol. Sci.* 33: 122–131 | 75 children, 24 adult women, 16 other adults; phases pooled |
+| `cima_teeth_mikulcice.csv` | tooth | Mikulčice, Czechia, 9th–10th c. AD | Kaupová et al. 2024, *Archaeol. Anthropol. Sci.* 16: 16 | 12 first molars, 10 dentine sections each |
+
+**How they compare with the original studies.** WeanAge's bone calculation (human priors and WARN's
+human turnover) gives the end of suckling at Wharram Percy as 22.6 months (95% interval 17–31), where
+Richards et al. found rib δ¹⁵N falling to adult levels after about 2 years; and at Fishergate House as
+about 30 months (17–66), where Burt found weaning complete by about 2 years.
+
+**Assumptions.** Ages at death are the age ranges reported in CIMA (years × 12). Children are those
+whose upper age is at most 10 years (as in WARN); adults are those aged 18 or more; adolescents are
+left out. For the Mikulčice teeth, CIMA gives each section's number but not its position, so the ten
+sections are ASSUMED to be of equal height and to span the whole first molar (2.1 mm each, cusp apex to
+root apex) and section 1 to be at the crown, as the δ¹⁵N profiles suggest. With the provisional human
+M1 age model this places the end of the δ¹⁵N fall at about 3–7 years, later than the bone examples: the
+section ages need checking against the original study before these teeth are used for interpretation.
+
+**Why no animal examples from CIMA.** CIMA's animal file (2021) was checked as well. It has no serial
+dentine data, and the few young animals with ages are at least 0.8 years old (pigs at Mikulčice and
+Prague, sampled as whole third molars), well after piglets are weaned, with at most five young
+animals of one species at any site. That cannot show a weaning signal.
+

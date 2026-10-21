@@ -95,7 +95,7 @@ def test_whole_workflow(page):
     page.fill("#bone-keep", "500")
     click(page, "#btn-bone-run")
     page.wait_for_selector("#view-bone-results.active", timeout=120000)
-    assert "Weaning ran from" in page.text_content("#bone-res-summary")
+    assert "suckling ends" in page.text_content("#bone-res-summary .readout")
     assert page.is_disabled('.step[data-view="compare"]')
     click(page, '.step[data-view="data"]')
     page.click("text=Tooth calculation")

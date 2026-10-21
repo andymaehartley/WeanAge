@@ -21,7 +21,6 @@
     <div class="brand">
       <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="currentColor"><rect x="2" y="5" width="4" height="23" rx="1"/><rect x="8" y="6" width="4" height="22" rx="1"/><rect x="14" y="13" width="4" height="15" rx="1"/><rect x="20" y="20" width="4" height="8" rx="1"/><rect x="26" y="21" width="4" height="7" rx="1"/></g></svg>
       <h1>WeanAge</h1>
-      <span class="version" id="app-version"></span>
       <span class="subtitle sr-only">Weaning-age estimation from incremental dentine δ15N</span>
     </div>
     <nav class="steps" aria-label="Workflow steps">
@@ -410,7 +409,7 @@
               </div>
               <div id="curve-toggles" class="toggles" role="group" aria-label="Show curves"></div>
             </div>
-            <p id="res-summary" class="summary" aria-live="polite"></p>
+            <div id="res-summary" class="summary" aria-live="polite"></div>
             <div class="row between wrap chart-tools">
               <span class="row gap">
                 <label class="check"><input id="opt-show13c" type="checkbox"> Show δ¹³C</label>
@@ -430,7 +429,7 @@
               <span><i class="dot extra"></i> age extrapolated</span>
               <span><i class="dot excluded"></i> failed QC (not fitted)</span>
               <span><i class="bar"></i> age window (time averaging)</span>
-              <span><i class="dash"></i> reported milestone ± 95% interval</span>
+              <span><i class="dash"></i> reported milestone; bars above the axis: 95% intervals</span>
             </div>
             <details class="advanced" id="res-warnings-box">
               <summary id="res-warnings-summary">Warnings</summary>
@@ -465,7 +464,7 @@
           <article class="card">
             <h2 id="bone-res-title"></h2>
             <p id="bone-res-meta" class="muted small"></p>
-            <p id="bone-res-summary" class="summary" aria-live="polite"></p>
+            <div id="bone-res-summary" class="summary" aria-live="polite"></div>
             <div class="row between wrap chart-tools">
               <span></span>
               <span class="row gap export-links">
@@ -482,7 +481,7 @@
               <span><i class="line solid"></i> bone δ¹⁵N ± 95%</span>
               <span><i class="line dotted"></i> diet</span>
               <span><i class="line dashed"></i> mothers' mean</span>
-              <span><i class="dash"></i> weaning starts, suckling ends ± 95%</span>
+              <span><i class="dash"></i> weaning starts, suckling ends; bars: 95% intervals</span>
             </div>
             <details class="advanced" id="bone-warnings-box">
               <summary id="bone-warnings-summary">Warnings</summary>
@@ -664,14 +663,16 @@
     <ul class="plain">
       <li><strong>WeanAge</strong>: MIT licence.</li>
       <li><strong>Fonts</strong>: Atkinson Hyperlegible (Braille Institute) and IBM Plex Mono (IBM), both under the SIL Open Font License.</li>
-      <li><strong>Real example data</strong>: IsoArcH datasets under CC BY 4.0; please cite the original studies (listed in the data notes).</li>
+      <li><strong>Real example data</strong>: IsoArcH datasets under CC BY 4.0, and CIMA (Compendium Isotoporum Medii Aevi) data under
+        CC BY-SA; please cite the original studies (listed in the data notes).</li>
       <li><strong>Tooth figure</strong>: <span id="about-figure-credit">“Tooth Section” by Sam Fentress, Wikimedia Commons, CC BY-SA 2.0.</span></li>
     </ul>
     <h3>Acknowledgements</h3>
     <ul class="plain">
       <li>The methods build on WARN (Tsutaya &amp; Yoneda 2013), MDSS (Tsutaya 2020) and WEAN (Ganiatsou et al. 2023).
         They were re-implemented from the publications; no code was copied.</li>
-      <li>Example data from Dyvart, Sealy &amp; Fredriksen (2018) and Griffith &amp; Mulville (2020), shared through IsoArcH.</li>
+      <li>Example data from Dyvart, Sealy &amp; Fredriksen (2018) and Griffith &amp; Mulville (2020), shared through IsoArcH; and from
+        Richards, Mays &amp; Fuller (2002), Burt (2013), Richards, Fuller &amp; Molleson (2006) and Kaupová et al. (2024), shared through CIMA.</li>
       <li>Built with NumPy, SciPy, pandas, pydantic and FastAPI; the browser version runs on Pyodide.</li>
       <li class="tbd-inline">Supervisors, laboratory and funders: to be added.</li>
     </ul>

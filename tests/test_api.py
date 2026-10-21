@@ -26,7 +26,7 @@ def test_config():
 
 def test_examples():
     names = [e["name"] for e in client.get("/api/config").json()["examples"]]
-    assert names == ["synthetic", "isoarch_cattle"]
+    assert names == ["synthetic", "isoarch_cattle", "cima_teeth_mikulcice"]
     real = client.get("/api/example?name=isoarch_cattle").json()
     assert len(real["samples"]) == 158 and "ASSUMED" in real["message"]
     assert client.get("/api/example?name=nope").status_code == 400
@@ -88,3 +88,9 @@ def test_bone_requests():
             break
         state = wait_for(job)
     assert state["status"] == "done" and state["result"]["results"][0]["estimates"]["completion"]["estimate"] > 0
+
+
+def test_cima_tooth_example():
+    data = client.get("/api/example?name=cima_teeth_mikulcice").json()
+    assert {s["species"] for s in data["samples"]} == {"human"} and len({s["specimen_id"] for s in data["samples"]}) == 12
+    assert "ASSUMED" in data["samples"][0]["notes"] and "CC BY-SA" in data["message"]

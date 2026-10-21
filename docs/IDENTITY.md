@@ -42,18 +42,34 @@ then down to the adult level. It is the method in one picture.
 
 ## Colour
 
+Warm neutrals, like ink on paper rather than a code editor, with one accent colour that marks
+what can be clicked or is selected. Yellow is reserved for TBD-LAB placeholders and warnings.
+
 | role | dark theme | light theme |
 |---|---|---|
-| background | `#121417` | `#eef0f1` |
-| surface | `#191c20` | `#ffffff` |
-| text | `#ece9e3` | `#15181b` |
-| secondary text | `#c4c0b8` | `#3c4247` |
+| background | `#161512` | `#f2f0eb` |
+| surface | `#1d1c19` | `#fdfcf9` |
+| text | `#eeeae2` | `#1a1815` |
+| secondary text | `#c9c3b8` | `#3d3933` |
 | accent (links, focus, the logo) | `#8fd0e0` | `#094b5d` |
 | placeholder (TBD-LAB) | `#ffe39b` on `#3a2e08` | `#3b2a00` on `#fff0b0` |
 
 All text meets WCAG AAA (7:1) contrast; `tests/test_contrast.py` checks it. Model curves use
 a colour-blind-safe set plus a distinct line pattern for each model, so colour is never
 the only cue.
+
+## Layout
+
+* Each page shows its main choices; the rest sit under **Advanced settings** in the same box.
+* At 1440 × 860 every page fits without scrolling; tables and charts size themselves to the
+  window, and the Run button stays in view.
+* Each result starts with one large figure (the weaning age, with its unit and 95% interval),
+  then a sentence that explains it, then the chart.
+* Spacing comes from a 4 px scale (4, 8, 12, 16, 24, 32). Corners are 3 px everywhere.
+* Charts: no shaded bands that overlap; intervals are thin bars above the age axis. Every
+  colour in a chart means something.
+* Avoided on purpose: decorative gradients, emoji, coloured left-border "callout" blocks,
+  cards inside cards, and figures that are not real data.
 
 ## Type
 
