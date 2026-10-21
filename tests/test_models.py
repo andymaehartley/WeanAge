@@ -82,7 +82,7 @@ def test_model_average_ignores_a_withheld_elbow():
 def test_warnings_and_too_few_points():
     t = np.linspace(0, 15, 40)
     flat = fit_model("logistic", t, 6 + np.random.default_rng(3).normal(0, 0.1, len(t)), opts(monte_carlo_draws=0))
-    assert any("no clear weaning signal" in w for w in flat["warnings"])
+    assert flat["completion"] is None and "no clear weaning signal" in flat["message"]
     short = fit_model("logistic", [1, 2, 3], [8, 7, 6], opts())
     assert not short["converged"] and "at least" in short["message"]
     assert aicc(1.0, 5, 4) is None and aicc(1.0, 30, 4) is not None
@@ -140,16 +140,26 @@ def test_accuracy_on_simulated_animals():
     assert m["mae"] < 1 and abs(m["bias"]) < 0.6 and m["pearson_r"] > 0.9
 
 
-def test_average_beyond_the_samples_is_flagged():
-    from weanage.models import extrapolated_average
+def test_average_beyond_the_samples_is_a_bound():
+    from weanage.models import mark_average_beyond
 
     fits = [{"akaike_weight": 0.7, "completion": {"estimate": 15.0}}, {"akaike_weight": 0.3, "completion": {"estimate": 9.0}}]
     average = {"completion": {"estimate": 13.2}}
-    warnings = extrapolated_average(fits, average, 0.0, 12.0)
-    assert average["completion"]["extrapolated"] and "after the last sample" in warnings[0]
+    mark_average_beyond(fits, average, 0.0, 12.0)
+    assert average["completion"]["beyond"] == "after" and average["completion"]["bound"] == 12.0
     inside = {"completion": {"estimate": 9.5}}
     fits[0]["completion"]["estimate"] = 10.0
-    assert extrapolated_average(fits, inside, 0.0, 12.0) == [] and "extrapolated" not in inside["completion"]
+    mark_average_beyond(fits, inside, 0.0, 12.0)
+    assert "beyond" not in inside["completion"]
+
+
+def test_no_age_without_a_clear_fall():
+    t = np.linspace(0, 12, 30)
+    y = 6 + 0.3 * (t < 5) + np.random.default_rng(1).normal(0, 0.1, t.size)  # a 0.3‰ step: noise-sized
+    for name in ["logistic", "piecewise", "exponential", "elbow"]:
+        fit = fit_model(name, t, y)
+        assert fit["midpoint"] is None and fit["completion"] is None and "no clear weaning signal" in fit["message"], name
+    assert model_average([{**fit_model(n, t, y), "akaike_weight": 0.5} for n in ["logistic", "piecewise"]]) == {}
 
 
 def test_human_teeth_have_an_age_model():

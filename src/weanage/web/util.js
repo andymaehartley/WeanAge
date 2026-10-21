@@ -49,7 +49,9 @@ export const unitShort = () => (ageUnit === "years" ? "yr" : "mo");
 /** "9.3 mo" or "0.78 yr" */
 export const ageText = (months, d = 1) => `${ageNum(months, d)} ${unitShort()}`;
 /** The 95% interval of an age, in the chosen unit: "7.3–11.5". */
-export const ci = (x) => (x && x.ci_low != null ? `${ageNum(x.ci_low)}–${ageNum(x.ci_high)}` : "");
+export const ci = (x) => (x && x.ci_low != null && !x.beyond ? `${ageNum(x.ci_low)}–${ageNum(x.ci_high)}` : "");
+/** A weaning age as a number in the chosen unit, or "after 12.1" when it lies beyond the samples. */
+export const ageValue = (x) => (x?.beyond ? `${x.beyond} ${ageNum(x.bound)}` : ageNum(x?.estimate));
 export const pval = (p) => (p == null ? "—" : p < 0.001 ? "< 0.001" : p.toFixed(3));
 
 export function toast(message, kind = "error") {
@@ -135,7 +137,8 @@ export function renderWarnings(box, summary, list, items, classOf) {
   $(list).innerHTML = items.map((w) => `<li class="${classOf(w)}">${esc(w)}</li>`).join("");
 }
 
-/** The headline figure of a result: "9.3 months · weaning completion, 95% interval 7.3–11.5". */
+/** The headline figure of a result: "9.3 months · weaning midpoint · 95% interval 7.3–11.5". */
 export const readout = (value, what) => (value?.estimate == null ? "" :
-  `<p class="readout"><span class="figure">${ageNum(value.estimate)}</span><span class="unit">${unitWord()}</span>
-    <span class="what">${what}${value.ci_low != null ? ` · 95% interval ${ci(value)}` : ""}</span></p>`);
+  `<p class="readout"><span class="figure">${ageValue(value)}</span><span class="unit">${unitWord()}</span>
+    <span class="what">${what}${value.beyond ? ` · ${value.beyond === "after" ? "later than the last" : "earlier than the first"} sample, so no exact age`
+      : value.ci_low != null ? ` · 95% interval ${ci(value)}` : ""}</span></p>`);

@@ -12,7 +12,7 @@ from scipy import stats
 
 from .config import find_growth_table
 from .growth import position_to_age
-from .models import compare_fits, extrapolated_average, fit_model, model_average, seasonal_test
+from .models import MILESTONES, compare_fits, fit_model, mark_average_beyond, mark_beyond, model_average, seasonal_test
 from .qc import passes_qc, qc_flags
 
 SLICE_STEPS = 8  # points across a slice's height, and again across its depth (8 x 8 = 64 points)
@@ -214,12 +214,19 @@ def analyze_specimen(samples, options):
     fits = [fit_model(name, t, y, options, age_sd, used_windows, weights, post_range,
                       baseline.mean if baseline else None) for name in options.models]
     result["best_model"] = compare_fits(fits)
+    first_age, last_age = float(t.min()), float(t.max())
+    for f in fits:
+        for key in MILESTONES:
+            if f[key]:
+                mark_beyond(f[key], first_age, last_age)
     if sum(f["akaike_weight"] is not None for f in fits) > 1:
         result["model_average"] = model_average(fits, options.random_seed)
-        warnings += extrapolated_average(fits, result["model_average"], float(t.min()), float(t.max()))
+        mark_average_beyond(fits, result["model_average"], first_age, last_age)
+    best = next((f for f in fits if f["model"] == result["best_model"]), None)
+    if best and not result["model_average"] and not any(best[key] for key in MILESTONES):
+        warnings.append(best["message"])
 
     # 4. Check for seasonal cycles, using what the best curve leaves unexplained.
-    best = next((f for f in fits if f["model"] == result["best_model"]), None)
     if best and best["curve_age"]:
         fitted = np.interp(t, best["curve_age"], best["curve_d15N"])
         leftover = None if options.seasonal_term else y - fitted
@@ -290,12 +297,14 @@ def estimate_rows(results):
         if res["model_average"]:
             sources.append(("average", res["model_average"]))
         for model, fit in sources:
-            completion = fit.get("completion") or {}
-            rows.append({**common, "model": model, "is_best": model == res["best_model"],
-                         "onset": (fit.get("onset") or {}).get("estimate"),
-                         "midpoint": (fit.get("midpoint") or {}).get("estimate"),
-                         "completion": completion.get("estimate"),
-                         "completion_ci_low": completion.get("ci_low"),
-                         "completion_ci_high": completion.get("ci_high"),
-                         "akaike_weight": fit.get("akaike_weight")})
+            row = {**common, "model": model, "is_best": model == res["best_model"]}
+            for key in MILESTONES:
+                value = fit.get(key) or {}
+                # An age beyond the samples is only a bound ("after 12 months"), so it is left out of comparisons.
+                exact = not value.get("beyond")
+                row[key] = value.get("estimate") if exact else None
+                row[f"{key}_ci_low"] = value.get("ci_low") if exact else None
+                row[f"{key}_ci_high"] = value.get("ci_high") if exact else None
+                row[f"{key}_beyond"] = f"{value['beyond']} {value['bound']:.1f}" if not exact else None
+            rows.append({**row, "akaike_weight": fit.get("akaike_weight")})
     return rows

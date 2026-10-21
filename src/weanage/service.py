@@ -46,7 +46,7 @@ class SimulateBoneIn(BaseModel):
 class AggregateIn(BaseModel):
     estimates: list[dict[str, Any]]
     group_by: list[str] = ["site", "species"]
-    milestone: str = "completion"
+    milestone: str = "midpoint"
     model: str | None = None
     bayes: bool | Literal["two_stage", "one_stage"] = True
     results: list[dict[str, Any]] | None = None  # needed by the one-stage model

@@ -29,7 +29,7 @@ def pick(df, model):
     return df[df["is_best"]] if model is None else df[df["model"] == model]
 
 
-def aggregate(rows, group_by=("site", "species"), milestone="completion", model=None):
+def aggregate(rows, group_by=("site", "species"), milestone="midpoint", model=None):
     df = to_frame(rows)
     group_by = list(group_by)
     if df.empty or pick(df, model).empty:
@@ -43,7 +43,7 @@ def aggregate(rows, group_by=("site", "species"), milestone="completion", model=
     return pd.DataFrame(table)
 
 
-def model_disagreement(rows, milestone="completion"):
+def model_disagreement(rows, milestone="midpoint"):
     """How far apart the models' estimates are for each specimen (thesis question 1)."""
     df = to_frame(rows)
     if df.empty or (df["model"] != "average").sum() == 0:
@@ -93,9 +93,7 @@ def validate(rows, milestone="completion"):
         for model, sub in df.groupby("model"):
             metrics = error_metrics(sub[milestone], sub[column])
             if metrics["n"]:
-                coverage = np.nan
-                if milestone == "completion":
-                    coverage = interval_coverage(sub["completion_ci_low"], sub["completion_ci_high"], sub[column])
+                coverage = interval_coverage(sub[f"{milestone}_ci_low"], sub[f"{milestone}_ci_high"], sub[column])
                 table.append({"reference": label, "model": model, **metrics, "ci_coverage": coverage})
     return pd.DataFrame(table, columns=["reference", "model", "n", "bias", "mae", "rmse", "pearson_r", "ci_coverage"])
 

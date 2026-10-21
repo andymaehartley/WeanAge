@@ -132,7 +132,7 @@ class AnalysisOptions(BaseModel):
     """Every setting of an analysis. Comments say what each one does."""
 
     models: list[ModelName] = MODEL_NAMES
-    reported_milestone: Literal["onset", "midpoint", "completion"] = "completion"
+    reported_milestone: Literal["onset", "midpoint", "completion"] = "midpoint"
     transition_threshold: float = Field(default=0.05, gt=0, lt=0.5)  # 5 % => onset/completion at 5 %/95 % of the drop
     analytical_sd_permil: float | None = Field(default=None, gt=0)  # lab precision, weights the fit
     min_weaning_drop_permil: float = Field(default=1.0, ge=0)  # smaller drops = "no clear signal"

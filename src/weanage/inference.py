@@ -28,10 +28,7 @@ def select_estimates(rows, milestone, model, group_by):
     df = df[df["is_best"]] if model is None else df[df["model"] == model]
     df = df[df[milestone].notna()].copy()
     df["group"] = df[group_by].fillna("—").astype(str).agg(" · ".join, axis=1)
-    # Standard error from the 95 % interval (only completion ages have intervals).
-    df["se"] = np.nan
-    if milestone == "completion":
-        df["se"] = (df["completion_ci_high"] - df["completion_ci_low"]) / (2 * Z95)
+    df["se"] = (df[f"{milestone}_ci_high"] - df[f"{milestone}_ci_low"]) / (2 * Z95)
     df.loc[~(df["se"] > 0), "se"] = np.nan
     if df["se"].isna().any():
         fallback = df["se"].median() if df["se"].notna().any() else max(df[milestone].std(ddof=1) / 4, 0.1)
@@ -153,7 +150,7 @@ def bayes_summary(df, milestone, seed):
             "tau_ci_low": tau_low, "tau_ci_high": tau_high, "rhat_max": rhat, "draws": int(tau.size)}
 
 
-def compare_groups(rows, group_by, milestone="completion", model=None, bayes=True, seed=0, results=None,
+def compare_groups(rows, group_by, milestone="midpoint", model=None, bayes=True, seed=0, results=None,
                    threshold=0.05):
     """bayes: True or "two_stage" (pool the specimen estimates), "one_stage" (fit the raw
     δ15N values of every specimen together; needs the analysis `results`), or False."""
@@ -163,8 +160,8 @@ def compare_groups(rows, group_by, milestone="completion", model=None, bayes=Tru
     if df.empty:
         out["notes"].append("No estimates to compare")
         return out
-    if milestone != "completion":
-        out["notes"].append("Specimen uncertainties are only available for completion; a common SE was assumed")
+    if df["se"].nunique() == 1 and len(df) > 1:
+        out["notes"].append(f"No specimen has an interval for its {milestone}; a common standard error was assumed")
 
     for name, sub in df.groupby("group"):
         mean, se, tau = random_effects(sub[milestone].to_numpy(float), sub["se"].to_numpy(float))

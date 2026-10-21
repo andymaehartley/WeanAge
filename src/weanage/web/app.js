@@ -8,7 +8,7 @@ import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ageNum, ageText, ci, download, esc, getAgeUnit, help, MILESTONES, num, plural, progressBar, pval, readout, renderIssues, renderReady, renderWarnings, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitWord } from "./util.js";
+import { $, $$, ageNum, ageText, ageValue, ci, download, esc, getAgeUnit, help, MILESTONES, num, plural, progressBar, pval, readout, renderIssues, renderReady, renderWarnings, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
@@ -335,11 +335,11 @@ function renderResults() {
   const milestone = state.options.reported_milestone;
   $("#result-list").innerHTML = state.results
     .map((r) => {
-      const best = r.fits.find((f) => f.model === r.best_model)?.[milestone];
+      const age = headline(r, milestone);
       const chosen = r.specimen_id === state.current;
       return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
         <span><strong>${esc(r.specimen_id)}</strong><small>${esc(r.site)} · ${esc(r.species)} ${esc(r.tooth)}</small></span>
-        <span><span class="age">${best ? ageText(best.estimate) : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${plural(warningCount(r), "warning")}" aria-label="${plural(warningCount(r), "warning")}">${warningCount(r)}</span>` : ""}</span>
+        <span><span class="age">${age ? `${ageValue(age)} ${unitShort()}` : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${plural(warningCount(r), "warning")}" aria-label="${plural(warningCount(r), "warning")}">${warningCount(r)}</span>` : ""}</span>
       </button></li>`;
     })
     .join("");
@@ -379,7 +379,7 @@ function renderResults() {
   const averageRow = hasAverage ? [{ model: "average", label: "Model average", converged: true, isAverage: true, ...res.model_average }] : [];
   table($("#fit-table"), [
     { label: "Model", render: (f) => `${swatch(f.model)}${esc(f.label)}${f.model === res.best_model ? ' <span class="pill best">best</span>' : ""}` },
-    ...MILESTONES.map((k) => ({ label: capital(k), cls: "num", render: (f) => (f[k] ? `${ageNum(f[k].estimate)}${f[k].extrapolated ? "*" : ""}<br><small>${ci(f[k])}</small>` : "—") })),
+    ...MILESTONES.map((k) => ({ label: capital(k), cls: "num", render: (f) => (f[k] ? `${ageValue(f[k])}<br><small>${ci(f[k])}</small>` : "—") })),
     { label: "Nursing δ¹⁵N", cls: "num", render: (f) => num(f.nursing_d15N) },
     { label: "Adult δ¹⁵N", cls: "num", render: (f) => num(f.adult_d15N) },
     { label: "Drop (‰)", cls: "num", render: (f) => num(f.drop_permil) },
@@ -391,28 +391,30 @@ function renderResults() {
   ], [...res.fits, ...averageRow], (f) => (f.model === res.best_model ? "best-row" : f.isAverage ? "avg-row" : ""));
 }
 
+const MILESTONE_NAME = { onset: "weaning onset", midpoint: "weaning midpoint", completion: "weaning completion" };
+
+/** The age shown for a specimen: the best model's, or the model average when the best model gives none. */
+const headline = (res, milestone) => res.fits.find((f) => f.model === res.best_model)?.[milestone] || res.model_average[milestone];
+
 function summaryText(res, milestone) {
   const best = res.fits.find((f) => f.model === res.best_model);
-  const age = best?.[milestone];
+  if (!best) return "<p>No model could be fitted to this specimen.</p>";
+  const age = headline(res, milestone);
+  if (!age) return `<p><strong>No ${MILESTONE_NAME[milestone]} reported.</strong> ${esc(best.withheld ? `${best.label}: ${best.withheld}.` : `${best.label} does not give one.`)}</p>`;
+  const source = best[milestone] ? best.label : "Model average";
   const avg = res.model_average[milestone];
-  if (!best) return "No model could be fitted to this specimen.";
-  if (!age) return `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${ageNum(avg.estimate)} ${unitWord()}</strong>${beyond(avg)}` : ""}.`;
+  const others = MILESTONES.filter((k) => k !== milestone && headline(res, k))
+    .map((k) => `${capital(MILESTONE_NAME[k])} ${ageValue(headline(res, k))} ${unitShort()}`);
   const staged = best.model === "two_phase"
-    ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${ageText(best.extra.supplementation_months)} (supplementary feeding while suckling).` : "";
-  return `${readout(age, `weaning ${milestone}`)}<p>Best-supported model: <strong>${esc(best.label)}</strong>.
-    ${avg ? `Averaged over all models: <strong>${ageNum(avg.estimate)} ${unitWord()}</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}${beyond(avg)}.` : ""}
-    Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `; ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${staged}
+    ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${ageText(best.extra.supplementation_months)}.` : "";
+  return `${readout(age, MILESTONE_NAME[milestone])}
+    <p>${others.join(" · ")}${others.length ? ". " : ""}From: <strong>${esc(source)}</strong>${avg && best[milestone] ? `; model average ${ageValue(avg)} ${unitShort()}` : ""}.
+    Nursing δ¹⁵N ${num(best.nursing_d15N, 1)}‰, adult ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `, ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${staged}
     ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}</p>`;
 }
 
-/** Shown after an averaged age that rests mostly on models extrapolating past the samples. */
-const beyond = (value) => (value?.extrapolated ? ' <span class="pill warn">beyond the sampled teeth</span>' : "");
-
 function fitNotes(f) {
-  if (f.isAverage) {
-    const out = MILESTONES.filter((k) => f[k]?.extrapolated);
-    return `<small class="muted">weighted by Akaike weight</small>${out.length ? `<br><span class="warn-text">* ${out.join(", ")}: beyond the sampled teeth</span>` : ""}`;
-  }
+  if (f.isAverage) return '<small class="muted">weighted by Akaike weight</small>';
   if (!f.converged || f.message) return `<span class="warn-text">${esc(f.message)}</span>`;
   const notes = [];
   if (f.extra.intermediate_d15N != null) notes.push(`intermediate ${num(f.extra.intermediate_d15N, 1)}‰ for ${ageText(f.extra.supplementation_months)}`);

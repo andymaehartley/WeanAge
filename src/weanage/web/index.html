@@ -242,9 +242,9 @@
           <h3>Which age to report <span data-helpslot="milestone"></span></h3>
           <label>Weaning milestone
             <select id="opt-milestone">
-              <option value="completion" title="Weaning finished">Completion</option>
-              <option value="midpoint" title="Half of the δ¹⁵N drop">Midpoint</option>
-              <option value="onset" title="Weaning begins">Onset</option>
+              <option value="onset">Onset: δ¹⁵N starts to fall</option>
+              <option value="midpoint">Midpoint: half the fall done</option>
+              <option value="completion">Completion: 95% of the fall done</option>
             </select>
           </label>
           <details class="advanced">
@@ -548,9 +548,9 @@
             </fieldset>
             <label>Milestone
               <select id="cmp-milestone">
-                <option value="completion">Completion</option>
-                <option value="midpoint">Midpoint</option>
                 <option value="onset">Onset</option>
+                <option value="midpoint" selected>Midpoint</option>
+                <option value="completion">Completion</option>
               </select>
             </label>
           </div>

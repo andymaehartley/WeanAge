@@ -19,9 +19,9 @@ def test_one_stage_model_recovers_group_ages(make_samples):
         samples += make_samples(f"A{i}", site="A", t_mid=7.0 + 0.2 * i, seed=i)
         samples += make_samples(f"B{i}", site="B", t_mid=4.5 + 0.2 * i, seed=10 + i)
     results = analyze(samples, opts(models=["logistic"], monte_carlo_draws=0), workers=1)
-    specimens, skipped = specimens_from_results(results, ["site"])
+    specimens, skipped = specimens_from_results(results, ["site"], "completion")
     assert len(specimens) == 6 and not skipped
-    names, group_of, m, mu, tau = joint_bayes(specimens, warmup=800, keep=800)
+    names, group_of, m, mu, tau = joint_bayes(specimens, "completion", warmup=800, keep=800)
     a, b = mu[..., 0].ravel(), mu[..., 1].ravel()
     assert list(names) == ["A", "B"]
     assert abs(a.mean() - (7.2 + 0.8 * 2.944)) < 0.6 and abs(b.mean() - (4.7 + 0.8 * 2.944)) < 0.6

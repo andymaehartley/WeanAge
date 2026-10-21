@@ -174,7 +174,7 @@ def new_result(name, label):
     return {"model": name, "label": label, "converged": False, "message": "", "params": {}, "param_se": {},
             "nursing_d15N": None, "adult_d15N": None, "drop_permil": None, "enrichment_permil": None,
             "extra": {}, "onset": None, "midpoint": None, "completion": None, "rmse": None, "r2": None,
-            "aicc": None, "delta_aicc": None, "akaike_weight": None, "warnings": [],
+            "aicc": None, "delta_aicc": None, "akaike_weight": None, "withheld": None, "warnings": [],
             "curve_age": [], "curve_d15N": [], "_draws": {}}
 
 
@@ -321,15 +321,37 @@ def fit_curve(name, t, y, options, age_sd, windows, weights, post_range):
     if draws is None:
         result["warnings"].append("Parameter uncertainty unavailable: no confidence intervals")
 
-    result["warnings"] += drop_warnings(p[1], options)
-    if best_guess["onset"] < t.min():
-        result["warnings"].append("Weaning onset falls before the first sample (nursing plateau not captured)")
-    if best_guess["completion"] > t.max():
-        result["warnings"].append("Weaning completion falls after the last sample (extrapolated)")
     grid = np.linspace(t.min(), t.max(), 200)
     result["curve_age"] = [round(float(v), 4) for v in grid]
     result["curve_d15N"] = [round(float(v), 4) for v in curve(grid, *p)]
+    if p[1] < options.min_weaning_drop_permil:  # a curve fits noise too: report no age rather than a false one
+        return withhold(result, f"δ15N falls by only {p[1]:.2f}‰, below the {options.min_weaning_drop_permil:.2f}‰ "
+                                "minimum: no clear weaning signal")
+    if best_guess["midpoint"] < 0:
+        return withhold(result, "the δ15N fall is centred before birth, so it is not weaning")
+    result["warnings"] += drop_warnings(p[1], options)
     return result
+
+
+def withhold(result, reason):
+    """Keep the fitted curve but report no weaning ages."""
+    for key in MILESTONES:
+        result[key] = None
+    result["_draws"] = {}
+    result["withheld"] = reason
+    result["message"] = f"No weaning age reported: {reason}"
+    return result
+
+
+def mark_beyond(value, first_age, last_age, side=None):
+    """Flag an age outside the sampled ages: it is then reported only as "after/before" that sample.
+
+    A curve can be extended past the last sample, but where it ends there is not measured.
+    """
+    side = side or ("after" if value["estimate"] > last_age else "before" if value["estimate"] < first_age else None)
+    if side:
+        value["beyond"] = side
+        value["bound"] = last_age if side == "after" else first_age
 
 
 def least_squares(predict, t, y, sigma, guess, bounds):
@@ -369,8 +391,8 @@ def elbow_doubt(result, grid, peak, elbow, options):
     if elbow == peak:
         return "δ15N never falls after its peak"
     if result["drop_permil"] < options.min_weaning_drop_permil:
-        return (f"the fall of {result['drop_permil']:.2f}‰ is below the {options.min_weaning_drop_permil:.2f}‰ "
-                "minimum, so the elbow is noise")
+        return (f"δ15N falls by only {result['drop_permil']:.2f}‰, below the {options.min_weaning_drop_permil:.2f}‰ "
+                "minimum: no clear weaning signal")
     if grid[elbow] < 0:
         return "the elbow falls before birth"
     ci = result["completion"]
@@ -428,19 +450,13 @@ def fit_elbow(t, y, options, age_sd, degree=4):
     result["curve_age"] = [round(float(v), 4) for v in grid]
     result["curve_d15N"] = [round(float(v), 4) for v in curve]
     reason = elbow_doubt(result, grid, peak, elbow, options)
-    if reason:  # the elbow always lands somewhere, even on noise: report no age rather than a false one
-        result["onset"] = result["completion"] = None
-        result["_draws"] = {}
-        result["message"] = f"No weaning age reported: {reason}"
-        result["warnings"].append(result["message"])
-        return result
+    if reason:  # the elbow always lands somewhere, even on noise
+        return withhold(result, reason)
 
     slope = float(np.polyval(np.polyder(coef), grid[elbow] - centre))
     if slope > 0:
         result["warnings"].append(f"Curve is rising at the elbow (slope {slope:+.2f}‰/month): possible false estimate")
     result["warnings"] += drop_warnings(result["drop_permil"], options)
-    if elbow >= len(grid) - 2:
-        result["warnings"].append("Elbow falls at the last sample: weaning may not be complete within the series")
     if curve.max() > y.max() + 0.5 or curve.min() < y.min() - 0.5:
         result["warnings"].append("Polynomial overshoots the observed δ15N range (>0.5‰); check the curve visually")
     return result
@@ -464,12 +480,13 @@ def model_average(fits, seed=42, n_draws=4000):
     """Each weaning age averaged over the models, weighted by their support.
 
     The interval comes from mixing the models' own random draws in the same proportions.
+    No average is given when the models that report an age hold less than half the support.
     """
     rng = np.random.default_rng(seed)
     average = {}
     for key in MILESTONES:
         members = [f for f in fits if f["akaike_weight"] is not None and f.get(key)]
-        if not members:
+        if sum(f["akaike_weight"] for f in members) < 0.5:
             continue
         weights = np.array([f["akaike_weight"] for f in members])
         weights = weights / weights.sum()
@@ -483,28 +500,19 @@ def model_average(fits, seed=42, n_draws=4000):
     return average
 
 
-def extrapolated_average(fits, average, first_age, last_age):
-    """Mark averaged weaning ages that lie outside the sampled ages, and say why.
+def mark_average_beyond(fits, average, first_age, last_age):
+    """Flag averaged ages outside the sampled ages, or resting mostly on models that put them there.
 
-    An average can look reasonable while resting on models that each extrapolate beyond the teeth,
-    so it is flagged when it falls outside the samples or most of its support comes from models
-    that do.
+    An average of one model past the last sample and one before it can land inside the samples
+    while neither model found the age there.
     """
-    warnings = []
     for key, value in average.items():
         members = [f for f in fits if f["akaike_weight"] is not None and f.get(key)]
         weight = sum(f["akaike_weight"] for f in members) or 1
         after = sum(f["akaike_weight"] for f in members if f[key]["estimate"] > last_age) / weight
         before = sum(f["akaike_weight"] for f in members if f[key]["estimate"] < first_age) / weight
-        share = after + before
-        if share < 0.5 and first_age <= value["estimate"] <= last_age:
-            continue
-        value["extrapolated"] = True
-        side = "after the last" if after >= before else "before the first"
-        warnings.append(f"Model average {key} ({value['estimate']:.1f} months) is an extrapolation beyond the "
-                        f"sampled teeth: models with {share:.0%} of the support put it {side} sample "
-                        f"(samples cover {first_age:.1f} to {last_age:.1f} months)")
-    return warnings
+        side = None if after + before < 0.5 else "after" if after >= before else "before"
+        mark_beyond(value, first_age, last_age, side)
 
 
 def seasonal_test(t, values, period=12.0, detrend=1, shape=None):

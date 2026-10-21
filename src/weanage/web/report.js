@@ -1,6 +1,6 @@
 // Builds a standalone HTML report (settings, charts, tables, references) that prints cleanly to PDF.
 import { curveChart, curveOptions, forestChart, svgMarkup } from "./chart.js";
-import { ageNum, ci, esc, MILESTONES, num, pval, unitWord } from "./util.js";
+import { ageNum, ageValue, ci, esc, MILESTONES, num, pval, unitWord } from "./util.js";
 
 const REFERENCES = [
   "DeNiro, M. J. (1985). Postmortem preservation and alteration of in vivo bone collagen isotope ratios in relation to palaeodietary reconstruction. Nature 317, 806–809.",
@@ -30,7 +30,7 @@ section{break-inside:avoid}svg{width:100%;height:auto}@media print{body{margin:0
 // headers: list of column titles; rows: list of lists of cell HTML.
 const htmlTable = (headers, rows) =>
   `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c ?? "—"}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-const withCI = (v) => (v ? `${ageNum(v.estimate)}${v.ci_low != null ? ` <span class="muted">(${ci(v)})</span>` : ""}${v.extrapolated ? " <i>beyond the sampled teeth</i>" : ""}` : "—");
+const withCI = (v) => (v ? `${ageValue(v)}${ci(v) ? ` <span class="muted">(${ci(v)})</span>` : ""}` : "—");
 
 // Draw a chart off-screen and return its SVG text.
 export function offscreen(draw) {

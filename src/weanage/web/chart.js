@@ -273,10 +273,10 @@ export const ageMarker = (value, colour, prefix = "") => ({
 export function curveOptions(res, { visible, milestone, xRange = null, showD13C = false, onZoom = null, palette = theme() }) {
   const fits = res.fits.filter((f) => f.converged && visible.has(f.model));
   const multiTooth = new Set(res.points.map((p) => p.tooth)).size > 1;
-  const markers = fits.filter((f) => f[milestone]?.estimate != null)
+  const markers = fits.filter((f) => f[milestone] && !f[milestone].beyond)
     .map((f) => ageMarker(f[milestone], color(f.model, palette), ""));
   const avg = res.model_average?.[milestone];
-  if (visible.has("average") && avg) markers.push(ageMarker(avg, color("average", palette), "avg "));
+  if (visible.has("average") && avg && !avg.beyond) markers.push(ageMarker(avg, color("average", palette), "avg "));
   return {
     title: `Weaning curve for ${res.specimen_id}`,
     desc: `${res.points.length} samples of δ15N against age; ${fits.length} model ${fits.length === 1 ? "curve" : "curves"} shown.`,

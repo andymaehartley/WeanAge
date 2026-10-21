@@ -40,7 +40,7 @@ def milestone_offset(milestone, q):
     return {"onset": -half, "midpoint": 0.0, "completion": half}[milestone]
 
 
-def specimens_from_results(results, group_by, milestone="completion", q=0.05, min_points=6):
+def specimens_from_results(results, group_by, milestone="midpoint", q=0.05, min_points=6):
     """Pick the data the model needs from the analysis results (QC-passed samples only).
 
     A specimen is left out (and named in `skipped`) if it has too few samples, or if its
@@ -93,7 +93,7 @@ def log_density_tau(tau, spread, n, tau_scale):
     return -n * np.log(tau) - 0.5 * spread / tau ** 2 - np.log1p((tau / tau_scale) ** 2) + np.log(tau)
 
 
-def joint_bayes(specimens, milestone="completion", q=0.05, chains=4, warmup=2000, keep=3000,
+def joint_bayes(specimens, milestone="midpoint", q=0.05, chains=4, warmup=2000, keep=3000,
                 tau_scale=3.0, prior_sd=50.0, seed=0):
     rng = np.random.default_rng(seed)
     n = len(specimens)
@@ -197,7 +197,7 @@ def joint_bayes(specimens, milestone="completion", q=0.05, chains=4, warmup=2000
     return names, group_of, m_draws, mu_draws, tau_draws
 
 
-def joint_summary(results, group_by, milestone="completion", q=0.05, seed=0):
+def joint_summary(results, group_by, milestone="midpoint", q=0.05, seed=0):
     """Same layout as the two-stage summary (inference.bayes_summary), so the app shows it the same way.
     Returns (summary or None if fewer than 3 specimens can be used, list of specimens left out and why)."""
     specimens, skipped = specimens_from_results(results, group_by, milestone, q)
