@@ -4,6 +4,7 @@
     weanage --no-browser          start the server only (e.g. on a shared lab machine)
     weanage analyze data.csv -o results.csv
     weanage validate reference.csv    how accurate each model is on known-age animals
+    weanage isoarch export.xlsx       list (or convert) sequential dentine series in an IsoArcH export
 """
 
 import argparse
@@ -75,6 +76,25 @@ def validate_file(path):
     print(table.round(2).to_string(index=False))
 
 
+def isoarch_file(path, sites, species, zone_order, spacing, output):
+    """List the dentine series in an IsoArcH export, or convert chosen sites to a WeanAge CSV."""
+    from .isoarch import summary, to_weanage
+
+    if not sites:
+        print(summary(path).to_string(index=False))
+        print("\nChoose sites with --site (and --species) to convert them.")
+        return
+    table = to_weanage(path, sites, species, zone_order, spacing)
+    if table.empty:
+        raise SystemExit("No sequential dentine series found for those sites/species.")
+    if output:
+        table.to_csv(output, index=False)
+        print(f"Wrote {len(table)} slices from {table['specimen_id'].nunique()} teeth to {output}")
+    else:
+        print(table.to_string(index=False))
+    print(f"Slice positions are ASSUMED (zone order: {zone_order}); check them against the original papers.")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="weanage", description="Weaning-age estimation from dentine δ15N")
     parser.add_argument("--host", default="127.0.0.1")
@@ -86,8 +106,18 @@ def main(argv=None):
     analyse.add_argument("-o", "--output")
     check = commands.add_parser("validate", help="score the models on known-age reference animals")
     check.add_argument("csv", nargs="?", help="defaults to reference_dataset in lab_parameters.json")
+    convert = commands.add_parser("isoarch", help="list or convert sequential dentine data from an IsoArcH export")
+    convert.add_argument("xlsx")
+    convert.add_argument("--site", action="append", default=[], help="a site to convert (repeat for more)")
+    convert.add_argument("--species", action="append", help="e.g. cattle (repeat for more)")
+    convert.add_argument("--zone-order", choices=["cervix_first", "crown_first"], default="cervix_first",
+                         help="where zone 1 / 'a' was cut (default: cervix_first)")
+    convert.add_argument("--spacing", type=float, help="mm between slice centres (default: spread over the crown)")
+    convert.add_argument("-o", "--output")
     args = parser.parse_args(argv)
-    if args.command == "analyze":
+    if args.command == "isoarch":
+        isoarch_file(args.xlsx, args.site, args.species, args.zone_order, args.spacing, args.output)
+    elif args.command == "analyze":
         analyze_file(args.csv, args.output)
     elif args.command == "validate":
         validate_file(args.csv)

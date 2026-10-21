@@ -71,6 +71,8 @@ Without the app:
 ```bash
 weanage analyze my_data.csv -o estimates.csv      # CSV or .xlsx
 weanage validate reference.csv                    # accuracy on known-age animals
+weanage isoarch export.xlsx                       # list sequential dentine series in an IsoArcH export
+weanage isoarch export.xlsx --site Khami -o khami.csv   # ... and convert them to WeanAge input
 weanage --host 0.0.0.0 --no-browser               # shared server on a lab machine
 ```
 

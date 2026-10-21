@@ -84,8 +84,8 @@ def validate_records(body: dict):
 
 
 @app.get("/api/example")
-def example_dataset():
-    return service.example_dataset()
+def example_dataset(name: str = "synthetic"):
+    return checked(service.example_dataset, name)
 
 
 @app.get("/api/template.csv")

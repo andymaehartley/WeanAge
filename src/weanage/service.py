@@ -66,6 +66,7 @@ def get_config():
         "user_tables_path": str(config.user_tables_path()),
         "qc_flags": FLAG_DESCRIPTIONS,
         "qc_presets": config.qc_config().get("presets", {}),
+        "examples": [{"name": key, "label": label} for key, (_, label, _) in EXAMPLES.items()],
         "tbd": config.tbd_items(),
     }
 
@@ -85,8 +86,20 @@ def check_records(rows):
     return report_json(ingest_records(rows))
 
 
-def example_dataset():
-    return report_json(ingest_csv(config.DATA_DIR / "examples" / "synthetic_example.csv"))
+# The example datasets offered in the app: file name, menu label and the message shown on loading.
+EXAMPLES = {
+    "synthetic": ("synthetic_example.csv", "Synthetic example (simulated)",
+                  "Loaded SYNTHETIC example data (simulated, not real measurements)."),
+    "isoarch_cattle": ("isoarch_cattle_khami_bornais.csv", "Real cattle: Khami & Bornais (IsoArcH)",
+                       "Loaded real cattle data from IsoArcH (CC-BY 4.0; Dyvart et al. 2018; Griffith & Mulville "
+                       "2020). Slice positions are ASSUMED: see each sample's notes."),
+}
+
+
+def example_dataset(name="synthetic"):
+    if name not in EXAMPLES:
+        raise ValueError(f"unknown example {name!r}")
+    return {**report_json(ingest_csv(config.DATA_DIR / "examples" / EXAMPLES[name][0])), "message": EXAMPLES[name][2]}
 
 
 def template_path():

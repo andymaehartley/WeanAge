@@ -137,6 +137,7 @@ def summarise(samples):
 def dataset_checks(samples):
     """Problems that only show up when looking at a whole specimen or animal."""
     issues = []
+    per_animal = {animal: len(rows) for animal, rows in group(samples, "individual_id").items() if animal}
     for sid, rows in group(samples, "specimen_id").items():
         for attr in ["site", "species", "tooth"]:
             values = sorted({getattr(r, attr) for r in rows})
@@ -146,7 +147,8 @@ def dataset_checks(samples):
         if len(set(positions)) < len(positions):
             issues.append(issue(f"Specimen {sid} has duplicate positions; repeats are fitted as separate points",
                                 field="position_mm", severity="warning"))
-        if len(rows) < MIN_SAMPLES:
+        # Teeth of one animal are fitted together, so the count that matters is per animal.
+        if max(len(rows), per_animal.get(rows[0].individual_id, 0)) < MIN_SAMPLES:
             issues.append(issue(f"Specimen {sid} has only {len(rows)} samples; at least {MIN_SAMPLES} are needed "
                                 "for curve fitting", severity="warning"))
         if find_growth_table(rows[0].species, rows[0].tooth) is None:

@@ -71,7 +71,7 @@ export function initGlossary() {
 }
 
 const TOUR = [
-  { view: "data", sel: "#dropzone", title: "1 · Load your data", text: "Drop a CSV or Excel file with one row per dentine slice, or press 'Load synthetic example' to explore with simulated data." },
+  { view: "data", sel: "#dropzone", title: "1 · Load your data", text: "Drop a CSV or Excel file with one row per dentine slice, or choose an example (simulated, or real published cattle data) and press 'Load example'." },
   { view: "data", sel: "#manual-form", title: "Or type samples in", text: "Specimen details are remembered between entries and the position steps forward automatically." },
   { view: "settings", sel: "#model-options", title: "2 · Choose curve models", text: "Every model is fitted to every specimen so you can see how much the method matters. Leave them all on if unsure." },
   { view: "settings", sel: "#growth-list", title: "Age models", text: "These convert tooth position to age. Yellow ones are placeholders: edit them, calibrate them from reference data, or save your own." },

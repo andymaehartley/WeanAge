@@ -62,7 +62,13 @@ One row per dentine slice. Required columns: `specimen_id`, `site`, `species`, `
 * drop a **CSV or Excel** file on the dashed box (common spellings such as `δ15N (‰)`,
   `C:N` or `Animal` are recognised),
 * **Download blank template** to start a spreadsheet with the right columns, or
-* **Add samples by hand** with the form on the right.
+* **Add samples by hand** with the form on the right, or
+* choose an **example**: the simulated dataset, or real archaeological cattle from Khami
+  (Zimbabwe) and Bornais (Outer Hebrides) taken from the IsoArcH database. In the real
+  example the slice positions are assumed (see `src/weanage/data/examples/README.md`).
+
+Data exported from [IsoArcH](https://isoarch.eu) can be converted with
+`weanage isoarch export.xlsx --site <name> -o file.csv`.
 
 ![The Data tab before loading](guide/02_data_empty.png)
 

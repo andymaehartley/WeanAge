@@ -198,3 +198,4 @@ main:focus { outline: none; }
   .topbar, .tbd-banner, .info-banner, .run-bar, .export, .chart-tools { display: none !important; }
   .view { display: block !important; }
 }
+label.inline { flex-direction: row; align-items: center; gap: .5rem; }

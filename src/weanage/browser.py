@@ -33,7 +33,7 @@ def clean(value):
 # Analyses run on one core: a web page cannot start extra Python processes.
 REQUESTS = {
     "config": lambda r, progress: {**service.get_config(), "user_tables_path": "this browser's storage"},
-    "example": lambda r, progress: service.example_dataset(),
+    "example": lambda r, progress: service.example_dataset(r.get("name", "synthetic")),
     "upload": lambda r, progress: service.read_upload(r["filename"], bytes(r["content"])),
     "records": lambda r, progress: service.check_records(r["records"]),
     "analyze": lambda r, progress: service.run_analysis(AnalyzeIn(**r), progress, workers=1),

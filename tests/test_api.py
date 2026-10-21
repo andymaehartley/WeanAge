@@ -24,6 +24,14 @@ def test_config():
     assert body["qc_presets"]["modern"]["cn_max"] == 3.28  # Guiry & Szpak (2020)
 
 
+def test_examples():
+    names = [e["name"] for e in client.get("/api/config").json()["examples"]]
+    assert names == ["synthetic", "isoarch_cattle"]
+    real = client.get("/api/example?name=isoarch_cattle").json()
+    assert len(real["samples"]) == 158 and "ASSUMED" in real["message"]
+    assert client.get("/api/example?name=nope").status_code == 400
+
+
 def test_upload_and_records():
     csv = b"specimen_id,site,species,tooth,position_mm,d15N\nA,S,cattle,M2,0.5,8\n"
     assert len(client.post("/api/ingest/file", files={"file": ("x.csv", csv)}).json()["samples"]) == 1

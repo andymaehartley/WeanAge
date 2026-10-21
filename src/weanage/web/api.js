@@ -37,7 +37,7 @@ async function waitForJob(job, onProgress) {
 
 const server = {
   config: () => request("/api/config"),
-  example: () => request("/api/example"),
+  example: (name = "synthetic") => request(`/api/example?name=${encodeURIComponent(name)}`),
   uploadFile(file) {
     const form = new FormData();
     form.append("file", file);
@@ -138,7 +138,7 @@ async function analyzeInParallel(samples, options, onProgress) {
 
 const browser = {
   config: () => python("config"),
-  example: () => python("example"),
+  example: (name = "synthetic") => python("example", { name }),
   uploadFile: async (file) => python("upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
   validateRecords: (records) => python("records", { records }),
   analyze: analyzeInParallel,

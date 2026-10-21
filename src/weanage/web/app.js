@@ -185,6 +185,11 @@ const FIELDS = {
   constrain_adult_plateau: ["#opt-constrain", "tick"],
 };
 
+function initExamples() {
+  $("#example-choice").innerHTML = (state.config.examples || [])
+    .map((e) => `<option value="${esc(e.name)}">${esc(e.label)}</option>`).join("");
+}
+
 function initSettings() {
   $("#model-options").innerHTML = state.config.models
     .map((m) => `<label class="check model-opt">
@@ -573,8 +578,9 @@ function bind() {
   $("#btn-template").href = api.templateUrl;
   on("#btn-example", "click", async () => {
     try {
-      setReport(await api.example());
-      toast("Loaded SYNTHETIC example data (simulated, not real measurements).", "ok");
+      const report = await api.example($("#example-choice").value || "synthetic");
+      setReport(report);
+      toast(report.message, "ok");
     } catch (e) {
       toast(e.message);
     }
@@ -676,6 +682,7 @@ async function init() {
     return toast(`Could not start WeanAge: ${e.message}`);
   }
   initSettings();
+  initExamples();
   initPlanner(state);
   renderTbd();
   for (const slot of $$("[data-helpslot]")) slot.innerHTML = help(slot.dataset.helpslot);
