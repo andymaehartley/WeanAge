@@ -1,7 +1,7 @@
 // Sampling planner: simulate known-age teeth to choose a sampling protocol.
 import { api } from "./api.js";
 import { lineChart } from "./chart.js";
-import { $, $$, ageNum, ageText, color, esc, MODEL_STYLE, num, progressBar, table, toast, toUnit, unitWord } from "./util.js";
+import { $, $$, ageNum, ageText, color, esc, MODEL_STYLE, num, percent, progressBar, table, toast, toUnit, unitWord } from "./util.js";
 
 const SWEEPS = {
   "": "No sweep (single scenario)",
@@ -102,11 +102,11 @@ export function renderPlan(state) {
     [
       ...(param ? [{ label: esc(SWEEPS[param]), render: (r) => num(r.x, 2), cls: "num" }] : []),
       { label: "Model", render: (r) => esc(r.model) },
-      { label: "Fitted", render: (r) => `${Math.round(r.success_rate * 100)}%`, cls: "num" },
+      { label: "Fitted", render: (r) => percent(r.success_rate), cls: "num" },
       { label: "MAE", render: (r) => ageNum(r.mae, 2), cls: "num" },
       { label: "Bias", render: (r) => ageNum(r.bias, 2), cls: "num" },
       { label: "RMSE", render: (r) => ageNum(r.rmse, 2), cls: "num" },
-      { label: "95% coverage", render: (r) => (r.ci_coverage == null ? "—" : `${Math.round(r.ci_coverage * 100)}%`), cls: "num" },
+      { label: "95% coverage", render: (r) => percent(r.ci_coverage), cls: "num" },
     ],
     rows
   );

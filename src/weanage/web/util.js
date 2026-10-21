@@ -53,6 +53,10 @@ export const ci = (x) => (x && x.ci_low != null && !x.beyond ? `${ageNum(x.ci_lo
 /** A weaning age as a number in the chosen unit, or "after 12.1" when it lies beyond the samples. */
 export const ageValue = (x) => (x?.beyond ? `${x.beyond} ${ageNum(x.bound)}` : ageNum(x?.estimate));
 export const pval = (p) => (p == null ? "—" : p < 0.001 ? "< 0.001" : p.toFixed(3));
+/** "p < 0.001" or "p = 0.042" */
+export const pIs = (p) => (p != null && p < 0.001 ? "p < 0.001" : `p = ${pval(p)}`);
+/** A share as a whole percentage: 0.83 → "83%". */
+export const percent = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 
 export function toast(message, kind = "error") {
   const t = $("#toast");
@@ -90,7 +94,9 @@ export function table(el, columns, rows, rowClass = () => "") {
   el.innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${columns.length}" class="muted">Nothing to show</td></tr>`}</tbody>`;
 }
 
-export const tbdBadge = '<span class="tbd-badge" title="Placeholder awaiting lab work">TBD-LAB</span>';
+/** Placeholder-table warnings that the result summary already states ("Illustrative only: …"). */
+export const SAID_IN_SUMMARY = /PLACEHOLDER (growth )?table/;
+export const tbdBadge = '<span class="tbd-badge" title="Waiting on lab data; listed at the top of the page">placeholder</span>';
 
 export function swatch(model) {
   const s = MODEL_STYLE[model] || MODEL_STYLE.average;

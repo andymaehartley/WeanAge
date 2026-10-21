@@ -56,15 +56,15 @@ function specimenSection(r, milestone) {
 
 function compareSection(t) {
   const forest = offscreen((box) => forestChart(box, t.groups.map((g) => ({ label: g.group, mean: g.mean, lo: g.ci_low, hi: g.ci_high, values: [] })),
-    `Weaning ${t.milestone} (${unitWord()}), random-effects mean ± 95% CI`));
+    `Weaning ${t.milestone} (${unitWord()}), random-effects mean ± 95% interval`));
   const b = t.bayes;
   return `<h2>Group comparison</h2>
     <p>Grouping: ${esc(t.group_by.join(" × "))}; milestone: ${esc(t.milestone)}; estimates: ${esc(t.model)}.</p>${forest}
-    ${htmlTable(["Group", "n", "Mean", "95% CI", "τ"], t.groups.map((g) => [esc(g.group), g.n, ageNum(g.mean), `${ageNum(g.ci_low)}–${ageNum(g.ci_high)}`, ageNum(g.tau, 2)]))}
+    ${htmlTable(["Group", "n", "Mean", "95% interval", "τ"], t.groups.map((g) => [esc(g.group), g.n, ageNum(g.mean), `${ageNum(g.ci_low)}–${ageNum(g.ci_high)}`, ageNum(g.tau, 2)]))}
     <p>Between-group Q = ${num(t.q_between)} (df ${t.q_df}), p = ${pval(t.q_p)}; permutation p = ${pval(t.permutation_p)}.</p>
     ${t.pairwise.length ? htmlTable(["Pair", "Difference", "p", "p (Holm)"], t.pairwise.map((p) => [`${esc(p.group_a)} − ${esc(p.group_b)}`, ageNum(p.difference), pval(p.p), pval(p.p_holm)])) : ""}
     ${b ? `<h3>Hierarchical Bayesian model</h3><p class="muted">τ = ${ageNum(b.tau_mean, 2)} ${unitWord()} (${ageNum(b.tau_ci_low, 2)}–${ageNum(b.tau_ci_high, 2)}); max R̂ = ${num(b.rhat_max, 3)}; ${b.draws} draws.</p>
-      ${htmlTable(["Comparison", "P(first earlier)", "Difference (95% CrI)"], b.pairs.map((p) => [`${esc(p.group_a)} vs ${esc(p.group_b)}`, num(p.prob_a_earlier, 3),
+      ${htmlTable(["Comparison", "P(first earlier)", "Difference (95% interval)"], b.pairs.map((p) => [`${esc(p.group_a)} vs ${esc(p.group_b)}`, num(p.prob_a_earlier, 3),
         `${ageNum(p.difference_mean)} (${ageNum(p.difference_ci_low)}–${ageNum(p.difference_ci_high)})`]))}` : ""}
     ${t.notes.map((n) => `<p class="muted">${esc(n)}</p>`).join("")}`;
 }

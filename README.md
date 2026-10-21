@@ -2,79 +2,27 @@
 
 [![tests](https://github.com/andymaehartley/repotest/actions/workflows/tests.yml/badge.svg)](https://github.com/andymaehartley/repotest/actions/workflows/tests.yml)
 [![browser version](https://github.com/andymaehartley/repotest/actions/workflows/pages.yml/badge.svg)](https://andymaehartley.github.io/repotest/)
-[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
-An open-source tool for estimating **age at weaning** from **δ¹⁵N** in archaeological
-animals (cattle, sheep, goats, pigs, horses) and people. It works from isotope values
-measured along a **tooth** (incremental dentine), or from the **bone** collagen of many
-young individuals who died at different ages (after WARN). It returns weaning ages with
-honest uncertainty, compares methods, sites and species, and helps plan sampling before
-any tooth is cut or bone sampled.
+WeanAge estimates age at weaning from δ¹⁵N in archaeological animals and people. It works
+from δ¹⁵N measured along a tooth (incremental dentine), or from the bone collagen of many
+young individuals who died at different ages (after WARN). It reports weaning ages with
+95% intervals, compares curve models, sites and species, and simulates sampling designs
+before teeth are cut or bones sampled.
 
-**Use it in your browser, nothing to install:** <https://andymaehartley.github.io/repotest/>
-(after GitHub Pages is switched on: see [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md)).
+Browser version (no installation): <https://andymaehartley.github.io/repotest/>
 
-The aim is one documented, validated method that any zooarchaeology lab can use
-without writing its own statistical model, so that weaning ages are comparable across
-sites, species and research groups.
+Status: the tooth growth tables and several method parameters are placeholders, marked
+`TBD-LAB` in the data files and highlighted in the app. Results are illustrative until
+they are replaced; see [`docs/LAB_DATA_TBD.md`](docs/LAB_DATA_TBD.md).
 
-> ⚠️ **Status: pre-lab-data.** All tooth growth tables and several method parameters
-> are **placeholders**. They are marked `TBD-LAB` in the data files and highlighted in
-> yellow in the app, and results are illustrative until they are filled in. See
-> [`docs/LAB_DATA_TBD.md`](docs/LAB_DATA_TBD.md).
-
-## Quick start
+## Install and run
 
 ```bash
 pip install -e .          # Python 3.11–3.14 (or: poetry install)
 weanage                   # opens http://127.0.0.1:8765/app/ in your browser
 ```
 
-A guided tour runs on first use, and every technical term has a **?** button with a
-plain-language explanation. The app has five tabs:
-
-1. **Data**: drop in a CSV or Excel file, load the synthetic example, or type samples
-   in by hand. Problems are reported straight away, row by row.
-2. **Settings**: choose curve models, uncertainty method, quality-control limits,
-   time averaging, the seasonal term and adult-female baselines. You can also edit,
-   calibrate and save tooth growth tables here.
-3. **Results**: a curve chart for each specimen (drag to zoom, δ¹³C overlay,
-   tooth-position axis), the best and model-averaged weaning ages, warnings and a
-   model-comparison table.
-4. **Compare**: group summaries, formal tests (random-effects, permutation and a
-   hierarchical Bayesian model), how much the models disagree, and validation.
-5. **Plan sampling**: simulate teeth with known weaning ages to compare sampling
-   intervals, sample sizes or noise levels.
-
-The app opens in a **high-contrast dark theme**; *Light mode* and *Larger text* in the
-header switch it, and the choice is remembered. All text meets WCAG AAA contrast (7:1),
-curves are at least 4.5:1 and also differ by dash pattern (checked by `tests/test_contrast.py`).
-Saved charts and reports always use the light colours so they print well.
-
-**Save** and **Open** store the whole project in a file, and work is also kept in the
-browser automatically. **Report** downloads a self-contained HTML report (print it to
-get a PDF).
-
-### Browser version (nothing to install)
-
-The same app can run entirely inside a web browser: the page downloads Python
-(Pyodide, about 40 MB the first time, then cached) and does every calculation on the
-user's own computer. No data leaves the computer, and there is no server to maintain.
-
-```bash
-python scripts/build_browser.py --serve   # build dist/browser/ and preview it at http://localhost:8000
-```
-
-`dist/browser/` is a folder of plain files that can go on any static web host. Pushing to
-`main` publishes it to GitHub Pages automatically (`.github/workflows/pages.yml`; one-time
-setup: *Settings → Pages → Source: GitHub Actions*).
-
-Differences from the local app:
-* the first visit needs internet and takes a little while to load; after that it starts quickly,
-* analyses use one processor core, so large datasets are slower,
-* saved growth tables and autosaved work are kept in that browser only.
-
-Without the app:
+Command line, without the app:
 
 ```bash
 weanage analyze my_data.csv -o estimates.csv      # CSV or .xlsx
@@ -84,51 +32,65 @@ weanage isoarch export.xlsx --site Khami -o khami.csv   # ... and convert them t
 weanage --host 0.0.0.0 --no-browser               # shared server on a lab machine
 ```
 
+The app has five tabs (Data, Settings, Results, Compare, Plan sampling). The
+[user guide](docs/USER_GUIDE.md) walks through them, and [`docs/METHODS.md`](docs/METHODS.md)
+gives the models, equations and checks. Examples bundled with the app: a synthetic tooth
+dataset, a synthetic bone dataset, cattle dentine from Khami and Bornais (IsoArcH), and
+human bone and dentine from Wharram Percy, York Fishergate House, Newark Bay and Mikulčice
+(CIMA).
+
+### Browser version
+
+The browser version runs Python in the page (Pyodide, about 40 MB on the first visit,
+then cached). All calculations run on the user's computer and no data are uploaded.
+
+```bash
+python scripts/build_browser.py --serve   # build dist/browser/ and preview it at http://localhost:8000
+```
+
+`dist/browser/` is a folder of static files; pushing to `main` publishes it to GitHub Pages
+(`.github/workflows/pages.yml`). Differences from the installed app:
+
+* the first visit needs an internet connection;
+* large analyses are split across up to three engines (web workers), depending on the
+  processor cores and memory available;
+* saved growth tables and autosaved work are kept in that browser only.
+
 ## Input columns
 
-One row per dentine slice. Common spellings (`δ15N (‰)`, `C:N`, `%C`, `Animal`, …) are
-recognised. A blank template is under *Data → Download blank template*.
+Tooth data: one row per dentine slice. Common spellings (`δ15N (‰)`, `C:N`, `%C`, `Animal`, …)
+are recognised. A blank template is under *Data → Download blank template*.
 
 | column | required | meaning |
 |---|---|---|
-| `specimen_id` | ✔ | one tooth |
-| `site`, `species`, `tooth` | ✔ | species `cattle`, `pig`, `horse` (others need an age model) |
-| `position_mm` | ✔ | distance from the **cusp apex** to the middle of the slice |
-| `d15N` | ✔ | δ¹⁵N, ‰ AIR |
+| `specimen_id` | yes | one tooth |
+| `site`, `species`, `tooth` | yes | bundled growth tables: cattle M1 and M2, pig M1, horse M1, human M1; other teeth need a table |
+| `position_mm` | yes | distance from the cusp apex to the middle of the slice |
+| `d15N` | yes | δ¹⁵N, ‰ AIR |
 | `individual_id` | | teeth sharing it (e.g. M1 + M2) are joined into one timeline |
 | `position_reference`, `crown_height_mm` | | set `cervix` if measured from the crown base |
-| `d13C`, `pct_C`, `pct_N`, `cn_ratio`, `collagen_yield_pct` | | collagen QC and the seasonality check |
+| `d13C`, `pct_C`, `pct_N`, `cn_ratio`, `collagen_yield_pct` | | collagen QC and the δ¹³C checks |
 | `increment_width_mm` | | slice height if not 1 mm (time averaging) |
 | `sample_index`, `period`, `notes` | | |
 | `known_weaning_age_months` | | known-age reference animals (validation) |
 | `published_weaning_age_months` | | a published estimate, for comparison |
 
-## How it works
+Bone data: one row per animal, with `specimen_id`, `site`, `species`, `d15N` and, for
+young animals, the age at death (`age_months`, or `age_min_months` + `age_max_months`);
+adults are marked with `age_class` and `sex`. Bone turnover tables and priors are included
+for cattle, sheep, goat, pig and human (the livestock values are placeholders). See the
+[user guide](docs/USER_GUIDE.md#bone-instead-of-teeth).
 
-```
-file / form ─► check the data (pydantic) ─► collagen QC (C:N, %C, %N, yield)
-            ─► position → age (growth table per species and tooth; teeth of one animal joined)
-            ─► fit curves: logistic, piecewise, exponential, two-phase, WEAN-style elbow
-                 (optional: time averaging, yearly seasonal term, adult-female baseline)
-            ─► weaning ages with 95 % intervals (covariance or bootstrap, shared age-model error)
-            ─► AICc weights, model average, seasonality and rising-profile checks
-            ─► group comparison (random effects, permutation, two- or one-stage hierarchical Bayes)
-            ─► validation against known-age animals
-```
+## Further documentation
 
-**Bone calculation.** For bone collagen from many young animals that died at different ages,
-the Data page offers a second calculation after WARN (Tsutaya & Yoneda 2013): a diet model
-(milk giving way to weaning food between ages t1 and t2) and age-dependent bone turnover are
-fitted to δ¹⁵N against age at death, giving t1, t2, the nursing enrichment and the weaning-food
-δ¹⁵N with credible intervals. Livestock turnover rates are still placeholders (TBD-LAB).
+* [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md): step-by-step guide with screenshots.
+* [`docs/METHODS.md`](docs/METHODS.md): methods and references.
+* [`docs/VALIDATION.md`](docs/VALIDATION.md): testing on known-age animals.
+* [`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md): comparison with WARN, MDSS and WEAN.
+* [`docs/BONE_LITERATURE.md`](docs/BONE_LITERATURE.md): sources for the bone calculation.
+* [`docs/brief/`](docs/brief/): printable two-page methods summary.
 
-[`docs/METHODS.md`](docs/METHODS.md) gives the equations.
-[`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md) compares WeanAge with WARN, MDSS and WEAN.
-[`docs/VALIDATION.md`](docs/VALIDATION.md) explains how to test it on known-age animals.
-[`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) is a step-by-step guide with screenshots, and
-[`docs/brief/`](docs/brief/) a printable two-page summary of the methods for events.
-
-### Research the method builds on
+## Research the method builds on
 
 | finding | where it is used |
 |---|---|
@@ -138,33 +100,33 @@ fitted to δ¹⁵N against age at death, giving t1, t2, the nursing enrichment a
 | Coarse slices blur and delay the weaning signal (Tsutaya 2020; MDSS) | time averaging |
 | Stress and starvation raise δ¹⁵N (Beaumont & Montgomery 2016) | rising-profile warning |
 | Prehistoric cattle calved seasonally (Balasse et al. 2021) | seasonal term and checks |
-| Weaning-age curves and elbow (WARN, WEAN) | curve models, adult-female baseline |
+| Weaning curves and elbow (WARN: Tsutaya & Yoneda 2013; WEAN: Ganiatsou et al. 2023) | curve models, adult-female baseline, bone calculation |
 
 ## Code layout
 
-Everything is written to be readable by someone new to programming: plain functions,
-results as ordinary dictionaries, and comments in everyday language.
-
 ```
 src/weanage/
-  schema.py      the shape of the input data and settings (checked by pydantic)
+  schema.py      input data and settings (checked by pydantic)
   config.py      reads the data files; saved growth tables; the TBD-LAB list
   ingest.py      reads CSV/Excel/form rows and checks them
   qc.py          collagen quality flags
   growth.py      position on the tooth → age
-  models.py      the curves, fitting, uncertainty, model averaging, seasonal test
-  analysis.py    the step-by-step analysis of each specimen (runs in parallel)
+  models.py      curves, fitting, uncertainty, model averaging, seasonal test
+  analysis.py    analysis of each specimen (runs in parallel)
   aggregate.py   group summaries, model disagreement, validation metrics
   inference.py   group tests and the hierarchical Bayesian model
-  bone.py        the bone calculation (after WARN): many animals, δ15N against age at death
-  simulate.py    the sampling planner
+  joint.py       one-stage Bayesian model
+  bone.py        bone calculation (after WARN)
+  simulate.py    tooth sampling planner
+  bone_planner.py  bone sampling planner
   calibrate.py   growth tables from known-age reference points
-  service.py     everything the app can ask for, as plain functions
-  api.py         the local web server (and background jobs with progress)
-  browser.py     the same requests for the browser version (Python inside the page)
+  service.py     the requests the app can make
+  api.py         local web server and background jobs
+  browser.py     the same requests for the browser version
+  isoarch.py     converts IsoArcH exports
   cli.py         the `weanage` command
-  data/          growth and bone-turnover tables, QC limits, lab parameters, templates, examples
-  web/           the app: HTML, CSS and plain JavaScript (pyworker.js runs Python in the browser version)
+  data/          growth and bone-turnover tables, priors, QC limits, lab parameters, templates, examples
+  web/           the app (HTML, CSS, JavaScript; pyworker.js runs Python in the browser version)
 tests/           pytest suite, including a browser test (needs Playwright)
 packaging/       single-file app (PyInstaller)
 paper/           JOSS paper draft
@@ -181,14 +143,13 @@ python scripts/build_browser.py               # browser version in dist/browser/
 pyinstaller packaging/weanage.spec            # single-file app in dist/
 ```
 
-GitHub Actions runs the checks on every push. Pushing a tag such as `v0.2.0` builds the
-single-file apps for Linux, Windows and macOS and publishes the package to PyPI (after
-the repository is registered as a trusted publisher on pypi.org).
+GitHub Actions runs the tests on every push. A version tag (e.g. `v0.2.0`) builds the
+single-file apps for Linux, Windows and macOS and publishes the package to PyPI.
 
 ## Citing
 
-See [`CITATION.cff`](CITATION.cff). Archiving a release on Zenodo (metadata in
-`.zenodo.json`) gives a DOI. A draft software paper is in [`paper/`](paper/).
+See [`CITATION.cff`](CITATION.cff). Release metadata for Zenodo is in `.zenodo.json`. A draft
+software paper is in [`paper/`](paper/).
 
 ## Licence
 
@@ -198,5 +159,4 @@ licences (IsoArcH: CC BY 4.0; CIMA: CC BY-SA); see
 
 ## Contributing
 
-Questions, bug reports, reference data and code are all welcome: see
-[`CONTRIBUTING.md`](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).

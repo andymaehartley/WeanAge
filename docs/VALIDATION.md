@@ -1,8 +1,6 @@
 # Checking WeanAge against animals of known weaning age
 
-A weaning-age method is only as trustworthy as its record on animals whose weaning age
-is already known. This page explains how to run that check and which published data to
-use.
+How to test WeanAge on animals whose weaning age is known, and which published data to use.
 
 ## How to run it
 
@@ -15,7 +13,7 @@ use.
    weanage validate reference.csv
    ```
 
-   or load the file in the app and open **Compare → Validation**.
+   or load the file in the app and open *Compare → Validation*.
 
 For each model you get:
 
@@ -45,11 +43,10 @@ copied from the original publications.
 | Balasse et al. 2001, *J. Archaeol. Sci.* 28:235–245 | modern cattle, weaning date known | the first experimental test; δ¹⁵N fell and δ¹³C rose exactly at weaning |
 | Balasse & Tresset 2002, *J. Archaeol. Sci.* 29:853–859 | Neolithic cattle (Bercy) | an archaeological comparison using the same method |
 | Díez-Canseco, Aguilera & Tornero 2022, *Int. J. Osteoarchaeol.* 32:962–975 | modern experimental sheep | high-crowned teeth; a sampling protocol matched to dentine growth |
-| *J. Archaeol. Sci.: Reports* 2026, "Weaning time in domestic sheep through carbon and nitrogen isotopes" | modern sheep | recent test of dentine sequences in known-age animals |
+| Díez-Canseco & Tornero 2026, *J. Archaeol. Sci.: Reports* 71: 105651 | modern early-weaned sheep | dentine sequences from known-age animals |
 
-The Durham lab's own known-age reference animals, sampled with the same protocol
-(1 mm slices from the apex), are the best validation set of all, because they share the
-lab's sampling and its growth tables.
+Known-age animals sampled by your own lab with its usual protocol make the best
+validation set, because they share its sampling and growth tables.
 
 ## What else the validation is used for
 

@@ -8,7 +8,7 @@ import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ageNum, ageText, ageValue, ci, download, esc, getAgeUnit, help, MILESTONES, num, plural, progressBar, pval, readout, renderIssues, renderReady, renderWarnings, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
+import { $, $$, ageNum, ageText, ageValue, ci, download, esc, getAgeUnit, help, MILESTONES, num, plural, progressBar, pIs, percent, pval, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
@@ -55,7 +55,7 @@ function enableResults() {
   $('.step[data-view="results"]').disabled = !(bone ? state.bone.results : state.results);
   for (const b of $$('.step[data-view="compare"], #btn-report')) {
     b.disabled = bone || !state.results;
-    b.title = bone ? "Tooth calculation only, for now" : "";
+    b.title = bone ? "Tooth calculation only" : "";
   }
 }
 
@@ -79,7 +79,6 @@ function renderTbd() {
   const ids = new Set(items.map((i) => i.id));
   $("#tbd-banner").hidden = !items.length;
   $("#tbd-count").textContent = `${plural(items.length, "placeholder value")} ${items.length === 1 ? "is" : "are"}`;
-  $("#sb-tbd").textContent = items.length ? `${items.length} placeholder values (TBD-LAB)` : "";
   $("#tbd-list").innerHTML = items.map((i) => `<li><strong>${esc(i.area)}:</strong> ${esc(i.label)} — ${esc(i.note)} <code>${esc(i.file)}</code></li>`).join("");
   for (const node of $$("[data-tbd]")) {
     const on = ids.has(node.dataset.tbd);
@@ -87,11 +86,6 @@ function renderTbd() {
     node.classList.toggle("tbd", on);
     title.querySelector(".tbd-badge")?.remove();
     if (on) title.insertAdjacentHTML("beforeend", ` ${tbdBadge}`);
-  }
-  // A closed Advanced section says when it holds a placeholder, so nothing TBD-LAB is out of sight.
-  for (const summary of $$("details.advanced > summary")) {
-    summary.querySelector(".tbd-badge")?.remove();
-    if (summary.parentElement.querySelector(".advanced-body .tbd")) summary.insertAdjacentHTML("beforeend", ` ${tbdBadge}`);
   }
 }
 
@@ -152,7 +146,7 @@ function renderData() {
     { label: "%N", cls: "num", render: (s) => num(s.pct_N, 1) },
     { label: "C:N", cls: "num", render: (s) => `<span class="${badCN(s) ? "bad" : ""}">${num(s.cn_ratio)}</span>` },
     { label: "Notes", key: "notes" },
-    { label: "<span class='sr-only'>Remove</span>", render: (s, i) => `<button class="ghost tiny" data-remove="${i}" aria-label="Remove sample at ${esc(s.position_mm)} mm from ${esc(s.specimen_id)}">✕</button>` },
+    { label: "<span class='sr-only'>Remove</span>", render: (s, i) => `<button class="ghost tiny" data-remove="${i}" aria-label="Remove sample at ${esc(s.position_mm)} mm from ${esc(s.specimen_id)}">Remove</button>` },
   ], state.samples);
 }
 
@@ -160,7 +154,6 @@ async function loadFile(file) {
   if (state.mode === "bone") return loadBoneFile(file);
   try {
     setReport(await api.uploadFile(file));
-    toast(`Loaded ${state.samples.length} samples from ${file.name}`, "ok");
   } catch (e) {
     toast(e.message);
   }
@@ -222,7 +215,7 @@ const FIELDS = {
 
 function initSettings() {
   $("#model-options").innerHTML = state.config.models
-    .map((m) => `<label class="check model-opt" title="${esc(m.description)}">
+    .map((m) => `<label class="check model-opt">
         <input type="checkbox" name="model" value="${m.name}">${swatch(m.name)}<span>${esc(m.label)}</span>
       </label>`)
     .join("");
@@ -236,7 +229,7 @@ function initSettings() {
     const { label, ...limits } = presets[e.target.value] || {};
     if (label) applySettings({ qc: limits });
   });
-  for (const input of $$('[id^="qc-"]:not(#qc-preset)')) input.addEventListener("input", matchQcPreset);
+  for (const input of $$("#qc-card input")) input.addEventListener("input", matchQcPreset);
   applySettings(state.config.defaults);
 }
 
@@ -299,7 +292,7 @@ function renderBaselines() {
   $("#baseline-list").innerHTML = keys.length
     ? keys.map((key) => `<div class="baseline-row" data-key="${esc(key)}">
           <span class="key">${esc(key.replace(":", " · "))}</span>
-          <label>Mean δ¹⁵N (‰)<input type="number" step="0.01" class="bl-mean" value="${state.baselines[key]?.mean ?? ""}" placeholder="TBD-LAB"></label>
+          <label>Mean δ¹⁵N (‰)<input type="number" step="0.01" class="bl-mean" value="${state.baselines[key]?.mean ?? ""}" ></label>
           <label>SD (‰)<input type="number" step="0.01" min="0.01" class="bl-sd" value="${state.baselines[key]?.sd ?? ""}" placeholder="0.5"></label>
         </div>`).join("")
     : '<p class="muted">Load data to enter baselines for each site and species.</p>';
@@ -346,7 +339,7 @@ function renderResults() {
   const res = state.results.find((r) => r.specimen_id === state.current) || state.results[0];
   if (!res) return;
   $("#res-title").textContent = res.specimen_id;
-  $("#res-meta").innerHTML = `${esc(res.site)} · ${esc(res.species)} ${esc(res.tooth)}${res.period ? ` · ${esc(res.period)}` : ""} · age model: ${esc(res.growth_table)} ${res.growth_placeholder ? tbdBadge : ""}`;
+  $("#res-meta").innerHTML = `${esc(res.site)} · ${esc(res.species)} ${esc(res.tooth)}${res.period ? ` · ${esc(res.period)}` : ""} · age model: ${esc(res.growth_table)}`;
 
   const hasAverage = Object.keys(res.model_average).length > 0;
   const toggles = res.fits.map((f) => [f.model, f.label.split(" (")[0]]).concat(hasAverage ? [["average", "Model average"]] : []);
@@ -363,13 +356,12 @@ function renderResults() {
   }
   $("#btn-zoom-reset").hidden = !state.zoom;
 
-  const warnings = [...res.warnings, ...res.fits.flatMap((f) => f.warnings.map((w) => `${f.label}: ${w}`))];
-  renderWarnings("#res-warnings-box", "#res-warnings-summary", "#res-warnings", warnings,
-    (w) => (/PLACEHOLDER/.test(w) ? "tbd-li" : isNote(w) ? "info" : "warning"));
+  const warnings = [...res.warnings.filter((w) => !SAID_IN_SUMMARY.test(w)), ...res.fits.flatMap((f) => f.warnings.map((w) => `${f.label}: ${w}`))];
+  renderWarnings("#res-warnings-box", "#res-warnings-summary", "#res-warnings", warnings, (w) => (isNote(w) ? "info" : "warning"));
   const d = res.diagnostics;
   const checks = [
-    d.residual_seasonal_p != null && `annual cycle in residuals: ${num(d.residual_seasonal_amplitude)}‰ (p ${pval(d.residual_seasonal_p)})`,
-    d.d13C_seasonal_p != null && `annual cycle in δ¹³C: ${num(d.d13C_seasonal_amplitude)}‰ (p ${pval(d.d13C_seasonal_p)})`,
+    d.residual_seasonal_p != null && `annual cycle in residuals: ${num(d.residual_seasonal_amplitude)}‰ (${pIs(d.residual_seasonal_p)})`,
+    d.d13C_seasonal_p != null && `annual cycle in δ¹³C: ${num(d.d13C_seasonal_amplitude)}‰ (${pIs(d.d13C_seasonal_p)})`,
     d.d13C_d15N_spearman != null && `δ¹³C–δ¹⁵N correlation ρ = ${num(d.d13C_d15N_spearman)}`,
   ].filter(Boolean);
   const carbon = d.d13C_weaning_shift == null ? "" :
@@ -383,7 +375,7 @@ function renderResults() {
     { label: "Nursing δ¹⁵N", cls: "num", render: (f) => num(f.nursing_d15N) },
     { label: "Adult δ¹⁵N", cls: "num", render: (f) => num(f.adult_d15N) },
     { label: "Drop (‰)", cls: "num", render: (f) => num(f.drop_permil) },
-    { label: "Enrichment vs ♀ (‰)", title: "Nursing δ15N minus adult-female baseline", cls: "num", render: (f) => num(f.enrichment_permil) },
+    { label: "Above adult females (‰)", title: "Nursing δ15N minus the adult-female baseline", cls: "num", render: (f) => num(f.enrichment_permil) },
     { label: "RMSE", cls: "num", render: (f) => num(f.rmse, 3) },
     { label: "ΔAICc", cls: "num", render: (f) => num(f.delta_aicc) },
     { label: "Weight", cls: "num", render: (f) => num(f.akaike_weight) },
@@ -401,14 +393,14 @@ function summaryText(res, milestone) {
   if (!best) return "<p>No model could be fitted to this specimen.</p>";
   const age = headline(res, milestone);
   if (!age) return `<p><strong>No ${MILESTONE_NAME[milestone]} reported.</strong> ${esc(best.withheld ? `${best.label}: ${best.withheld}.` : `${best.label} does not give one.`)}</p>`;
-  const source = best[milestone] ? best.label : "Model average";
   const avg = res.model_average[milestone];
   const others = MILESTONES.filter((k) => k !== milestone && headline(res, k))
     .map((k) => `${capital(MILESTONE_NAME[k])} ${ageValue(headline(res, k))} ${unitShort()}`);
   const staged = best.model === "two_phase"
     ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${ageText(best.extra.supplementation_months)}.` : "";
   return `${readout(age, MILESTONE_NAME[milestone])}
-    <p>${others.join(" · ")}${others.length ? ". " : ""}From: <strong>${esc(source)}</strong>${avg && best[milestone] ? `; model average ${ageValue(avg)} ${unitShort()}` : ""}.
+    <p>${others.join(" · ")}${others.length ? ". " : ""}Best-supported model: <strong>${esc(best.label)}</strong>${!best[milestone] ? `, which gives no ${milestone}, so the age shown is the model average`
+      : avg ? `; model average ${ageValue(avg)} ${unitShort()}` : ""}.
     Nursing δ¹⁵N ${num(best.nursing_d15N, 1)}‰, adult ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `, ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${staged}
     ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}</p>`;
 }
@@ -460,7 +452,7 @@ async function refreshCompare() {
       hi: toUnit(means[groupName(s)]?.ci_high),
       values: rows.filter((r) => groupName(r) === groupName(s) && r[milestone] != null)
         .map((r) => ({ v: toUnit(r[milestone]), label: `${esc(r.specimen_id)}: ${ageText(r[milestone])} (${r.model})` })),
-    })), `Weaning ${milestone} (${unitWord()}): random-effects mean ± 95% CI, dots = specimens`);
+    })), `Weaning ${milestone} (${unitWord()}): random-effects mean ± 95% interval, dots = specimens`);
     table($("#cmp-table"), [
       ...group_by.map((g) => ({ label: capital(g), key: g })),
       { label: "Estimates", key: "model" },
@@ -469,7 +461,7 @@ async function refreshCompare() {
       { label: "SD", cls: "num", render: (r) => ageNum(r.sd) },
       { label: "Median", cls: "num", render: (r) => ageNum(r.median) },
       { label: "Range", cls: "num", render: (r) => range(r.min, r.max) },
-      { label: "95% CI (t)", cls: "num", render: (r) => (r.ci95_low != null ? range(r.ci95_low, r.ci95_high) : "—") },
+      { label: "95% interval (t)", cls: "num", render: (r) => (r.ci95_low != null ? range(r.ci95_low, r.ci95_high) : "—") },
     ], out.summary);
     renderTests(out.tests);
     table($("#dis-table"), [
@@ -487,7 +479,6 @@ async function refreshCompare() {
 
 const range = (lo, hi) => `${ageNum(lo)}–${ageNum(hi)}`; // ages, in the chosen unit
 
-const pIs = (p) => (p != null && p < 0.001 ? "p < 0.001" : `p = ${pval(p)}`);
 
 function renderTests(t) {
   $("#tests-body").innerHTML = `${t.q_p != null
@@ -501,7 +492,7 @@ function renderTests(t) {
   table($("#t-groups"), [
     { label: "Group", key: "group" }, { label: "n", key: "n", cls: "num" },
     { label: "Mean", cls: "num", render: (g) => ageNum(g.mean) },
-    { label: "95% CI", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
+    { label: "95% interval", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
     { label: "τ", cls: "num", render: (g) => ageNum(g.tau, 2) },
   ], t.groups);
   table($("#t-pairs"), [
@@ -514,25 +505,25 @@ function renderTests(t) {
 
   const b = t.bayes;
   if (!b) return ($("#bayes-body").innerHTML = '<p class="muted">Needs at least three specimens.</p>');
-  $("#bayes-body").innerHTML = `<p class="muted small">${b.method === "one-stage" ? "One-stage model on the raw δ¹⁵N values · " : ""}Shared between-animal SD τ = ${ageNum(b.tau_mean, 2)} ${unitWord()} (95% CrI ${ageNum(b.tau_ci_low, 2)}–${ageNum(b.tau_ci_high, 2)}) ·
+  $("#bayes-body").innerHTML = `<p class="muted small">${b.method === "one-stage" ? "One-stage model on the raw δ¹⁵N values · " : ""}Shared between-animal SD τ = ${ageNum(b.tau_mean, 2)} ${unitWord()} (95% interval ${ageNum(b.tau_ci_low, 2)}–${ageNum(b.tau_ci_high, 2)}) ·
       max R̂ ${num(b.rhat_max, 3)} ${help("rhat")} · ${b.draws} posterior draws${b.rhat_max > 1.05 ? ' · <span class="warn-text">not fully converged</span>' : ""}</p>
     <div class="grid-2"><div class="table-wrap"><table id="b-groups"></table></div><div class="table-wrap"><table id="b-pairs"></table></div></div>
     <details><summary>Specimen estimates after partial pooling</summary><div class="table-wrap"><table id="b-specimens"></table></div></details>`;
   table($("#b-groups"), [
     { label: "Group", key: "group" },
     { label: "Posterior mean", cls: "num", render: (g) => ageNum(g.mean) },
-    { label: "95% CrI", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
+    { label: "95% interval", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
   ], b.groups);
   table($("#b-pairs"), [
     { label: "Comparison", render: (p) => `${esc(p.group_a)} vs ${esc(p.group_b)}` },
-    { label: "Probability the first weaned earlier", cls: "num", render: (p) => `${Math.round(p.prob_a_earlier * 100)}%` },
-    { label: "Difference (95% CrI)", cls: "num", render: (p) => `${ageNum(p.difference_mean)} (${range(p.difference_ci_low, p.difference_ci_high)})` },
+    { label: "Probability the first weaned earlier", cls: "num", render: (p) => percent(p.prob_a_earlier) },
+    { label: "Difference (95% interval)", cls: "num", render: (p) => `${ageNum(p.difference_mean)} (${range(p.difference_ci_low, p.difference_ci_high)})` },
   ], b.pairs);
   table($("#b-specimens"), [
     { label: "Specimen", key: "specimen_id" }, { label: "Group", key: "group" },
     { label: "Own estimate", cls: "num", render: (s) => ageNum(s.observed) },
     { label: "Pooled estimate", cls: "num", render: (s) => ageNum(s.shrunk) },
-    { label: "95% CrI", cls: "num", render: (s) => range(s.ci_low, s.ci_high) },
+    { label: "95% interval", cls: "num", render: (s) => range(s.ci_low, s.ci_high) },
   ], b.specimens);
 }
 
@@ -550,7 +541,7 @@ function renderValidation(rows) {
     { label: "MAE", cls: "num", render: (r) => ageNum(r.mae, 2) },
     { label: "RMSE", cls: "num", render: (r) => ageNum(r.rmse, 2) },
     { label: "Pearson r", cls: "num", render: (r) => num(r.pearson_r) },
-    { label: "95% interval coverage", cls: "num", render: (r) => (r.ci_coverage != null ? `${Math.round(r.ci_coverage * 100)}%` : "—") },
+    { label: "95% interval coverage", cls: "num", render: (r) => percent(r.ci_coverage) },
   ], rows);
 }
 
@@ -611,7 +602,7 @@ function offerRestore() {
   try { saved = JSON.parse(localStorage.getItem("weanage-autosave")); } catch {}
   const animals = saved?.bone?.samples?.length || 0;
   if (!saved?.samples?.length && !animals) return;
-  const what = [saved.samples.length && `${saved.samples.length} tooth samples`, animals && `${animals} bone samples`].filter(Boolean).join(", ");
+  const what = [saved.samples.length && `${saved.samples.length} tooth samples`, animals && `${animals} animals (bone)`].filter(Boolean).join(", ");
   $("#restore-when").textContent = `${what}, ${new Date(saved.saved_at).toLocaleString()}`;
   $("#restore-banner").hidden = false;
   $("#btn-restore").onclick = () => { openProject(saved); $("#restore-banner").hidden = true; };
@@ -628,7 +619,7 @@ async function makeReport() {
     }
     const html = buildReport({ config: state.config, state, settings: settings(), compare });
     download(`weanage_report_${new Date().toISOString().slice(0, 10)}.html`, new Blob([html], { type: "text/html" }));
-    toast("Report downloaded. Open it in a browser and print to PDF if needed.", "ok");
+    toast("Report downloaded.", "ok");
   } catch (e) {
     toast(e.message);
   }
@@ -721,7 +712,7 @@ function bind() {
     }
   });
   on("#btn-report", "click", makeReport);
-  initHelpMenu(show);
+  initHelpMenu(show, () => state.mode);
   on("#btn-theme", "click", () => setLook("theme", document.documentElement.dataset.theme === "light" ? "dark" : "light"));
   on("#btn-text", "click", () => setLook("text", document.documentElement.dataset.text === "large" ? "normal" : "large"));
   on("#btn-units", "click", () => setUnits(getAgeUnit() === "years" ? "months" : "years"));
@@ -734,7 +725,9 @@ function setLook(key, value) {
   try { localStorage.setItem(`weanage-${key}`, value); } catch {}
   showLook();
   if (state.results?.length) renderResults(); // charts pick their colours when drawn
+  if (state.bone?.results) renderBoneResults();
   if (state.plan) renderPlan(state);
+  if (state.bonePlan) renderBonePlan(state);
 }
 
 /** Show results in months or years. The analysis itself always works in months. */
@@ -743,7 +736,7 @@ function setUnits(unit) {
   setAgeUnit(unit);
   // Boxes that hold an age keep the same age in the new unit.
   const factor = before === unit ? 1 : unit === "years" ? 1 / 12 : 12;
-  for (const input of $$("input[data-age]")) if (input.value !== "") input.value = +(Number(input.value) * factor).toFixed(3);
+  convertAgeInputs(factor);
   state.zoom = null; // a zoom window is in the old unit
   showUnits();
   if (state.mode === "bone") renderBoneData();
@@ -752,6 +745,13 @@ function setUnits(unit) {
   if (state.plan) renderPlan(state);
   if (state.bonePlan) renderBonePlan(state);
   if ($("#view-compare").classList.contains("active")) refreshCompare();
+}
+
+/** Boxes that hold an age (data-age) or a list of ages (data-age-list) keep the same age in a new unit. */
+function convertAgeInputs(factor) {
+  const convert = (text) => text.split(/[,;\s]+/).filter(Boolean).map((v) => +(Number(v) * factor).toFixed(3)).join(", ");
+  for (const input of $$("input[data-age]")) if (input.value !== "") input.value = convert(input.value);
+  for (const input of $$("input[data-age-list]")) input.value = convert(input.value);
 }
 
 function showUnits() {
@@ -795,9 +795,10 @@ async function init() {
   bind();
   showLook();
   showUnits();
+  if (getAgeUnit() === "years") convertAgeInputs(1 / 12); // the page's starting values are in months
   renderData();
   offerRestore();
-  if (!tourSeen()) startTour(show);
+  if (!tourSeen()) startTour(show, state.mode);
 }
 
 init();

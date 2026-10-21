@@ -21,8 +21,6 @@ export const GLOSSARY = {
   inner_weight: ["Inner dentine weight", "How much the latest-formed (innermost) dentine in a slice counts relative to the earliest. 1 = equal; smaller values = the tooth narrows towards the pulp so there is less of it."],
   seasonal: ["Seasonal term", "Livestock diets change with the seasons (pasture, fodder), which can make δ¹⁵N and δ¹³C rise and fall every year. Adding a seasonal term lets the fit separate that cycle from weaning."],
   baseline: ["Adult-female baseline", "δ¹⁵N of adult females (the mothers' population). The nursing level minus this value is the nursing enrichment; it can also anchor the adult plateau."],
-  enrichment: ["Nursing enrichment", "How much higher the nursing δ¹⁵N is than the adult females' value; typically about one food-chain step."],
-  two_phase: ["Two-phase weaning", "A two-step decline: supplementary feeding while still suckling, then final weaning. Expected where people took part of the milk (dairying)."],
   elbow: ["Elbow method", "The method of the WEAN tool: a smooth polynomial is fitted and weaning is placed where the curve bends most sharply."],
   aicc: ["AICc", "A score of how well a model fits, penalised for complexity. Lower is better; differences (ΔAICc) under ~2 mean the models are about equally supported."],
   weight: ["Akaike weight", "The relative support for each model among those fitted (they sum to 1)."],
@@ -42,8 +40,6 @@ export const GLOSSARY = {
   turnover: ["Bone collagen turnover", "The share of bone collagen newly made each month. It is high in fast-growing young animals and falls with age. WARN estimated it for humans; for livestock the values are placeholders until bone growth and remodelling data are compiled."],
   rhat: ["R̂ (convergence)", "Checks the Bayesian sampler has settled: values close to 1.00 (below 1.05) are fine."],
   coverage: ["Interval coverage", "How often the 95% interval contains the true value. Close to 95% means the uncertainty is well calibrated."],
-  mae: ["MAE", "Mean absolute error: the average size of the error, in months."],
-  bias: ["Bias", "The average signed error: positive means estimates are systematically too late."],
   simulation: ["Sampling planner", "Simulates teeth with known weaning ages, samples them as your protocol would, runs the analysis and shows how accurate the results are. Use it to choose sampling intervals before cutting teeth."],
 };
 
@@ -80,16 +76,17 @@ export function initGlossary() {
 
 const TOUR = [
   { view: "data", sel: "#dropzone", title: "1 · Load your data", text: "Drop a CSV or Excel file with one row per dentine slice, or choose an example (simulated, or real published cattle data) and press 'Load example'." },
-  { view: "data", sel: "#manual-form", title: "Or type samples in", text: "Specimen details are remembered between entries and the position steps forward automatically." },
-  { view: "settings", sel: "#model-options", title: "2 · Choose curve models", text: "Every model is fitted to every specimen so you can see how much the method matters. Leave them all on if unsure." },
-  { view: "settings", sel: "#growth-list", title: "Age models", text: "These convert tooth position to age. Yellow ones are placeholders: edit them, calibrate them from reference data, or save your own." },
-  { view: "settings", sel: "#btn-run", title: "Run the analysis", text: "A progress bar shows while curves are fitted. Larger datasets are processed in parallel." },
-  { view: "plan", sel: "#plan-form", title: "Plan your sampling", text: "Before cutting teeth, simulate how accurate different sampling intervals or numbers of animals would be." },
+  { view: "data", sel: "#manual-form", mode: "tooth", title: "Or type samples in", text: "Specimen details are remembered between entries and the position steps forward automatically." },
+  { view: "settings", sel: "#model-options", mode: "tooth", title: "2 · Choose curve models", text: "Every model is fitted to every specimen so you can see how much the method matters. Leave them all on if unsure." },
+  { view: "settings", sel: "#growth-list", mode: "tooth", title: "Age models", text: "These convert tooth position to age. Yellow ones are placeholders: edit them, calibrate them from reference data, or save your own." },
+  { view: "settings", sel: "#btn-run", mode: "tooth", title: "Run the analysis", text: "A progress bar shows while curves are fitted." },
+  { view: "plan", sel: "#plan-form", mode: "tooth", title: "Plan your sampling", text: "Before cutting teeth, simulate how accurate different sampling intervals or numbers of animals would be." },
   { view: null, sel: "#btn-save", title: "Save your work", text: "Save the whole project (data, settings and results) to a file and reopen it later. Your work is also kept in this browser automatically." },
   { view: null, sel: "#btn-help", title: "Need a reminder?", text: "Press ? next to any term for a plain-language explanation. The Help menu reopens this tour and links to the user guide." },
 ];
 
-export function startTour(show) {
+export function startTour(show, mode = "tooth") {
+  const steps = TOUR.filter((step) => !step.mode || step.mode === mode); // bone mode hides the tooth-only parts
   let i = 0;
   const overlay = document.createElement("div");
   overlay.className = "tour";
@@ -113,14 +110,14 @@ export function startTour(show) {
     } catch {}
   };
   const render = () => {
-    const step = TOUR[i];
+    const step = steps[i];
     if (step.view) show(step.view);
     const target = $(step.sel);
     overlay.querySelector("#tour-title").textContent = step.title;
     overlay.querySelector(".tour-text").textContent = step.text;
-    overlay.querySelector(".tour-count").textContent = `${i + 1} of ${TOUR.length}`;
+    overlay.querySelector(".tour-count").textContent = `${i + 1} of ${steps.length}`;
     overlay.querySelector('[data-act="back"]').disabled = i === 0;
-    overlay.querySelector('[data-act="next"]').textContent = i === TOUR.length - 1 ? "Finish" : "Next";
+    overlay.querySelector('[data-act="next"]').textContent = i === steps.length - 1 ? "Finish" : "Next";
     if (target) {
       target.scrollIntoView({ block: "center" });
       const r = target.getBoundingClientRect();
@@ -144,7 +141,7 @@ export function startTour(show) {
       render();
     }
     if (act === "next") {
-      if (i === TOUR.length - 1) finish();
+      if (i === steps.length - 1) finish();
       else {
         i += 1;
         render();
@@ -166,7 +163,7 @@ export function tourSeen() {
 // The Help menu: the tour, and the PDF user guide
 const GUIDE_PDF = "guide/WeanAge_user_guide.pdf";
 
-export function initHelpMenu(show) {
+export function initHelpMenu(show, mode) {
   const button = $("#btn-help");
   const menu = $("#help-menu");
   const items = () => [...menu.querySelectorAll("button, a[href]")];
@@ -183,7 +180,7 @@ export function initHelpMenu(show) {
   button.addEventListener("click", () => (menu.hidden ? open() : close(false)));
   $("#menu-tour").addEventListener("click", () => {
     close(false);
-    startTour(show);
+    startTour(show, mode());
   });
   $("#menu-guide").addEventListener("click", () => close(false));
   menu.addEventListener("keydown", (e) => {

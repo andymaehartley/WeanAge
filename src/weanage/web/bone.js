@@ -1,10 +1,9 @@
 // The bone calculation: many young animals that died at different ages (after WARN).
 // Its data, settings and results live in state.bone, apart from the tooth calculation's.
 import { api } from "./api.js";
-import { curveChart } from "./chart.js";
 import { offscreen } from "./report.js";
-import { ageMarker } from "./chart.js";
-import { $, ageNum, ageText, ci, color, download, esc, fromUnit, help, num, plural, progressBar, readout, renderIssues, renderReady, renderWarnings, table, tbdBadge, toast, toCsv, toUnit, unitWord } from "./util.js";
+import { ageMarker, curveChart } from "./chart.js";
+import { $, ageNum, ageText, ci, color, download, esc, fromUnit, help, num, percent, pIs, plural, progressBar, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, table, tbdBadge, toast, toCsv, toUnit, unitWord } from "./util.js";
 
 // Bone settings and the form box that holds each (all numbers).
 const FIELDS = ["max_weaning_age_months", "enrichment_prior_mean", "enrichment_prior_sd", "newborn_offset_mean",
@@ -57,7 +56,6 @@ export function initBone(appState, appHooks) {
 export async function loadBoneFile(file) {
   try {
     setBoneReport(await api.boneUpload(file));
-    toast(`Loaded ${plural(state.bone.samples.length, "animal")} from ${file.name}`, "ok");
   } catch (e) {
     toast(e.message);
   }
@@ -148,7 +146,7 @@ export function renderBoneData() {
     { label: "Specimen", key: "specimen_id" },
     { label: "Site", key: "site" },
     { label: "Species", key: "species" },
-    { label: "Adult / young", render: (s) => (s.age_class === "adult" ? `adult${s.sex === "f" ? " ♀" : s.sex === "m" ? " ♂" : ""}` : "young") },
+    { label: "Adult / young", render: (s) => (s.age_class === "adult" ? `adult${s.sex === "f" ? " female" : s.sex === "m" ? " male" : ""}` : "young") },
     { label: `Age (${unitWord()})`, cls: "num", render: (s) => (s.age_months == null ? "—" : s.age_min_months !== s.age_max_months ? `${ageNum(s.age_min_months)}–${ageNum(s.age_max_months)}` : ageNum(s.age_months)) },
     { label: "δ¹⁵N", cls: "num", render: (s) => num(s.d15N) },
     { label: "δ¹³C", cls: "num", render: (s) => num(s.d13C) },
@@ -196,7 +194,7 @@ export function renderTurnover() {
   }).join(" · ") : "Load bone data to see the values for its species.";
   $("#turnover-list").innerHTML = tables.length ? tables.map((t) => `<h3>${esc(t.label)} ${t.placeholder ? tbdBadge : ""}</h3>
     <table><thead><tr><th>Age (months)</th>${t.ages_months.map((a) => `<th class="num">${num(a, 0)}</th>`).join("")}</tr></thead>
-    <tbody><tr><th>Renewed per month</th>${t.renewed_per_month.map((r) => `<td class="num">${Math.round(r * 100)}%</td>`).join("")}</tr></tbody></table>
+    <tbody><tr><th>Renewed per month</th>${t.renewed_per_month.map((r) => `<td class="num">${percent(r)}</td>`).join("")}</tr></tbody></table>
     ${t.tbd_note ? `<p class="hint">${esc(t.tbd_note)}</p>` : ""}`).join("") : '<p class="muted">No turnover table for these species.</p>';
 }
 
@@ -224,7 +222,6 @@ async function runBone() {
 // Results
 const currentResult = () => state.bone.results?.find((r) => r.group === state.bone.current) || state.bone.results?.[0];
 const isNote = (w) => /PLACEHOLDER|stand in|taken from Settings/.test(w);
-const isTbd = (w) => /PLACEHOLDER/.test(w);
 
 function choose(group) {
   state.bone.current = group;
@@ -246,12 +243,12 @@ export function renderBoneResults() {
   const res = currentResult();
   if (!res) return;
   $("#bone-res-title").textContent = res.group;
-  $("#bone-res-meta").innerHTML = `${plural(res.n_young, "young animal")} fitted · turnover: ${esc(res.turnover || "none")} ${res.turnover_placeholder ? tbdBadge : ""}`;
+  $("#bone-res-meta").innerHTML = `${plural(res.n_young, "young animal")} fitted · turnover: ${esc(res.turnover || "none")}`;
   $("#bone-res-summary").innerHTML = summary(res);
   if (res.curve) curveChart($("#bone-res-chart"), chartOptions(res));
   else $("#bone-res-chart").innerHTML = `<p class="muted">${esc(res.message)}</p>`;
-  renderWarnings("#bone-warnings-box", "#bone-warnings-summary", "#bone-res-warnings", res.warnings,
-    (w) => (isTbd(w) ? "tbd-li" : isNote(w) ? "info" : "warning"));
+  renderWarnings("#bone-warnings-box", "#bone-warnings-summary", "#bone-res-warnings", res.warnings.filter((w) => !SAID_IN_SUMMARY.test(w)),
+    (w) => (isNote(w) ? "info" : "warning"));
   const rows = res.estimates ? ESTIMATES.map(([key, label, unit]) => ({ label, unit, ...res.estimates[key] })) : [];
   table($("#bone-fit-table"), [
     { label: "Estimate", render: (r) => esc(r.label) },
@@ -269,7 +266,7 @@ function summary(res) {
   const e = res.estimates;
   const c = res.nursing_check;
   const signal = c?.p_value == null ? "" : c.p_value < 0.05
-    ? ` The youngest animals are ${num(c.difference_permil, 1)}‰ above the mothers (p ${c.p_value < 0.001 ? "< 0.001" : `= ${num(c.p_value, 3)}`}), so there is a nursing signal ${help("nursing_check")}.`
+    ? ` The youngest animals are ${num(c.difference_permil, 1)}‰ above the mothers (${pIs(c.p_value)}), so there is a nursing signal ${help("nursing_check")}.`
     : ` <span class="warn-text">The youngest animals are not clearly above the mothers ${help("nursing_check")}.</span>`;
   return `${readout(e.completion, "suckling ends")}<p>Weaning started at about ${ageNum(e.onset.estimate)} ${unitWord()}
     (95% interval ${ci(e.onset)}). Milk-fed young were about ${num(e.enrichment_permil.estimate, 1)}‰ above their mothers.${signal}

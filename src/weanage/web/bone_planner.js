@@ -1,7 +1,7 @@
 // Planning a bone study: simulate sites with a known weaning age and see how well a design recovers it.
 import { api } from "./api.js";
 import { lineChart } from "./chart.js";
-import { $, ageNum, ageText, color, esc, fromUnit, num, plural, progressBar, table, toast, toUnit, unitWord } from "./util.js";
+import { $, ageNum, ageText, color, esc, fromUnit, num, percent, plural, progressBar, table, toast, toUnit, unitWord } from "./util.js";
 
 // Settings that can be compared; `age` ones are typed in the chosen unit.
 const SWEEPS = {
@@ -42,7 +42,11 @@ export function initBonePlanner(state) {
     $("#bp-end-lo").value = +toUnit(t.lo).toFixed(2);
     $("#bp-end-hi").value = +toUnit(t.hi).toFixed(2);
   });
-  $("#bp-sweep").addEventListener("change", () => { $("#bp-values").disabled = !$("#bp-sweep").value; });
+  $("#bp-sweep").addEventListener("change", () => {
+    const param = $("#bp-sweep").value;
+    $("#bp-values").disabled = !param;
+    $("#bp-values").toggleAttribute("data-age-list", Boolean(SWEEPS[param].age)); // converted when the unit changes
+  });
   $("#bp-metric").addEventListener("change", () => state.bonePlan && renderBonePlan(state));
   $("#bone-plan-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -100,7 +104,6 @@ async function runBonePlan(state) {
 
 const shown = (metric, value) => (value == null ? null : AGE_METRICS.has(metric) ? toUnit(value) : value);
 const value = (x) => (Number.isInteger(x) ? String(x) : num(x, 2)); // counts stay whole numbers
-const share = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 
 export function renderBonePlan(state) {
   const plan = state.bonePlan;
@@ -114,12 +117,12 @@ export function renderBonePlan(state) {
   table($("#bp-table"), [
     ...(param ? [{ label: esc(sweep.label + (sweep.age ? ` (${unitWord()})` : "")), cls: "num", render: (r) => value(xOf(r)) }] : []),
     { label: "Sites", key: "n", cls: "num" },
-    { label: "Fitted", cls: "num", render: (r) => share(r.success_rate) },
-    { label: "Signal found", cls: "num", render: (r) => share(r.signal_found) },
+    { label: "Fitted", cls: "num", render: (r) => percent(r.success_rate) },
+    { label: "Signal found", cls: "num", render: (r) => percent(r.signal_found) },
     { label: "MAE", cls: "num", render: (r) => ageNum(r.mae, 2) },
     { label: "Bias", cls: "num", render: (r) => ageNum(r.bias, 2) },
     { label: "95% interval width", cls: "num", render: (r) => ageNum(r.ci_width, 2) },
-    { label: "95% coverage", cls: "num", render: (r) => share(r.ci_coverage) },
+    { label: "95% coverage", cls: "num", render: (r) => percent(r.ci_coverage) },
   ], rows);
   const metric = $("#bp-metric").value;
   if (param && rows.length > 1) {
@@ -134,7 +137,7 @@ export function renderBonePlan(state) {
 /** One plain sentence: the smallest design that finds the signal and dates weaning within a set precision. */
 function summary(plan, rows, sweep, xOf) {
   const tbd = plan.turnover_placeholder ? ' <span class="tbd-inline">Uses placeholder bone turnover for this species.</span>' : "";
-  const describe = (r) => `the 95% interval is ${ageText(r.ci_width)} wide on average, the error ${ageText(r.mae)}, and the nursing signal was found at ${share(r.signal_found)} of the sites`;
+  const describe = (r) => `the 95% interval is ${ageText(r.ci_width)} wide on average, the error ${ageText(r.mae)}, and the nursing signal was found at ${percent(r.signal_found)} of the sites`;
   if (rows.length === 1) return `<p>With this design ${describe(rows[0])}.${tbd}</p>`;
   const good = rows.filter((r) => r.signal_found >= 0.8 && r.ci_coverage >= 0.8);
   const first = good.length ? good.reduce((a, b) => (xOf(a) <= xOf(b) ? a : b)) : null;

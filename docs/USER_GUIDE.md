@@ -2,17 +2,16 @@
 
 A walk through one full session: opening the app, loading isotope data, running the curve
 models, reading the weaning age, comparing groups and planning a sampling protocol. The
-screenshots show the bundled **synthetic** example, not real measurements.
+screenshots show the bundled synthetic example, not real measurements.
 
-> **Draft status.** Tooth growth tables and several lab parameters are still placeholders,
-> marked `TBD-LAB`. The app works end to end, but the weaning ages are illustrative until
-> those values come from lab work.
+Tooth growth tables and several lab parameters are placeholders, marked `TBD-LAB`, so the
+weaning ages are illustrative until those values are supplied (see
+[LAB_DATA_TBD.md](LAB_DATA_TBD.md)).
 
-> **Layout note.** Settings that most people leave alone are folded under **Advanced settings**
-> in each box; click it to open them. A yellow TBD-LAB badge on an *Advanced settings* line means
-> a placeholder value is inside. Some screenshots below show the older, unfolded layout.
+Settings that most people leave alone are under *Advanced settings* in each box. A yellow
+TBD-LAB badge on an *Advanced settings* line means a placeholder value is inside.
 
-**Contents:**
+Contents:
 0. [Open the app](#0-open-the-app)
 1. [Take the tour](#1-take-the-tour)
 2. [See what lab data is missing](#2-see-what-lab-data-is-still-missing)
@@ -34,18 +33,18 @@ screenshots show the bundled **synthetic** example, not real measurements.
 
 There are two ways:
 
-* **Browser version**: open the WeanAge web page; nothing to install. The first visit
+* Browser version: open the WeanAge web page; nothing to install. The first visit
   downloads the analysis engine (about 40 MB) and then works offline. Your data never
-  leaves your computer.
-* **Installed version**: from the project folder, `pip install -e .` once, then `weanage`.
+  leave your computer.
+* Installed version: from the project folder, `pip install -e .` once, then `weanage`.
   This opens `http://127.0.0.1:8765/app/` in your browser.
 
-Both look and work the same.
+Both work the same way.
 
 ## 1. Take the tour
 
-On the first visit an eight-step tour points out each part of the screen. Press **Next**,
-or **Skip tour**. The **Help** menu in the top bar restarts it and links to the PDF user guide. The numbered tabs (Data, Settings,
+On the first visit an eight-step tour points out each part of the screen. Press *Next*,
+or *Skip tour*. The *Help* menu in the top bar restarts it and links to the PDF user guide. The numbered tabs (Data, Settings,
 Results, Compare, Plan sampling) follow the order you will work in.
 
 ![The opening screen with the guided tour](guide/01_tour.png)
@@ -63,16 +62,16 @@ real, it leaves the list.
 One row per dentine slice. Required columns: `specimen_id`, `site`, `species`, `tooth`,
 `position_mm` (cusp tip to the middle of the slice) and `d15N`. Either:
 
-* drop a **CSV or Excel** file on the dashed box (common spellings such as `δ15N (‰)`,
+* drop a CSV or Excel file on the dashed box (common spellings such as `δ15N (‰)`,
   `C:N` or `Animal` are recognised),
-* **Download blank template** to start a spreadsheet with the right columns, or
-* **Add samples by hand** with the form on the right, or
-* choose an **example**: the simulated dataset, or real archaeological cattle from Khami
-  (Zimbabwe) and Bornais (Outer Hebrides) taken from the IsoArcH database. In the real
-  example the slice positions are assumed (see `src/weanage/data/examples/README.md`).
+* *Download blank template* to start a spreadsheet with the right columns,
+* *Add samples by hand* with the form on the right, or
+* choose an example: the simulated dataset, real archaeological cattle from Khami
+  (Zimbabwe) and Bornais (Outer Hebrides) from the IsoArcH database, or human first molars
+  from Mikulčice (CIMA). In the IsoArcH example the slice positions are assumed (see
+  `src/weanage/data/examples/README.md`).
 
-Not sure what *cusp apex*, *cervix* or `position_mm` mean? The **Tooth terms and how positions are
-measured** link in the instructions opens a labelled tooth diagram ("Tooth Section" by Sam Fentress,
+The *Tooth terms and how positions are measured* link in the instructions opens a labelled tooth diagram ("Tooth Section" by Sam Fentress,
 Wikimedia Commons, CC BY-SA 2.0) with every term the app uses.
 
 Data exported from [IsoArcH](https://isoarch.eu) can be converted with
@@ -88,41 +87,43 @@ are joined into one timeline.
 
 ### Humans
 
-Choose **human** as the species (or write `human` in the species column). Human first molars use a
+Choose *human* as the species (or write `human` in the species column). Human first molars use a
 growth table running from birth at the cusp apex to root completion at about 9.5 years (Beaumont et
 al. 2013, London Atlas); it is marked TBD-LAB until it has been checked against the Atlas. In the
 bone calculation, humans use WARN's own turnover values and priors.
 
 ### Months or years
 
-**Ages in years** in the header shows every result, chart and table in years instead of months
-(handy for humans). Boxes that ask for an age follow the switch. The analysis itself always
-works in months.
+*Ages in years* in the header switches results, charts, tables and the report from months
+to years. The age boxes in the bone form and the bone planner are typed in the chosen unit.
+Other inputs (growth tables, the tooth planner and the maximum weaning age) are always in
+months and are labelled so. The analysis itself works in months.
 
 ### Bone instead of teeth
 
-Choose **Bone calculation** at the top of *Load isotope data* when you have bone collagen from
-many young animals of known (or estimated) age at death, rather than slices of teeth. One row
+Choose *Bone calculation* at the top of *Load isotope data* when you have bone collagen from
+many young animals of known or estimated age at death, rather than slices of teeth. One row
 per animal: `specimen_id`, `site`, `species`, `d15N`, and for young animals the age at death
 in months (`age_months`, or better `age_min_months` + `age_max_months`). Mark adults with
-`age_class` = adult and the mothers with `sex` = F. Settings then shows the bone model's
+`age_class` = adult and the mothers with `sex` = F. Examples: a synthetic dataset, and human
+bone from Wharram Percy, York Fishergate House and Newark Bay (CIMA). Settings then shows the bone model's
 priors and turnover rates, and Results plots δ¹⁵N against age at death with the fitted bone
 curve, the diet it implies and the estimated start and end of weaning. The method follows
 WARN (Tsutaya & Yoneda 2013); see section 10 of [METHODS.md](METHODS.md). Livestock bone
 turnover rates are still placeholders, so the ages are illustrative.
 
-Animals can also be typed in one at a time under **Add animals by hand**: choose young, adult
+Animals can also be typed in one at a time under *Add animals by hand*: choose young, adult
 female or adult male, give the age range at death for the young, and δ¹⁵N.
 
-**Planning a bone study.** In bone mode, *Plan sampling* simulates sites with a known end of
+In bone mode, *Plan sampling* simulates sites with a known end of
 suckling, samples them as your study would and runs the bone calculation on each. Compare, for
 example, 20, 40 and 80 young animals to see how wide the 95% interval becomes and how often the
 nursing signal is found.
 
 ## 4. Choose the curve models
 
-All five weaning-curve shapes are fitted, so you can see how much the choice of method
-changes the answer. Each has its own colour *and* line pattern.
+All five weaning-curve shapes are fitted, so you can see how much the choice of model
+changes the answer. Each has its own colour and line pattern.
 
 | model | use it when |
 |---|---|
@@ -132,53 +133,60 @@ changes the answer. Each has its own colour *and* line pattern.
 | Two-phase | supplementary feeding came before final weaning (e.g. dairying) |
 | Elbow (WEAN) | results comparable with WEAN (Ganiatsou et al. 2023) |
 
-The elbow model always finds *some* point, even in a flat series, so it shows **no weaning
-age** when δ¹⁵N does not clearly fall, the elbow would be before birth, or the estimate is
-too uncertain to mean anything. Its message says which.
+A curve can be fitted to any series, even a flat one, so a model shows no weaning age when
+δ¹⁵N falls by less than the minimum drop (1‰ by default) or the fall is centred before
+birth. The elbow model also shows none when its estimate spans most of the series. The
+message says which.
 
-Below them choose the milestone to report (onset, midpoint or completion), how
-uncertainty is calculated, and the smallest and largest believable δ¹⁵N drop.
+Below the models, choose the milestone to report, how uncertainty is calculated, and the
+smallest and largest believable δ¹⁵N drop. The default milestone is the midpoint (half the
+fall), which is dated most precisely. Completion (95% of the fall) depends on how slowly
+δ¹⁵N levels off and is often much later than the end of suckling.
 
 ![Curve model settings](guide/05_models.png)
 
 ## 5. Set the collagen quality limits
 
 Samples outside these limits are flagged and, by default, not fitted. Start from a
-published set: **Archaeological** (C:N 2.9–3.6) for archaeological teeth, or **Modern
-reference animals** (C:N 3.00–3.28, Guiry & Szpak 2020) for modern known-age animals.
+published set: *Archaeological* (C:N 2.9–3.6) for archaeological teeth, or *Modern
+reference animals* (C:N 3.00–3.28, Guiry & Szpak 2020) for modern known-age animals.
 
 ![Collagen QC limits](guide/06_qc.png)
 
 ## 6. Check the tooth age models
 
 An age model turns a slice's position into the animal's age when that dentine formed.
-Edit the points, switch to a simple linear model, or **Calibrate from reference data**
-from known-age animals. **Save to my tables** keeps your version. Set the **age
-uncertainty** honestly: it is carried into every interval.
+Edit the points, switch to a simple linear model, or *Calibrate from reference data*
+from known-age animals. *Save to my tables* keeps your version. Ages here are in months.
+The age uncertainty is carried into every interval, so set it realistically.
 
 ![Tooth age models](guide/07_growth_tables.png)
 
 ## 7. Optional corrections, then run
 
-* **Time averaging**: each slice mixes weeks of growth, which blurs and delays the
+* Time averaging: each slice mixes weeks of growth, which blurs and delays the
   weaning signal (Tsutaya 2020). With this on, the curve describes the real diet change.
-* **Seasonal term**: a yearly cycle, so a seasonal pasture change is not taken for weaning.
-* **Adult-female baselines**: δ¹⁵N of adult females from the same site, for nursing enrichment.
+* Seasonal term: a yearly cycle, so a seasonal pasture change is not taken for weaning.
+* Adult-female baselines: δ¹⁵N of adult females from the same site, for nursing enrichment.
 
 ![Optional corrections](guide/08_options.png)
 
-Press **Run analysis** at the bottom of Settings. A progress bar follows each specimen.
+Press *Run analysis* at the bottom of Settings. A progress bar follows each specimen.
 
 ## 8. Read a specimen's result
 
-The Results tab lists each specimen with its weaning age; **!** marks warnings. Click one,
+The Results tab lists each specimen with its weaning age; *!* marks warnings. Click one,
 or use the ↑ ↓ keys.
 
 ![The Results tab](guide/10_results.png)
 
 Dots are the measured slices (the hollow red dot failed QC). Each curve is one model;
-dashed lines mark the estimated weaning ages, with shaded 95 % intervals. The top axis
-shows where on the tooth each age lies.
+dashed lines mark the estimated weaning ages, and 95% intervals are drawn as bars above
+the age axis. The top axis shows where on the tooth each age lies.
+
+An age later than the last sample is shown as "after X months" (or "before X months" for
+one earlier than the first sample), with no interval and no marker, because the curve
+beyond the samples is not measured. Such ages are left out of group comparisons.
 
 ![Reading the weaning curve](guide/11_chart.png)
 
@@ -191,7 +199,7 @@ behind them.
 
 | warning | what to do |
 |---|---|
-| Completion falls after the last sample | the tooth ends before weaning did; treat as an extrapolation or add a later-forming tooth |
+| Age after the last sample | the tooth ends before weaning did; report it as a lower bound or add a later-forming tooth |
 | Drop larger than one food-chain step | another diet change, mixed-up samples or a bad fit (DeNiro & Epstein 1981; Minagawa & Wada 1984) |
 | δ¹⁵N rises with age | consider stress or illness (Beaumont & Montgomery 2016) |
 | δ¹³C falls across weaning (cattle) | known-age calves showed a rise (Balasse et al. 2001); check the interpretation |
@@ -200,14 +208,14 @@ behind them.
 ## 10. Compare the models for one specimen
 
 The table gives every milestone with its 95 % interval, the nursing and adult δ¹⁵N, the
-drop, and each model's support (ΔAICc and weight). Click any **?** for a plain-language
+drop, and each model's support (ΔAICc and weight). Click any *?* for a plain-language
 explanation.
 
 ![Model comparison with a help pop-up](guide/20_help.png)
 
 ## 11. Zoom in and add δ13C
 
-Drag across the chart to zoom; double-click or **Reset zoom** to go back. **Show δ¹³C**
+Drag across the chart to zoom; double-click or *Reset zoom* to go back. *Show δ¹³C*
 adds the carbon values on a second axis.
 
 ![Zoomed chart with δ13C](guide/14_zoom_d13c.png)
@@ -222,21 +230,22 @@ Group by site, species and/or period, and choose where the estimates come from.
 
 ![Statistical tests](guide/16_tests.png)
 
-Under **Bayesian model**, choose **One-stage** to fit every tooth's raw δ¹⁵N values together
+Under *Bayesian model*, choose *One-stage* to fit every tooth's raw δ¹⁵N values together
 with the group means. This carries each curve's shape and age-model uncertainty all the way
 through. It takes a little longer, and teeth whose weaning age would be an extrapolation are
 left out and listed.
 
 ![The one-stage Bayesian model](guide/17_one_stage.png)
 
-Files with `known_weaning_age_months` also get a **validation** table (or run
+Files with `known_weaning_age_months` also get a validation table (or run
 `weanage validate reference.csv`; see [VALIDATION.md](VALIDATION.md)).
 
 ## 13. Plan your sampling before cutting teeth
 
 The planner invents teeth with known weaning ages, samples them as your protocol would, and
-scores each model. Choose the **shape of the true curves**: a random mix avoids favouring
-the logistic model. Then vary one setting, such as the sampling interval.
+scores each model on the completion age. Choose the shape of the true curves: a random mix
+avoids favouring the logistic model. Then vary one setting, such as the sampling interval.
+An estimate beyond the simulated tooth counts as not dated.
 
 ![Planner settings](guide/18_plan_form.png)
 
@@ -244,9 +253,9 @@ the logistic model. Then vary one setting, such as the sampling interval.
 
 ## 14. Save, report and export
 
-* **Save** writes the whole project to one file; **Open** loads it. Work is also kept in
+* *Save* writes the whole project to one file; *Open* loads it. Work is also kept in
   the browser automatically.
-* **Report** downloads a web page with every setting, chart, table, warning and reference;
+* *Report* downloads a web page with every setting, chart, table, warning and reference;
   print it to PDF. Reports always use light colours.
 * Under the model table: estimates (CSV), full results (JSON) and the chart (SVG).
 
@@ -254,7 +263,7 @@ the logistic model. Then vary one setting, such as the sampling interval.
 
 ## 15. Dark, light and larger text
 
-WeanAge opens in a high-contrast dark theme. **Light mode** and **Larger text** in the
+WeanAge opens in a high-contrast dark theme. *Light mode* and *Larger text* in the
 header change it, and the choice is remembered. All text meets WCAG AAA contrast.
 
 ![Light mode](guide/22_light.png)

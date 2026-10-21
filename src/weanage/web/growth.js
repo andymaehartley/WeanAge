@@ -13,7 +13,7 @@ function pointRows(t) {
   return t.knots.map((k, i) => `<tr>
     <td><input type="number" step="0.1" min="0" class="k-pos" value="${k.position_mm}" aria-label="Position ${i + 1} (mm)"></td>
     <td><input type="number" step="0.1" class="k-age" value="${k.age_months}" aria-label="Age ${i + 1} (months)"></td>
-    <td><button type="button" class="ghost tiny" data-act="remove-point" data-i="${i}" aria-label="Remove point ${i + 1}" ${t.knots.length <= 2 ? "disabled" : ""}>✕</button></td>
+    <td><button type="button" class="ghost tiny" data-act="remove-point" data-i="${i}" aria-label="Remove point ${i + 1}" ${t.knots.length <= 2 ? "disabled" : ""}>Remove</button></td>
   </tr>`).join("");
 }
 
@@ -30,7 +30,7 @@ function card(state, key, open = false) {
   } else if (t) {
     body = `<table class="knots-edit"><thead><tr><th scope="col">Position (mm)</th><th scope="col">Age (months)</th><th></th></tr></thead>
         <tbody>${pointRows(t)}</tbody></table>
-      <button type="button" class="ghost tiny" data-act="add-point">+ add point</button>
+      <button type="button" class="ghost tiny" data-act="add-point">Add point</button>
       <div class="form-grid">
         <label>Age uncertainty, 1 SD (months)<input type="number" step="0.1" min="0" class="t-sd" value="${t.age_uncertainty_months}"></label>
         <label>Source / citation<input class="t-source" value="${esc(t.source)}"></label></div>
