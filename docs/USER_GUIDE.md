@@ -8,6 +8,10 @@ screenshots show the bundled **synthetic** example, not real measurements.
 > marked `TBD-LAB`. The app works end to end, but the weaning ages are illustrative until
 > those values come from lab work.
 
+> **Layout note.** Settings that most people leave alone are folded under **Advanced settings**
+> in each box; click it to open them. A yellow TBD-LAB badge on an *Advanced settings* line means
+> a placeholder value is inside. Some screenshots below show the older, unfolded layout.
+
 **Contents:**
 0. [Open the app](#0-open-the-app)
 1. [Take the tour](#1-take-the-tour)
@@ -81,6 +85,13 @@ missing value are listed row by row. Teeth sharing an animal ID (here SYN-M1 and
 are joined into one timeline.
 
 ![The loaded specimens](guide/04_specimens.png)
+
+### Humans
+
+Choose **human** as the species (or write `human` in the species column). Human first molars use a
+growth table running from birth at the cusp apex to root completion at about 9.5 years (Beaumont et
+al. 2013, London Atlas); it is marked TBD-LAB until it has been checked against the Atlas. In the
+bone calculation, humans use WARN's own turnover values and priors.
 
 ### Bone instead of teeth
 

@@ -104,7 +104,7 @@ const path = (points, xs, ys) => points.map(([x, y], i) => `${i ? "L" : "M"}${xs
  * xRange (zoom window), positionAxis (mm along the top), showD13C, onZoom(range | null)
  */
 export function curveChart(box, o) {
-  const { svg, area, id, width } = newChart(box, 760, 440, { l: 64, r: o.showD13C ? 58 : 20, t: o.positionAxis ? 44 : 16, b: 56 }, o.title, o.desc);
+  const { svg, area, id, width } = newChart(box, 760, 300, { l: 64, r: o.showD13C ? 58 : 20, t: o.positionAxis ? 44 : 16, b: 56 }, o.title, o.desc);
   // The axis range comes from the data and curves only, so one wild estimate cannot squash the chart.
   const allX = [...o.points.flatMap((p) => [p.x, p.xMin ?? p.x, p.xMax ?? p.x]), ...o.curves.flatMap((c) => c.xs)];
   let [xMin, xMax] = o.xRange || [Math.min(...allX), Math.max(...allX)];

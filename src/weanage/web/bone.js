@@ -3,7 +3,7 @@
 import { api } from "./api.js";
 import { curveChart } from "./chart.js";
 import { offscreen } from "./report.js";
-import { $, ci, color, download, esc, help, num, plural, progressBar, table, tbdBadge, toast, toCsv } from "./util.js";
+import { $, ci, color, download, esc, help, num, plural, progressBar, renderIssues, renderReady, renderWarnings, table, tbdBadge, toast, toCsv } from "./util.js";
 
 // Bone settings and the form box that holds each (all numbers).
 const FIELDS = ["max_weaning_age_months", "enrichment_prior_mean", "enrichment_prior_sd", "newborn_offset_mean",
@@ -80,11 +80,9 @@ export function setBoneReport(report, keepResults = false) {
 export function renderBoneData() {
   if (state.mode !== "bone") return;
   const { report, samples } = state.bone;
-  const issues = report ? report.issues : [];
-  $("#issues-card").hidden = !issues.length;
-  $("#issues").innerHTML = issues
-    .map((i) => `<li class="${i.severity}">${i.row ? `<b>Row ${i.row}</b>${i.field ? ` (${esc(i.field)})` : ""}: ` : ""}${esc(i.message)}</li>`)
-    .join("");
+  $("#specimens-card").hidden = true; // the tooth calculation's table
+  renderIssues(report ? report.issues : []);
+  renderReady(samples.length && `${plural(samples.length, "animal")} in ${plural(report.groups.length, "group")} loaded.`);
   $("#bone-groups-card").hidden = !samples.length;
   $("#bone-count").textContent = `· ${plural(samples.length, "animal")}`;
   $("#sb-data").textContent = samples.length ? `${plural(samples.length, "animal")} · ${plural(report.groups.length, "group")}` : "No data loaded";
@@ -139,6 +137,12 @@ export function renderTurnover() {
     { label: "Source", render: ([, p]) => `<small>${esc(p.source)}</small>` },
   ], priors);
   const tables = state.config.turnover_tables.filter((t) => !species.length || species.includes(t.species));
+  $("#species-summary").innerHTML = species.length ? species.map((sp) => {
+    const t = state.config.turnover_tables.find((x) => x.species === sp);
+    const p = state.config.bone_priors[sp] || state.config.bone_priors.default;
+    return `<strong>${esc(sp)}</strong>: turnover ${t ? (t.placeholder ? tbdBadge : "published") : '<span class="warn-text">missing</span>'},
+      priors ${p.placeholder ? tbdBadge : "published"}${state.config.bone_priors[sp] ? "" : " (generic mammal)"}`;
+  }).join(" · ") : "Load bone data to see the values for its species.";
   $("#turnover-list").innerHTML = tables.length ? tables.map((t) => `<h3>${esc(t.label)} ${t.placeholder ? tbdBadge : ""}</h3>
     <table><thead><tr><th>Age (months)</th>${t.ages_months.map((a) => `<th class="num">${num(a, 0)}</th>`).join("")}</tr></thead>
     <tbody><tr><th>Renewed per month</th>${t.renewed_per_month.map((r) => `<td class="num">${Math.round(r * 100)}%</td>`).join("")}</tr></tbody></table>
@@ -195,8 +199,8 @@ export function renderBoneResults() {
   $("#bone-res-summary").innerHTML = summary(res);
   if (res.curve) curveChart($("#bone-res-chart"), chartOptions(res));
   else $("#bone-res-chart").innerHTML = `<p class="muted">${esc(res.message)}</p>`;
-  $("#bone-res-warnings").innerHTML = res.warnings
-    .map((w) => `<li class="${isTbd(w) ? "tbd-li" : isNote(w) ? "info" : "warning"}">${esc(w)}</li>`).join("");
+  renderWarnings("#bone-warnings-box", "#bone-warnings-summary", "#bone-res-warnings", res.warnings,
+    (w) => (isTbd(w) ? "tbd-li" : isNote(w) ? "info" : "warning"));
   const rows = res.estimates ? ESTIMATES.map(([key, label, unit]) => ({ label, unit, ...res.estimates[key] })) : [];
   table($("#bone-fit-table"), [
     { label: "Estimate", render: (r) => esc(r.label) },

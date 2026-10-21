@@ -86,10 +86,11 @@ def test_whole_workflow(page):
     assert page.is_visible("#bone-groups-card") is False and page.is_hidden("#manual-form")
     click(page, "#btn-example")
     page.wait_for_selector("#bone-groups-card:not([hidden])")
+    assert page.is_hidden("#specimens-card")  # the tooth table does not show under the bone data
     assert "Site A" in page.text_content("#bone-group-table")
     click(page, "#btn-bone-to-settings")
     assert page.evaluate("document.querySelector('#qc-card').closest('section').id") == "view-bone-settings"
-    page.click("text=Sampler settings")
+    page.click("#view-bone-settings details.advanced > summary")  # the sampler settings are under Advanced
     page.fill("#bone-warmup", "500")
     page.fill("#bone-keep", "500")
     click(page, "#btn-bone-run")

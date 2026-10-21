@@ -84,6 +84,29 @@
       "source": "TBD-LAB: placeholder values",
       "placeholder": true,
       "tbd_note": "Replace with horse M1 formation chronology (hypsodont crown; extension rate likely non-linear)."
+    },
+    {
+      "species": "human",
+      "tooth": "M1",
+      "label": "Human - permanent first molar",
+      "knots": [
+        {
+          "position_mm": 0,
+          "age_months": 0
+        },
+        {
+          "position_mm": 7,
+          "age_months": 36
+        },
+        {
+          "position_mm": 21,
+          "age_months": 114
+        }
+      ],
+      "age_uncertainty_months": 6.0,
+      "source": "Approximate: dentine forms from about birth at the cusp apex to root completion at about 9.5 years (Beaumont et al. 2013, Archaeometry 55: 277-295, using the London Atlas, AlQahtani et al. 2010, Am. J. Phys. Anthropol. 142: 481-490). Crown completion at about 3 years, a 7 mm crown and a 21 mm tooth are typical values, not yet checked against the Atlas.",
+      "placeholder": true,
+      "tbd_note": "Check the crown-completion age and the crown and root lengths against the London Atlas (AlQahtani et al. 2010), or measure the tooth and use the Atlas stages for the ages. Dentine forms faster in the crown than the root, which the two straight segments allow for."
     }
   ]
 }

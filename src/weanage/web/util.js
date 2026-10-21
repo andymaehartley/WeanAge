@@ -82,3 +82,31 @@ export function progressBar(el, done, total, label = "") {
     <div class="progress-fill" style="width:${pct}%"></div></div>
     <span class="progress-text">${esc(label)} ${total ? `${done} / ${total}` : "starting…"}</span>`;
 }
+
+/** The Checks list on the Data page: open by itself only when something must be fixed. */
+export function renderIssues(issues) {
+  const errors = issues.filter((i) => i.severity === "error").length;
+  const others = issues.length - errors;
+  $("#issues-card").hidden = !issues.length;
+  $("#issues-box").open = errors > 0;
+  $("#issues-summary").textContent = `Checks: ${[errors && plural(errors, "problem"), others && plural(others, "note")].filter(Boolean).join(", ")}`;
+  $("#issues-summary").classList.toggle("warn-text", errors > 0);
+  $("#issues").innerHTML = issues
+    .map((i) => `<li class="${i.severity}">${i.row ? `<b>Row ${i.row}</b>${i.field ? ` (${esc(i.field)})` : ""}: ` : ""}${esc(i.message)}</li>`)
+    .join("");
+}
+
+/** "3 samples loaded · Next" line under the file box, so the next step is always in view. */
+export function renderReady(text) {
+  $("#data-ready").hidden = !text;
+  $("#data-ready-text").textContent = text || "";
+}
+
+/** Fill a collapsed Warnings box and show how many there are on its summary line. */
+export function renderWarnings(box, summary, list, items, classOf) {
+  const problems = items.filter((w) => classOf(w) === "warning").length;
+  $(box).hidden = !items.length;
+  $(summary).textContent = problems ? `Warnings (${problems})` : `Notes (${items.length})`;
+  $(summary).classList.toggle("warn-text", problems > 0);
+  $(list).innerHTML = items.map((w) => `<li class="${classOf(w)}">${esc(w)}</li>`).join("");
+}

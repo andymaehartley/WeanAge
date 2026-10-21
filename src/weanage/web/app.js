@@ -7,7 +7,7 @@ import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, pval, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
+import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, pval, renderIssues, renderReady, renderWarnings, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
@@ -82,10 +82,15 @@ function renderTbd() {
   $("#tbd-list").innerHTML = items.map((i) => `<li><strong>${esc(i.area)}:</strong> ${esc(i.label)} — ${esc(i.note)} <code>${esc(i.file)}</code></li>`).join("");
   for (const node of $$("[data-tbd]")) {
     const on = ids.has(node.dataset.tbd);
-    const title = node.matches("label") ? node : node.querySelector("h2");
+    const title = node.matches("label") ? node : node.querySelector("h2, h3");
     node.classList.toggle("tbd", on);
     title.querySelector(".tbd-badge")?.remove();
     if (on) title.insertAdjacentHTML("beforeend", ` ${tbdBadge}`);
+  }
+  // A closed Advanced section says when it holds a placeholder, so nothing TBD-LAB is out of sight.
+  for (const summary of $$("details.advanced > summary")) {
+    summary.querySelector(".tbd-badge")?.remove();
+    if (summary.parentElement.querySelector(".advanced-body .tbd")) summary.insertAdjacentHTML("beforeend", ` ${tbdBadge}`);
   }
 }
 
@@ -119,15 +124,12 @@ function ageModelLabel(species, tooth) {
 
 function renderData() {
   if (state.mode === "bone") return renderBoneData(); // the Data page is showing the bone calculation
-  const issues = state.report ? state.report.issues : [];
-  $("#issues-card").hidden = !issues.length;
-  $("#issues").innerHTML = issues
-    .map((i) => `<li class="${i.severity}">${i.row ? `<b>Row ${i.row}</b>${i.field ? ` (${esc(i.field)})` : ""}: ` : ""}${esc(i.message)}</li>`)
-    .join("");
+  renderIssues(state.report ? state.report.issues : []);
   $("#specimens-card").hidden = !state.samples.length || state.mode === "bone";
   $("#sample-count").textContent = `· ${state.samples.length} samples`;
   const specimens = new Set(state.samples.map((s) => s.individual_id || s.specimen_id)).size;
   $("#sb-data").textContent = state.samples.length ? `${state.samples.length} samples · ${specimens} specimens` : "No data loaded";
+  renderReady(state.samples.length && `${plural(state.samples.length, "sample")} from ${plural(specimens, "specimen")} loaded.`);
   table($("#specimen-table"), [
     { label: "Specimen", key: "specimen_id" },
     { label: "Animal", render: (s) => esc(s.individual_id || "—") },
@@ -219,11 +221,12 @@ const FIELDS = {
 
 function initSettings() {
   $("#model-options").innerHTML = state.config.models
-    .map((m) => `<label class="check model-opt">
-        <input type="checkbox" name="model" value="${m.name}">${swatch(m.name)}
-        <span><strong>${esc(m.label)}</strong> ${["two_phase", "elbow"].includes(m.name) ? help(m.name) : ""}<br><small>${esc(m.description)}</small></span>
+    .map((m) => `<label class="check model-opt" title="${esc(m.description)}">
+        <input type="checkbox" name="model" value="${m.name}">${swatch(m.name)}<span>${esc(m.label)}</span>
       </label>`)
     .join("");
+  $("#model-notes").innerHTML = `<h3>About the models</h3><dl class="terms small">${state.config.models
+    .map((m) => `<dt>${esc(m.label)}</dt><dd>${esc(m.description)}</dd>`).join("")}</dl>`;
   for (const m of state.config.models) $("#cmp-model").insertAdjacentHTML("beforeend", `<option value="${m.name}">${esc(m.label)}</option>`);
   // Published QC limits: choosing one fills in the boxes, which can still be edited.
   const presets = state.config.qc_presets || {};
@@ -232,6 +235,7 @@ function initSettings() {
     const { label, ...limits } = presets[e.target.value] || {};
     if (label) applySettings({ qc: limits });
   });
+  for (const input of $$('[id^="qc-"]:not(#qc-preset)')) input.addEventListener("input", matchQcPreset);
   applySettings(state.config.defaults);
 }
 
@@ -252,6 +256,15 @@ function applySettings(o) {
   if (o.growth_overrides) state.overrides = { ...o.growth_overrides };
   if (o.adult_baselines) state.baselines = { ...o.adult_baselines };
   if (o.growth_tables) state.editedTables = Object.fromEntries(o.growth_tables.map((t) => [`${t.species}:${t.tooth}`, t]));
+  matchQcPreset();
+}
+
+/** Show the published set of limits the boxes match, or "Custom". */
+function matchQcPreset() {
+  const presets = state.config.qc_presets || {};
+  const match = Object.entries(presets).find(([, { label, ...limits }]) =>
+    Object.entries(limits).every(([key, value]) => Number($(`#qc-${key}`)?.value) === value));
+  $("#qc-preset").value = match ? match[0] : "";
 }
 
 /** Read the form back into a settings object for the server. */
@@ -350,7 +363,8 @@ function renderResults() {
   $("#btn-zoom-reset").hidden = !state.zoom;
 
   const warnings = [...res.warnings, ...res.fits.flatMap((f) => f.warnings.map((w) => `${f.label}: ${w}`))];
-  $("#res-warnings").innerHTML = warnings.map((w) => `<li class="${/PLACEHOLDER/.test(w) ? "tbd-li" : isNote(w) ? "info" : "warning"}">${esc(w)}</li>`).join("");
+  renderWarnings("#res-warnings-box", "#res-warnings-summary", "#res-warnings", warnings,
+    (w) => (/PLACEHOLDER/.test(w) ? "tbd-li" : isNote(w) ? "info" : "warning"));
   const d = res.diagnostics;
   const checks = [
     d.residual_seasonal_p != null && `annual cycle in residuals: ${num(d.residual_seasonal_amplitude)}‰ (p ${pval(d.residual_seasonal_p)})`,
@@ -470,12 +484,16 @@ async function refreshCompare() {
 
 const range = (lo, hi) => `${num(lo, 1)}–${num(hi, 1)}`;
 
+const pIs = (p) => (p != null && p < 0.001 ? "p < 0.001" : `p = ${pval(p)}`);
+
 function renderTests(t) {
   $("#tests-body").innerHTML = `${t.q_p != null
-    ? `<p class="summary">Do groups differ at all? Between-group Q = ${num(t.q_between)} on ${t.q_df} df, <strong>p = ${pval(t.q_p)}</strong>;
-       permutation test p = ${pval(t.permutation_p)}. ${t.q_p < 0.05 ? "There is evidence that weaning ages differ between groups." : "No clear evidence that weaning ages differ between groups."}</p>`
+    ? `<p class="summary">Do groups differ at all? Between-group Q = ${num(t.q_between)} on ${t.q_df} df, <strong>${pIs(t.q_p)}</strong>;
+       permutation test ${pIs(t.permutation_p)}. ${t.q_p < 0.05 ? "There is evidence that weaning ages differ between groups." : "No clear evidence that weaning ages differ between groups."}</p>`
     : '<p class="muted">At least two groups are needed for a comparison.</p>'}
-    <div class="grid-2"><div class="table-wrap"><table id="t-groups"></table></div><div class="table-wrap"><table id="t-pairs"></table></div></div>
+    <div class="table-wrap"><table id="t-groups"></table></div>
+    <details class="advanced"><summary>Pairwise comparisons (${t.pairwise.filter((p) => p.p_holm < 0.05).length} of ${t.pairwise.length} differ)</summary>
+      <div class="advanced-body"><div class="table-wrap"><table id="t-pairs"></table></div></div></details>
     ${t.notes.map((n) => `<p class="muted small">${esc(n)}</p>`).join("")}`;
   table($("#t-groups"), [
     { label: "Group", key: "group" }, { label: "n", key: "n", cls: "num" },
@@ -618,6 +636,7 @@ function bind() {
   const on = (selector, event, handler) => $(selector).addEventListener(event, handler);
   for (const b of $$(".step")) b.addEventListener("click", () => show(b.dataset.view));
   on("#btn-to-settings", "click", () => show("settings"));
+  on("#btn-next-settings", "click", () => show("settings"));
 
   const zone = $("#dropzone");
   on("#csv-input", "change", (e) => e.target.files[0] && loadFile(e.target.files[0]));

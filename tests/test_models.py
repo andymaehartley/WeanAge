@@ -150,3 +150,10 @@ def test_average_beyond_the_samples_is_flagged():
     inside = {"completion": {"estimate": 9.5}}
     fits[0]["completion"]["estimate"] = 10.0
     assert extrapolated_average(fits, inside, 0.0, 12.0) == [] and "extrapolated" not in inside["completion"]
+
+
+def test_human_teeth_have_an_age_model():
+    from weanage.config import find_growth_table
+
+    table = find_growth_table("human", "M1")
+    assert table and table.knots[-1].age_months == 114  # root complete at about 9.5 years (Beaumont et al. 2013)

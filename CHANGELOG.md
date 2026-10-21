@@ -32,6 +32,13 @@
   from models that put the weaning age outside the samples.
 
 ### App
+* **Human option**: humans in the species lists, a human first-molar growth table (birth to about
+  9.5 years; Beaumont et al. 2013 and the London Atlas; to be checked, TBD-LAB), WARN's priors for
+  human bone, and human weaning ranges in the planner.
+* **Tidier pages**: less-used settings are folded under *Advanced settings* in each box (for example
+  the adult-female baseline, the transition threshold and the uncertainty options), the loaded-data
+  summary and *Next* button sit under the file box, tables and charts size themselves to the window,
+  and the Run button stays in view. At 1440×860 every page fits without scrolling.
 * The Data page offers **Tooth calculation** or **Bone calculation**; the bone calculation has
   its own settings and results pages, a synthetic example and a blank template.
 * High-contrast **dark theme by default**, light mode and larger text (WCAG AAA text contrast).

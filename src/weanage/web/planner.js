@@ -22,6 +22,12 @@ export function initPlanner(state) {
   $("#pl-models").innerHTML = state.config.models
     .map((m) => `<label class="check"><input type="checkbox" name="pl-model" value="${m.name}" ${["logistic", "piecewise", "elbow"].includes(m.name) ? "checked" : ""}> ${esc(m.label)}</label>`)
     .join("");
+  // Typical true weaning ages differ a lot between species; humans wean over years, not months.
+  $("#pl-target").addEventListener("change", () => {
+    const human = $("#pl-target").value.startsWith("human:");
+    [$("#pl-mid-lo").value, $("#pl-mid-hi").value] = human ? [12, 36] : [4, 9];
+    [$("#pl-scale-lo").value, $("#pl-scale-hi").value] = human ? [1.5, 4] : [0.4, 1];
+  });
   $("#pl-sweep").value = "sampling_interval_mm";
   $("#pl-values").value = "0.5, 1, 2";
 

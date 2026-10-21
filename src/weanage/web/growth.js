@@ -17,7 +17,7 @@ function pointRows(t) {
   </tr>`).join("");
 }
 
-function card(state, key) {
+function card(state, key, open = false) {
   const t = tableFor(state, key);
   const linear = state.overrides[key];
   const edited = !!state.editedTables[key];
@@ -53,19 +53,21 @@ function card(state, key) {
         <label>Number of table points<input type="number" class="c-knots" min="2" max="50" value="6"></label></div>
       <div class="row gap"><button type="button" class="tiny" data-act="fit">Fit</button><span class="c-out inline-msg" role="status"></span></div>
     </div>`;
-  return `<div class="growth-item ${placeholder ? "tbd" : ""}" data-key="${esc(key)}">
-    <h3>${esc(key.replace(":", " · "))} ${placeholder ? tbdBadge : ""}${t?.saved && !edited ? '<span class="pill">saved</span>' : ""}${edited ? '<span class="pill best">edited</span>' : ""}</h3>
-    <p class="muted small">${esc(t?.label || "")}</p>
+  // Each table is folded to one line; open it to edit.
+  return `<details class="growth-item ${placeholder ? "tbd" : ""}" data-key="${esc(key)}" ${open ? "open" : ""}>
+    <summary><strong>${esc(key.replace(":", " · "))}</strong> <span class="muted small">${esc(t?.label || "no table yet")}</span>
+      ${placeholder ? tbdBadge : ""}${t?.saved && !edited ? '<span class="pill">saved</span>' : ""}${edited ? '<span class="pill best">edited</span>' : ""}${linear ? '<span class="pill">linear</span>' : ""}</summary>
     <div class="seg" role="radiogroup" aria-label="Age model type">
       <label class="check"><input type="radio" name="mode-${esc(key)}" value="table" ${linear ? "" : "checked"}> Growth table</label>
       <label class="check"><input type="radio" name="mode-${esc(key)}" value="linear" ${linear ? "checked" : ""}> Simple linear</label>
-    </div>${body}${actions}</div>`;
+    </div>${body}${actions}</details>`;
 }
 
 export function renderGrowthList(state) {
   const inData = [...new Set(state.samples.map((s) => `${s.species}:${s.tooth}`))];
   const keys = inData.length ? inData : state.config.growth_tables.map(keyOf);
-  $("#growth-list").innerHTML = keys.map((key) => card(state, key)).join("");
+  const opened = new Set([...document.querySelectorAll("#growth-list details[open]")].map((d) => d.dataset.key));
+  $("#growth-list").innerHTML = keys.map((key) => card(state, key, opened.has(key))).join("");
 }
 
 // Read the table currently shown in a card (including unsaved typing).
