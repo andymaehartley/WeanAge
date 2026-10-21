@@ -94,3 +94,14 @@ def test_cima_tooth_example():
     data = client.get("/api/example?name=cima_teeth_mikulcice").json()
     assert {s["species"] for s in data["samples"]} == {"human"} and len({s["specimen_id"] for s in data["samples"]}) == 12
     assert "ASSUMED" in data["samples"][0]["notes"] and "CC BY-SA" in data["message"]
+
+
+def test_bone_planner_job():
+    body = {"scenario": {"replicates": 2, "n_young": 20}, "options": {"chains": 4, "warmup": 500, "keep": 500}}
+    job = client.post("/api/jobs/bone-simulate", json=body).json()
+    state = wait_for(job)
+    for _ in range(20):
+        if state["status"] in {"done", "error"}:
+            break
+        state = wait_for(job)
+    assert state["status"] == "done" and len(state["result"]["runs"][0]["cases"]) == 2

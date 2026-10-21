@@ -1,6 +1,6 @@
 // Builds a standalone HTML report (settings, charts, tables, references) that prints cleanly to PDF.
 import { curveChart, curveOptions, forestChart, svgMarkup } from "./chart.js";
-import { esc, MILESTONES, num, pval } from "./util.js";
+import { ageNum, ci, esc, MILESTONES, num, pval, unitWord } from "./util.js";
 
 const REFERENCES = [
   "DeNiro, M. J. (1985). Postmortem preservation and alteration of in vivo bone collagen isotope ratios in relation to palaeodietary reconstruction. Nature 317, 806–809.",
@@ -30,7 +30,7 @@ section{break-inside:avoid}svg{width:100%;height:auto}@media print{body{margin:0
 // headers: list of column titles; rows: list of lists of cell HTML.
 const htmlTable = (headers, rows) =>
   `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c ?? "—"}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-const withCI = (v) => (v ? `${num(v.estimate, 1)}${v.ci_low != null ? ` <span class="muted">(${num(v.ci_low, 1)}–${num(v.ci_high, 1)})</span>` : ""}${v.extrapolated ? " <i>beyond the sampled teeth</i>" : ""}` : "—");
+const withCI = (v) => (v ? `${ageNum(v.estimate)}${v.ci_low != null ? ` <span class="muted">(${ci(v)})</span>` : ""}${v.extrapolated ? " <i>beyond the sampled teeth</i>" : ""}` : "—");
 
 // Draw a chart off-screen and return its SVG text.
 export function offscreen(draw) {
@@ -56,16 +56,16 @@ function specimenSection(r, milestone) {
 
 function compareSection(t) {
   const forest = offscreen((box) => forestChart(box, t.groups.map((g) => ({ label: g.group, mean: g.mean, lo: g.ci_low, hi: g.ci_high, values: [] })),
-    `Weaning ${t.milestone} (months), random-effects mean ± 95% CI`));
+    `Weaning ${t.milestone} (${unitWord()}), random-effects mean ± 95% CI`));
   const b = t.bayes;
   return `<h2>Group comparison</h2>
     <p>Grouping: ${esc(t.group_by.join(" × "))}; milestone: ${esc(t.milestone)}; estimates: ${esc(t.model)}.</p>${forest}
-    ${htmlTable(["Group", "n", "Mean", "95% CI", "τ"], t.groups.map((g) => [esc(g.group), g.n, num(g.mean, 1), `${num(g.ci_low, 1)}–${num(g.ci_high, 1)}`, num(g.tau)]))}
+    ${htmlTable(["Group", "n", "Mean", "95% CI", "τ"], t.groups.map((g) => [esc(g.group), g.n, ageNum(g.mean), `${ageNum(g.ci_low)}–${ageNum(g.ci_high)}`, ageNum(g.tau, 2)]))}
     <p>Between-group Q = ${num(t.q_between)} (df ${t.q_df}), p = ${pval(t.q_p)}; permutation p = ${pval(t.permutation_p)}.</p>
-    ${t.pairwise.length ? htmlTable(["Pair", "Difference", "p", "p (Holm)"], t.pairwise.map((p) => [`${esc(p.group_a)} − ${esc(p.group_b)}`, num(p.difference, 1), pval(p.p), pval(p.p_holm)])) : ""}
-    ${b ? `<h3>Hierarchical Bayesian model</h3><p class="muted">τ = ${num(b.tau_mean)} months (${num(b.tau_ci_low)}–${num(b.tau_ci_high)}); max R̂ = ${num(b.rhat_max, 3)}; ${b.draws} draws.</p>
+    ${t.pairwise.length ? htmlTable(["Pair", "Difference", "p", "p (Holm)"], t.pairwise.map((p) => [`${esc(p.group_a)} − ${esc(p.group_b)}`, ageNum(p.difference), pval(p.p), pval(p.p_holm)])) : ""}
+    ${b ? `<h3>Hierarchical Bayesian model</h3><p class="muted">τ = ${ageNum(b.tau_mean, 2)} ${unitWord()} (${ageNum(b.tau_ci_low, 2)}–${ageNum(b.tau_ci_high, 2)}); max R̂ = ${num(b.rhat_max, 3)}; ${b.draws} draws.</p>
       ${htmlTable(["Comparison", "P(first earlier)", "Difference (95% CrI)"], b.pairs.map((p) => [`${esc(p.group_a)} vs ${esc(p.group_b)}`, num(p.prob_a_earlier, 3),
-        `${num(p.difference_mean, 1)} (${num(p.difference_ci_low, 1)}–${num(p.difference_ci_high, 1)})`]))}` : ""}
+        `${ageNum(p.difference_mean)} (${ageNum(p.difference_ci_low)}–${ageNum(p.difference_ci_high)})`]))}` : ""}
     ${t.notes.map((n) => `<p class="muted">${esc(n)}</p>`).join("")}`;
 }
 
@@ -85,6 +85,7 @@ export function buildReport({ config, state, settings, compare }) {
   const methods = [
     ["Curve models", esc(o.models.join(", "))],
     ["Reported milestone", esc(milestone)],
+    ["Ages shown in", unitWord()],
     ["Transition threshold", `${num(o.transition_threshold * 100, 0)}% of the δ¹⁵N drop`],
     ["Uncertainty", o.uncertainty === "bootstrap" ? `residual bootstrap (${o.bootstrap_draws} refits)` : `parameter covariance (${o.monte_carlo_draws} draws)`],
     ["Age-model error", "growth-table SD applied as one shared shift per draw"],
@@ -110,7 +111,7 @@ export function buildReport({ config, state, settings, compare }) {
     <h2>Methods and settings</h2>${htmlTable(["Setting", "Value"], methods)}
     <h3>Age models</h3><ul>${keys.map((k) => ageModelLine(k, o, state.config.growth_tables)).join("")}</ul>
     <p class="muted">Models are compared by AICc and Akaike weights; the model average combines all fitted models by weight, with intervals from a weighted mix of their draws. Full settings are stored at the end of this file.</p>
-    <h2>Summary</h2>${htmlTable(["Specimen", "Site", "Taxon / tooth", "Best model", `${milestone} (best)`, `${milestone} (average)`, "Warnings"], summary)}
+    <h2>Summary</h2>${htmlTable(["Specimen", "Site", "Taxon / tooth", "Best model", `${milestone} (best, ${unitWord()})`, `${milestone} (average, ${unitWord()})`, "Warnings"], summary)}
     ${compare ? compareSection(compare.tests) : ""}
     <h2>Specimens</h2>${state.results.map((r) => specimenSection(r, milestone)).join("")}
     <h2>References</h2><ol>${REFERENCES.map((r) => `<li>${esc(r)}</li>`).join("")}</ol>

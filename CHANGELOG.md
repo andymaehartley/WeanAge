@@ -32,6 +32,14 @@
   from models that put the weaning age outside the samples.
 
 ### App
+* **Bone sampling planner** (*Plan sampling* in bone mode, `bone_planner.py`): simulates sites with a
+  known end of suckling under the planned design (young animals, their ages and age precision, adult
+  females, scatter), runs the bone calculation and scores error, interval width, coverage and how often
+  the nursing signal is found; one setting can be compared across values.
+* **Hand entry in bone mode**: add animals one at a time (young, adult female, adult male), with ages in
+  the chosen unit; checked like a file.
+* **Ages in months or years**: a header switch shows every result, chart, table and report in years;
+  boxes that hold ages convert with it.
 * **Human option**: humans in the species lists, a human first-molar growth table (birth to about
   9.5 years; Beaumont et al. 2013 and the London Atlas; to be checked, TBD-LAB), WARN's priors for
   human bone, and human weaning ranges in the planner.

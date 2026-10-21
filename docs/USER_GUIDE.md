@@ -93,6 +93,12 @@ growth table running from birth at the cusp apex to root completion at about 9.5
 al. 2013, London Atlas); it is marked TBD-LAB until it has been checked against the Atlas. In the
 bone calculation, humans use WARN's own turnover values and priors.
 
+### Months or years
+
+**Ages in years** in the header shows every result, chart and table in years instead of months
+(handy for humans). Boxes that ask for an age follow the switch. The analysis itself always
+works in months.
+
 ### Bone instead of teeth
 
 Choose **Bone calculation** at the top of *Load isotope data* when you have bone collagen from
@@ -104,6 +110,14 @@ priors and turnover rates, and Results plots δ¹⁵N against age at death with 
 curve, the diet it implies and the estimated start and end of weaning. The method follows
 WARN (Tsutaya & Yoneda 2013); see section 10 of [METHODS.md](METHODS.md). Livestock bone
 turnover rates are still placeholders, so the ages are illustrative.
+
+Animals can also be typed in one at a time under **Add animals by hand**: choose young, adult
+female or adult male, give the age range at death for the young, and δ¹⁵N.
+
+**Planning a bone study.** In bone mode, *Plan sampling* simulates sites with a known end of
+suckling, samples them as your study would and runs the bone calculation on each. Compare, for
+example, 20, 40 and 80 young animals to see how wide the 95% interval becomes and how often the
+nursing signal is found.
 
 ## 4. Choose the curve models
 

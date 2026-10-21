@@ -70,6 +70,10 @@ const server = {
     return waitForJob(job, onProgress);
   },
   boneRecords: (records) => request("/api/bone/ingest/records", json({ records })),
+  async boneSimulate(body, onProgress) {
+    const job = await request("/api/jobs/bone-simulate", json(body));
+    return waitForJob(job, onProgress);
+  },
   boneTemplateUrl: "/api/bone/template.csv",
 };
 
@@ -165,6 +169,7 @@ const browser = {
   boneUpload: async (file) => python("bone_upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
   boneAnalyze: (samples, options, onProgress) => python("bone_analyze", { samples, options }, onProgress),
   boneRecords: (records) => python("bone_records", { records }),
+  boneSimulate: (body, onProgress) => python("bone_simulate", body, onProgress),
   boneTemplateUrl: "weanage_bone_template.csv",
 };
 

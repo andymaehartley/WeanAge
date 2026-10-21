@@ -290,6 +290,24 @@ Balasse M et al. (2001) *J. Archaeol. Sci.* 28: 235–245. Díez-Canseco, Torner
 both are recovered within their 95% intervals, and that a flat dataset with no nursing rise
 is flagged.
 
+## 11. Planning a bone study (`bone_planner.py`)
+
+Before bones are sampled, the planner invents sites whose end of suckling (t2) is known, drawn
+from a chosen range, with weaning starting at 20–60% of t2. Each site gets the planned design:
+the number of young animals, their ages (spread evenly up to the oldest age, or mostly very young
+as in most death assemblages), an ageing method that gives each age as a range of ± the stated
+precision containing the true age, adult females, and a scatter between animals. Bone δ¹⁵N is
+simulated with the bone model itself (section 10) and the species' turnover table, and the bone
+calculation is run on each site with shorter sampler runs (8 chains, 800 + 800 steps).
+
+Each design is scored on the end of suckling: mean absolute error, bias, RMSE, the share of
+sites whose 95% interval contains the truth, the median interval width, the share of sites where
+the nursing-signal check finds a signal, and the share fitted. One setting (number of young
+animals, age precision, oldest age, number of adult females or scatter) can be compared across
+several values with the same random seed. Because the data are simulated with the same model that
+is fitted, the planner tests the design (how many animals, how well aged), not the model; with
+placeholder turnover it is a guide to relative, not absolute, precision.
+
 ## Limitations / future work
 
 * The slice geometry assumes straight growth layers and a circular cross-section. Real
@@ -299,3 +317,4 @@ is flagged.
 * The bone calculation needs livestock bone collagen turnover rates, which have not been
   established; until then its ages are illustrative. Its results are not yet part of the
   Compare page or the downloadable report.
+* Results can be shown in months or years; the analysis always works in months.

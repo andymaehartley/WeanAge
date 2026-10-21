@@ -1,7 +1,7 @@
 // Sampling planner: simulate known-age teeth to choose a sampling protocol.
 import { api } from "./api.js";
 import { lineChart } from "./chart.js";
-import { $, $$, color, esc, MODEL_STYLE, num, progressBar, table, toast } from "./util.js";
+import { $, $$, ageNum, ageText, color, esc, MODEL_STYLE, num, progressBar, table, toast, toUnit, unitWord } from "./util.js";
 
 const SWEEPS = {
   "": "No sweep (single scenario)",
@@ -12,13 +12,15 @@ const SWEEPS = {
   growth_layer_offset_mm: "Growth-layer offset (mm)",
   n_specimens: "Number of specimens",
 };
-const METRICS = { mae: "Mean absolute error (months)", bias: "Bias (months)", rmse: "RMSE (months)", ci_coverage: "95% interval coverage", success_rate: "Share of specimens fitted" };
+// Error measures are ages, shown in the chosen unit; coverage and success are shares.
+const METRICS = () => ({ mae: `Mean absolute error (${unitWord()})`, bias: `Bias (${unitWord()})`, rmse: `RMSE (${unitWord()})`, ci_coverage: "95% interval coverage", success_rate: "Share of specimens fitted" });
+const AGE_METRICS = new Set(["mae", "bias", "rmse"]);
 
 export function initPlanner(state) {
   const tables = state.config.growth_tables;
   $("#pl-target").innerHTML = tables.map((t) => `<option value="${esc(t.species)}:${esc(t.tooth)}">${esc(t.label)}${t.placeholder ? " (placeholder)" : ""}</option>`).join("");
   $("#pl-sweep").innerHTML = Object.entries(SWEEPS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
-  $("#pl-metric").innerHTML = Object.entries(METRICS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  $("#pl-metric").innerHTML = Object.entries(METRICS()).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
   $("#pl-models").innerHTML = state.config.models
     .map((m) => `<label class="check"><input type="checkbox" name="pl-model" value="${m.name}" ${["logistic", "piecewise", "elbow"].includes(m.name) ? "checked" : ""}> ${esc(m.label)}</label>`)
     .join("");
@@ -101,9 +103,9 @@ export function renderPlan(state) {
       ...(param ? [{ label: esc(SWEEPS[param]), render: (r) => num(r.x, 2), cls: "num" }] : []),
       { label: "Model", render: (r) => esc(r.model) },
       { label: "Fitted", render: (r) => `${Math.round(r.success_rate * 100)}%`, cls: "num" },
-      { label: "MAE", render: (r) => num(r.mae), cls: "num" },
-      { label: "Bias", render: (r) => num(r.bias), cls: "num" },
-      { label: "RMSE", render: (r) => num(r.rmse), cls: "num" },
+      { label: "MAE", render: (r) => ageNum(r.mae, 2), cls: "num" },
+      { label: "Bias", render: (r) => ageNum(r.bias, 2), cls: "num" },
+      { label: "RMSE", render: (r) => ageNum(r.rmse, 2), cls: "num" },
       { label: "95% coverage", render: (r) => (r.ci_coverage == null ? "—" : `${Math.round(r.ci_coverage * 100)}%`), cls: "num" },
     ],
     rows
@@ -117,15 +119,15 @@ export function renderPlan(state) {
         name: m,
         color: color(m),
         dash: MODEL_STYLE[m]?.dash,
-        points: rows.filter((r) => r.model === m).map((r) => ({ x: r.x, y: r[metric] })),
+        points: rows.filter((r) => r.model === m).map((r) => ({ x: r.x, y: AGE_METRICS.has(metric) ? toUnit(r[metric]) : r[metric] })),
       })),
-      { xLabel: SWEEPS[param], yLabel: METRICS[metric], title: `${METRICS[metric]} by ${SWEEPS[param]}`, yMin: metric === "bias" ? undefined : 0 }
+      { xLabel: SWEEPS[param], yLabel: METRICS()[metric], title: `${METRICS()[metric]} by ${SWEEPS[param]}`, yMin: metric === "bias" ? undefined : 0 }
     );
   } else {
     box.innerHTML = '<p class="muted">Choose a setting to sweep to see a chart.</p>';
   }
   const best = [...rows].filter((r) => r.mae != null).sort((a, b) => a.mae - b.mae)[0];
   $("#pl-summary").innerHTML = best
-    ? `Lowest error: <strong>${esc(best.model)}</strong>${param ? ` at ${esc(SWEEPS[param].toLowerCase())} = ${num(best.x, 2)}` : ""} (MAE ${num(best.mae)} months). Results use the selected growth table${$("#pl-target").selectedOptions[0]?.textContent.includes("placeholder") ? ", which is still a <span class=\"tbd-inline\">placeholder</span>" : ""}.`
+    ? `Lowest error: <strong>${esc(best.model)}</strong>${param ? ` at ${esc(SWEEPS[param].toLowerCase())} = ${num(best.x, 2)}` : ""} (MAE ${ageText(best.mae, 2)}). Results use the selected growth table${$("#pl-target").selectedOptions[0]?.textContent.includes("placeholder") ? ", which is still a <span class=\"tbd-inline\">placeholder</span>" : ""}.`
     : "No estimates were produced.";
 }

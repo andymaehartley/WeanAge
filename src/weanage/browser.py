@@ -11,7 +11,7 @@ import numpy as np
 
 from . import service
 from .schema import GrowthTable
-from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, SimulateIn
+from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, SimulateBoneIn, SimulateIn
 
 
 def clean(value):
@@ -46,6 +46,7 @@ REQUESTS = {
     "bone_records": lambda r, progress: service.check_bone_records(r["records"]),
     "bone_upload": lambda r, progress: service.read_bone_upload(r["filename"], bytes(r["content"])),
     "bone_analyze": lambda r, progress: service.run_bone_analysis(BoneAnalyzeIn(**r), progress),
+    "bone_simulate": lambda r, progress: service.run_bone_planner(SimulateBoneIn(**r), progress),
 }
 
 

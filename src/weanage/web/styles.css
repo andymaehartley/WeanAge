@@ -351,7 +351,7 @@ label.check:has(> [data-helpslot]) { display: flex; }
 .card .run-bar { background: var(--card); }
 /* Long tables scroll inside their card, and charts shrink to the window, so pages fit on one screen. */
 #specimens-card .table-wrap:not(.tall) { max-height: max(140px, calc(100vh - 650px)); overflow: auto; }
-#bone-groups-card .table-wrap:not(.tall) { max-height: max(140px, calc(100vh - 560px)); overflow: auto; }
+#bone-groups-card .table-wrap:not(.tall) { max-height: max(110px, calc(100vh - 740px)); overflow: auto; }
 .column > .card:last-child { margin-bottom: 0; }
 #res-chart svg.chart, #bone-res-chart svg.chart { max-height: max(260px, calc(100vh - 612px)); }
 .dropzone { padding: .8rem 1rem; }

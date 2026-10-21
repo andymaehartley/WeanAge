@@ -1,5 +1,6 @@
 // The main page: holds the app's state and draws each of the five views.
 import { initAbout } from "./about.js";
+import { initBonePlanner, renderBonePlan } from "./bone_planner.js";
 import { applyBoneSettings, boneSettings, initBone, loadBoneExample, loadBoneFile, renderBoneData, renderBoneResults, renderTurnover, setBoneReport } from "./bone.js";
 import { api, inBrowser, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart } from "./chart.js";
@@ -7,7 +8,7 @@ import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, pval, readout, renderIssues, renderReady, renderWarnings, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
+import { $, $$, ageNum, ageText, ci, download, esc, getAgeUnit, help, MILESTONES, num, plural, progressBar, pval, readout, renderIssues, renderReady, renderWarnings, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitWord } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
@@ -36,7 +37,7 @@ function show(view) {
     if (isThis) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   }
-  const bone = state.mode === "bone" && ["settings", "results"].includes(view);
+  const bone = state.mode === "bone" && ["settings", "results", "plan"].includes(view);
   for (const v of $$(".view")) v.classList.toggle("active", v.id === `view-${bone ? `bone-${view}` : view}`);
   if (view === "settings") {
     // The collagen QC limits are shared, so their card moves to whichever settings page is open.
@@ -338,7 +339,7 @@ function renderResults() {
       const chosen = r.specimen_id === state.current;
       return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
         <span><strong>${esc(r.specimen_id)}</strong><small>${esc(r.site)} · ${esc(r.species)} ${esc(r.tooth)}</small></span>
-        <span><span class="age">${best ? `${num(best.estimate, 1)} mo` : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${plural(warningCount(r), "warning")}" aria-label="${plural(warningCount(r), "warning")}">${warningCount(r)}</span>` : ""}</span>
+        <span><span class="age">${best ? ageText(best.estimate) : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${plural(warningCount(r), "warning")}" aria-label="${plural(warningCount(r), "warning")}">${warningCount(r)}</span>` : ""}</span>
       </button></li>`;
     })
     .join("");
@@ -378,7 +379,7 @@ function renderResults() {
   const averageRow = hasAverage ? [{ model: "average", label: "Model average", converged: true, isAverage: true, ...res.model_average }] : [];
   table($("#fit-table"), [
     { label: "Model", render: (f) => `${swatch(f.model)}${esc(f.label)}${f.model === res.best_model ? ' <span class="pill best">best</span>' : ""}` },
-    ...MILESTONES.map((k) => ({ label: capital(k), cls: "num", render: (f) => (f[k] ? `${num(f[k].estimate, 1)}${f[k].extrapolated ? "*" : ""}<br><small>${ci(f[k])}</small>` : "—") })),
+    ...MILESTONES.map((k) => ({ label: capital(k), cls: "num", render: (f) => (f[k] ? `${ageNum(f[k].estimate)}${f[k].extrapolated ? "*" : ""}<br><small>${ci(f[k])}</small>` : "—") })),
     { label: "Nursing δ¹⁵N", cls: "num", render: (f) => num(f.nursing_d15N) },
     { label: "Adult δ¹⁵N", cls: "num", render: (f) => num(f.adult_d15N) },
     { label: "Drop (‰)", cls: "num", render: (f) => num(f.drop_permil) },
@@ -395,11 +396,11 @@ function summaryText(res, milestone) {
   const age = best?.[milestone];
   const avg = res.model_average[milestone];
   if (!best) return "No model could be fitted to this specimen.";
-  if (!age) return `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${num(avg.estimate, 1)} months</strong>${beyond(avg)}` : ""}.`;
+  if (!age) return `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${ageNum(avg.estimate)} ${unitWord()}</strong>${beyond(avg)}` : ""}.`;
   const staged = best.model === "two_phase"
-    ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${num(best.extra.supplementation_months, 1)} months (supplementary feeding while suckling).` : "";
+    ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${ageText(best.extra.supplementation_months)} (supplementary feeding while suckling).` : "";
   return `${readout(age, `weaning ${milestone}`)}<p>Best-supported model: <strong>${esc(best.label)}</strong>.
-    ${avg ? `Averaged over all models: <strong>${num(avg.estimate, 1)} months</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}${beyond(avg)}.` : ""}
+    ${avg ? `Averaged over all models: <strong>${ageNum(avg.estimate)} ${unitWord()}</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}${beyond(avg)}.` : ""}
     Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `; ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${staged}
     ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}</p>`;
 }
@@ -414,7 +415,7 @@ function fitNotes(f) {
   }
   if (!f.converged || f.message) return `<span class="warn-text">${esc(f.message)}</span>`;
   const notes = [];
-  if (f.extra.intermediate_d15N != null) notes.push(`intermediate ${num(f.extra.intermediate_d15N, 1)}‰ for ${num(f.extra.supplementation_months, 1)} mo`);
+  if (f.extra.intermediate_d15N != null) notes.push(`intermediate ${num(f.extra.intermediate_d15N, 1)}‰ for ${ageText(f.extra.supplementation_months)}`);
   if (f.extra.seasonal_amplitude_permil != null) notes.push(`seasonal ±${num(f.extra.seasonal_amplitude_permil)}‰`);
   return `<small>${notes.join("; ") || "fitted"}</small>`;
 }
@@ -452,29 +453,29 @@ async function refreshCompare() {
     const means = Object.fromEntries(out.tests.groups.map((g) => [g.group, g]));
     forestChart($("#cmp-chart"), out.summary.map((s) => ({
       label: groupName(s),
-      mean: means[groupName(s)]?.mean,
-      lo: means[groupName(s)]?.ci_low,
-      hi: means[groupName(s)]?.ci_high,
+      mean: toUnit(means[groupName(s)]?.mean),
+      lo: toUnit(means[groupName(s)]?.ci_low),
+      hi: toUnit(means[groupName(s)]?.ci_high),
       values: rows.filter((r) => groupName(r) === groupName(s) && r[milestone] != null)
-        .map((r) => ({ v: r[milestone], label: `${esc(r.specimen_id)}: ${num(r[milestone], 1)} mo (${r.model})` })),
-    })), `Weaning ${milestone} (months): random-effects mean ± 95% CI, dots = specimens`);
+        .map((r) => ({ v: toUnit(r[milestone]), label: `${esc(r.specimen_id)}: ${ageText(r[milestone])} (${r.model})` })),
+    })), `Weaning ${milestone} (${unitWord()}): random-effects mean ± 95% CI, dots = specimens`);
     table($("#cmp-table"), [
       ...group_by.map((g) => ({ label: capital(g), key: g })),
       { label: "Estimates", key: "model" },
       { label: "n", key: "n", cls: "num" },
-      { label: "Mean", cls: "num", render: (r) => num(r.mean, 1) },
-      { label: "SD", cls: "num", render: (r) => num(r.sd, 1) },
-      { label: "Median", cls: "num", render: (r) => num(r.median, 1) },
-      { label: "Range", cls: "num", render: (r) => `${num(r.min, 1)}–${num(r.max, 1)}` },
-      { label: "95% CI (t)", cls: "num", render: (r) => (r.ci95_low != null ? `${num(r.ci95_low, 1)}–${num(r.ci95_high, 1)}` : "—") },
+      { label: "Mean", cls: "num", render: (r) => ageNum(r.mean) },
+      { label: "SD", cls: "num", render: (r) => ageNum(r.sd) },
+      { label: "Median", cls: "num", render: (r) => ageNum(r.median) },
+      { label: "Range", cls: "num", render: (r) => range(r.min, r.max) },
+      { label: "95% CI (t)", cls: "num", render: (r) => (r.ci95_low != null ? range(r.ci95_low, r.ci95_high) : "—") },
     ], out.summary);
     renderTests(out.tests);
     table($("#dis-table"), [
       { label: "Specimen", key: "specimen_id" },
       { label: "Site", key: "site" },
       { label: "Species", key: "species" },
-      ...state.options.models.map((m) => ({ label: esc(m), cls: "num", render: (r) => num(r[m], 1) })),
-      { label: "Range (months)", cls: "num", render: (r) => `<strong>${num(r.range, 1)}</strong>` },
+      ...state.options.models.map((m) => ({ label: esc(m), cls: "num", render: (r) => ageNum(r[m]) })),
+      { label: `Range (${unitWord()})`, cls: "num", render: (r) => `<strong>${ageNum(r.range)}</strong>` },
     ], out.disagreement);
     renderValidation(out.validation);
   } catch (e) {
@@ -482,7 +483,7 @@ async function refreshCompare() {
   }
 }
 
-const range = (lo, hi) => `${num(lo, 1)}–${num(hi, 1)}`;
+const range = (lo, hi) => `${ageNum(lo)}–${ageNum(hi)}`; // ages, in the chosen unit
 
 const pIs = (p) => (p != null && p < 0.001 ? "p < 0.001" : `p = ${pval(p)}`);
 
@@ -497,38 +498,38 @@ function renderTests(t) {
     ${t.notes.map((n) => `<p class="muted small">${esc(n)}</p>`).join("")}`;
   table($("#t-groups"), [
     { label: "Group", key: "group" }, { label: "n", key: "n", cls: "num" },
-    { label: "Mean", cls: "num", render: (g) => num(g.mean, 1) },
+    { label: "Mean", cls: "num", render: (g) => ageNum(g.mean) },
     { label: "95% CI", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
-    { label: "τ", cls: "num", render: (g) => num(g.tau) },
+    { label: "τ", cls: "num", render: (g) => ageNum(g.tau, 2) },
   ], t.groups);
   table($("#t-pairs"), [
     { label: "Pair", render: (p) => `${esc(p.group_a)} − ${esc(p.group_b)}` },
-    { label: "Difference", cls: "num", render: (p) => num(p.difference, 1) },
-    { label: "SE", cls: "num", render: (p) => num(p.se) },
+    { label: "Difference", cls: "num", render: (p) => ageNum(p.difference) },
+    { label: "SE", cls: "num", render: (p) => ageNum(p.se, 2) },
     { label: "p", cls: "num", render: (p) => pval(p.p) },
     { label: "p (Holm)", cls: "num", render: (p) => `<span class="${p.p_holm < 0.05 ? "sig" : ""}">${pval(p.p_holm)}</span>` },
   ], t.pairwise);
 
   const b = t.bayes;
   if (!b) return ($("#bayes-body").innerHTML = '<p class="muted">Needs at least three specimens.</p>');
-  $("#bayes-body").innerHTML = `<p class="muted small">${b.method === "one-stage" ? "One-stage model on the raw δ¹⁵N values · " : ""}Shared between-animal SD τ = ${num(b.tau_mean)} months (95% CrI ${num(b.tau_ci_low)}–${num(b.tau_ci_high)}) ·
+  $("#bayes-body").innerHTML = `<p class="muted small">${b.method === "one-stage" ? "One-stage model on the raw δ¹⁵N values · " : ""}Shared between-animal SD τ = ${ageNum(b.tau_mean, 2)} ${unitWord()} (95% CrI ${ageNum(b.tau_ci_low, 2)}–${ageNum(b.tau_ci_high, 2)}) ·
       max R̂ ${num(b.rhat_max, 3)} ${help("rhat")} · ${b.draws} posterior draws${b.rhat_max > 1.05 ? ' · <span class="warn-text">not fully converged</span>' : ""}</p>
     <div class="grid-2"><div class="table-wrap"><table id="b-groups"></table></div><div class="table-wrap"><table id="b-pairs"></table></div></div>
     <details><summary>Specimen estimates after partial pooling</summary><div class="table-wrap"><table id="b-specimens"></table></div></details>`;
   table($("#b-groups"), [
     { label: "Group", key: "group" },
-    { label: "Posterior mean", cls: "num", render: (g) => num(g.mean, 1) },
+    { label: "Posterior mean", cls: "num", render: (g) => ageNum(g.mean) },
     { label: "95% CrI", cls: "num", render: (g) => range(g.ci_low, g.ci_high) },
   ], b.groups);
   table($("#b-pairs"), [
     { label: "Comparison", render: (p) => `${esc(p.group_a)} vs ${esc(p.group_b)}` },
     { label: "Probability the first weaned earlier", cls: "num", render: (p) => `${Math.round(p.prob_a_earlier * 100)}%` },
-    { label: "Difference (95% CrI)", cls: "num", render: (p) => `${num(p.difference_mean, 1)} (${range(p.difference_ci_low, p.difference_ci_high)})` },
+    { label: "Difference (95% CrI)", cls: "num", render: (p) => `${ageNum(p.difference_mean)} (${range(p.difference_ci_low, p.difference_ci_high)})` },
   ], b.pairs);
   table($("#b-specimens"), [
     { label: "Specimen", key: "specimen_id" }, { label: "Group", key: "group" },
-    { label: "Own estimate", cls: "num", render: (s) => num(s.observed, 1) },
-    { label: "Pooled estimate", cls: "num", render: (s) => num(s.shrunk, 1) },
+    { label: "Own estimate", cls: "num", render: (s) => ageNum(s.observed) },
+    { label: "Pooled estimate", cls: "num", render: (s) => ageNum(s.shrunk) },
     { label: "95% CrI", cls: "num", render: (s) => range(s.ci_low, s.ci_high) },
   ], b.specimens);
 }
@@ -543,9 +544,9 @@ function renderValidation(rows) {
   $("#val-body").innerHTML = '<div class="table-wrap"><table id="val-table"></table></div>';
   table($("#val-table"), [
     { label: "Reference", key: "reference" }, { label: "Model", key: "model" }, { label: "n", key: "n", cls: "num" },
-    { label: "Bias", cls: "num", render: (r) => num(r.bias) },
-    { label: "MAE", cls: "num", render: (r) => num(r.mae) },
-    { label: "RMSE", cls: "num", render: (r) => num(r.rmse) },
+    { label: "Bias", cls: "num", render: (r) => ageNum(r.bias, 2) },
+    { label: "MAE", cls: "num", render: (r) => ageNum(r.mae, 2) },
+    { label: "RMSE", cls: "num", render: (r) => ageNum(r.rmse, 2) },
     { label: "Pearson r", cls: "num", render: (r) => num(r.pearson_r) },
     { label: "95% interval coverage", cls: "num", render: (r) => (r.ci_coverage != null ? `${Math.round(r.ci_coverage * 100)}%` : "—") },
   ], rows);
@@ -721,6 +722,7 @@ function bind() {
   initHelpMenu(show);
   on("#btn-theme", "click", () => setLook("theme", document.documentElement.dataset.theme === "light" ? "dark" : "light"));
   on("#btn-text", "click", () => setLook("text", document.documentElement.dataset.text === "large" ? "normal" : "large"));
+  on("#btn-units", "click", () => setUnits(getAgeUnit() === "years" ? "months" : "years"));
 }
 
 // ───────────── dark/light colours and text size ─────────────
@@ -731,6 +733,30 @@ function setLook(key, value) {
   showLook();
   if (state.results?.length) renderResults(); // charts pick their colours when drawn
   if (state.plan) renderPlan(state);
+}
+
+/** Show results in months or years. The analysis itself always works in months. */
+function setUnits(unit) {
+  const before = getAgeUnit();
+  setAgeUnit(unit);
+  // Boxes that hold an age keep the same age in the new unit.
+  const factor = before === unit ? 1 : unit === "years" ? 1 / 12 : 12;
+  for (const input of $$("input[data-age]")) if (input.value !== "") input.value = +(Number(input.value) * factor).toFixed(3);
+  state.zoom = null; // a zoom window is in the old unit
+  showUnits();
+  if (state.mode === "bone") renderBoneData();
+  if (state.results?.length) renderResults();
+  if (state.bone?.results) renderBoneResults();
+  if (state.plan) renderPlan(state);
+  if (state.bonePlan) renderBonePlan(state);
+  if ($("#view-compare").classList.contains("active")) refreshCompare();
+}
+
+function showUnits() {
+  const years = getAgeUnit() === "years";
+  $("#btn-units").textContent = years ? "Ages in months" : "Ages in years";
+  $("#btn-units").setAttribute("aria-pressed", String(years));
+  for (const node of $$(".unit-word")) node.textContent = unitWord();
 }
 
 function showLook() {
@@ -760,11 +786,13 @@ async function init() {
   setMode("tooth", false);
   initAbout(state.config);
   initPlanner(state);
+  initBonePlanner(state);
   renderTbd();
   for (const slot of $$("[data-helpslot]")) slot.innerHTML = help(slot.dataset.helpslot);
   initGlossary();
   bind();
   showLook();
+  showUnits();
   renderData();
   offerRestore();
   if (!tourSeen()) startTour(show);

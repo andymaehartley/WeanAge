@@ -37,6 +37,7 @@
       <span class="divider" aria-hidden="true"></span>
       <button id="btn-theme" class="ghost" aria-pressed="false" title="Switch between dark and light colours">Light mode</button>
       <button id="btn-text" class="ghost" aria-pressed="false" title="Make all text larger">Larger text</button>
+      <button id="btn-units" class="ghost" aria-pressed="false" title="Show results in months or in years">Ages in years</button>
       <span class="divider" aria-hidden="true"></span>
       <div class="menu-wrap">
         <button id="btn-help" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="help-menu">Help <span aria-hidden="true">▾</span></button>
@@ -100,7 +101,19 @@
                   Young animals also need an age at death in months: <code>age_months</code>, or a range as
                   <code>age_min_months</code> + <code>age_max_months</code> <span data-helpslot="bone_age"></span>. Mark adults
                   with <code>age_class</code> = adult and <code>sex</code> = F for the mothers.</p>
-                <p class="hint" data-mode="tooth">Required columns: <code>specimen_id, site, species, tooth, position_mm, d15N</code>
+                <div data-mode="bone" hidden>
+                <h3>How the bone calculation works</h3>
+                <ol class="steps-list">
+                  <li><strong>Diet.</strong> Milk until weaning starts; then other food takes over, slowly at first, until suckling ends.</li>
+                  <li><strong>Bone.</strong> Born near the mother's value; each month part of the bone is rebuilt from the current
+                    diet, faster while the skeleton grows.</li>
+                  <li><strong>Fit.</strong> The weaning ages, the nursing enrichment and the weaning-food δ¹⁵N are estimated
+                    together from all the animals at a site (Bayesian sampler).</li>
+                </ol>
+                <p class="hint">After WARN (Tsutaya &amp; Yoneda 2013), built for human skeletons and adapted here for animals
+                  (see docs/BONE_LITERATURE.md). Livestock bone turnover rates are placeholders (TBD-LAB).</p>
+              </div>
+              <p class="hint" data-mode="tooth">Required columns: <code>specimen_id, site, species, tooth, position_mm, d15N</code>
                   <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
                   <code>position_reference</code> + <code>crown_height_mm</code> (if measured from the cervix).</p>
                 <div class="row gap wrap">
@@ -120,24 +133,44 @@
         </div>
         <div class="column">
           <article class="card" data-mode="bone" hidden>
-            <h2>How the bone calculation works <span data-helpslot="bone_model"></span></h2>
-            <p>Bone collagen is renewed slowly, so a young animal's bone δ¹⁵N mixes everything it ate up to death.
-              A single bone cannot show when that animal was weaned. Many animals that died at different ages can:
-              together they trace how δ¹⁵N rises while suckling and falls after weaning.</p>
-            <details class="advanced">
-              <summary>The model, step by step</summary>
-              <div class="advanced-body">
-                <ol class="steps-list">
-                  <li><strong>Diet.</strong> Milk until weaning starts; then other food takes over, slowly at first, until suckling ends.</li>
-                  <li><strong>Bone.</strong> Born near the mother's value; each month part of the bone is rebuilt from the current
-                    diet, faster while the skeleton grows.</li>
-                  <li><strong>Fit.</strong> The weaning ages, the nursing enrichment and the weaning-food δ¹⁵N are estimated
-                    together from all the animals at a site (Bayesian sampler).</li>
-                </ol>
-                <p class="hint">After WARN (Tsutaya &amp; Yoneda 2013), built for human skeletons and adapted here for animals
-                  (see docs/BONE_LITERATURE.md). Livestock bone turnover rates are placeholders (TBD-LAB).</p>
+            <h2>Add animals by hand <span data-helpslot="bone_model"></span></h2>
+            <form id="bone-form" class="form-grid" novalidate>
+              <label>Specimen ID<input name="specimen_id" required></label>
+              <label>Site<input name="site" required></label>
+              <label>Species
+                <select name="species">
+                  <option>cattle</option><option>sheep</option><option>goat</option><option>pig</option>
+                  <option>horse</option><option>human</option>
+                </select>
+              </label>
+              <label>Animal
+                <select name="who">
+                  <option value="young">young</option>
+                  <option value="adult-f">adult female</option>
+                  <option value="adult-m">adult male</option>
+                  <option value="adult">adult, sex unknown</option>
+                </select>
+              </label>
+              <label><span>Age at death from (<span class="unit-word">months</span>)</span> <span data-helpslot="bone_age"></span>
+                <input name="age_from" data-age type="number" step="any" min="0"></label>
+              <label><span>to (<span class="unit-word">months</span>)</span><input name="age_to" data-age type="number" step="any" min="0"></label>
+              <label>δ¹⁵N (‰)<input name="d15N" type="number" step="0.01" required></label>
+              <details class="advanced span-all">
+                <summary>Advanced settings</summary>
+                <div class="advanced-body form-grid">
+                  <label>Bone<input name="element" placeholder="e.g. rib"></label>
+                  <label>δ¹³C (‰)<input name="d13C" type="number" step="0.01"></label>
+                  <label>C:N (atomic)<input name="cn_ratio" type="number" step="0.01"></label>
+                  <label>%C<input name="pct_C" type="number" step="0.1"></label>
+                  <label>%N<input name="pct_N" type="number" step="0.1"></label>
+                  <label>Collagen yield (%)<input name="collagen_yield_pct" type="number" step="0.1"></label>
+                </div>
+              </details>
+              <div class="form-actions">
+                <button type="submit">Add animal</button>
+                <span id="bone-form-msg" class="inline-msg" role="status" aria-live="polite"></span>
               </div>
-            </details>
+            </form>
           </article>
           <article class="card" data-mode="tooth">
             <h2>Add samples by hand</h2>
@@ -441,7 +474,7 @@
             <details class="advanced">
               <summary>Model comparison table</summary>
               <div class="advanced-body">
-                <p class="hint">Ages in months. Lower ΔAICc <span data-helpslot="aicc"></span> = better supported; the weight
+                <p class="hint">Ages in <span class="unit-word">months</span>. Lower ΔAICc <span data-helpslot="aicc"></span> = better supported; the weight
                   <span data-helpslot="weight"></span> is the relative support among the models fitted. The model average
                   <span data-helpslot="average"></span> combines all of them.</p>
                 <div class="table-wrap"><table id="fit-table"></table></div>
@@ -638,6 +671,68 @@
           <details class="advanced">
             <summary>Results table</summary>
             <div class="advanced-body"><div class="table-wrap"><table id="pl-table"></table></div></div>
+          </details>
+        </article>
+      </div>
+    </section>
+
+    <!-- ───────────── PLAN (bone calculation) ───────────── -->
+    <section id="view-bone-plan" class="view" aria-labelledby="h-bone-plan">
+      <h2 id="h-bone-plan" class="sr-only">Plan a bone study</h2>
+      <div class="grid-2 plan-layout">
+        <article class="card">
+          <h2>Plan a bone study <span data-helpslot="bone_planner"></span></h2>
+          <p class="hint">Invents sites with a known end of suckling, samples them as your study would, runs the bone
+            calculation on each and shows how close it comes. Use it to decide how many young animals to sample.</p>
+          <form id="bone-plan-form" novalidate>
+            <div class="form-grid">
+              <label>Species<select id="bp-species"></select></label>
+              <label>Young animals per site<input id="bp-n" type="number" min="5" max="400" value="40"></label>
+              <label>Ages of the young
+                <select id="bp-spread">
+                  <option value="even">spread evenly</option>
+                  <option value="mostly_young">mostly very young (typical deaths)</option>
+                </select>
+              </label>
+              <label><span>Oldest young animal (<span class="unit-word">months</span>)</span><input id="bp-oldest" data-age type="number" min="1" step="any" value="36"></label>
+              <label><span>Ages known to within ± (<span class="unit-word">months</span>)</span><input id="bp-ageerr" data-age type="number" min="0" step="any" value="3"></label>
+              <label>Adult females<input id="bp-females" type="number" min="0" max="200" value="10"></label>
+              <label><span>True end of suckling from (<span class="unit-word">months</span>)</span><input id="bp-end-lo" data-age type="number" min="0" step="any" value="6"></label>
+              <label><span>to (<span class="unit-word">months</span>)</span><input id="bp-end-hi" data-age type="number" min="0" step="any" value="12"></label>
+              <label>Setting to compare<select id="bp-sweep"></select></label>
+              <label>Values to try<input id="bp-values" placeholder="e.g. 20, 40, 80"></label>
+            </div>
+            <details class="advanced">
+              <summary>Advanced settings</summary>
+              <div class="advanced-body form-grid">
+                <label>Scatter between animals, 1 SD (‰)<input id="bp-scatter" type="number" min="0.05" max="3" step="0.05" value="0.4"></label>
+                <label>True nursing enrichment (‰)<input id="bp-enrich" type="number" min="0" max="6" step="0.1" value="2.5"></label>
+                <label>True newborn offset (‰)<input id="bp-newborn" type="number" min="-3" max="3" step="0.1" value="0.8"></label>
+                <label>Shape of weaning
+                  <select id="bp-form">
+                    <option value="parabolic">Parabolic (WARN)</option>
+                    <option value="linear">Linear</option>
+                    <option value="reverse">Reverse parabolic</option>
+                  </select>
+                </label>
+                <label>Simulated sites per setting<input id="bp-reps" type="number" min="2" max="100" value="8"></label>
+                <label>Random seed<input id="bp-seed" type="number" value="1"></label>
+              </div>
+            </details>
+            <div class="run-bar">
+              <div id="bp-progress" class="progress-wrap" hidden></div>
+              <button id="bp-run" class="primary" type="submit">Run simulation</button>
+            </div>
+          </form>
+        </article>
+        <article class="card" id="bp-results" hidden>
+          <h2>Simulation results</h2>
+          <div id="bp-summary" class="summary"></div>
+          <label>Chart<select id="bp-metric"></select></label>
+          <div id="bp-chart" class="chart-box"></div>
+          <details class="advanced">
+            <summary>Results table</summary>
+            <div class="advanced-body"><div class="table-wrap"><table id="bp-table"></table></div></div>
           </details>
         </article>
       </div>

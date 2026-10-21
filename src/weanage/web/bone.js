@@ -3,7 +3,8 @@
 import { api } from "./api.js";
 import { curveChart } from "./chart.js";
 import { offscreen } from "./report.js";
-import { $, ci, color, download, esc, help, num, plural, progressBar, readout, renderIssues, renderReady, renderWarnings, table, tbdBadge, toast, toCsv } from "./util.js";
+import { ageMarker } from "./chart.js";
+import { $, ageNum, ageText, ci, color, download, esc, fromUnit, help, num, plural, progressBar, readout, renderIssues, renderReady, renderWarnings, table, tbdBadge, toast, toCsv, toUnit, unitWord } from "./util.js";
 
 // Bone settings and the form box that holds each (all numbers).
 const FIELDS = ["max_weaning_age_months", "enrichment_prior_mean", "enrichment_prior_sd", "newborn_offset_mean",
@@ -24,6 +25,10 @@ export function initBone(appState, appHooks) {
   state.bone = { samples: [], report: null, results: null, options: null, current: null };
   applyBoneSettings(state.config.bone_defaults);
   $("#btn-bone-to-settings").addEventListener("click", () => hooks.show("settings"));
+  $("#bone-form").addEventListener("submit", addAnimalByHand);
+  $("#bone-form").elements.who.addEventListener("change", (e) => { // adults need no age at death
+    for (const name of ["age_from", "age_to"]) $("#bone-form").elements[name].disabled = e.target.value !== "young";
+  });
   $("#btn-bone-run").addEventListener("click", runBone);
   $("#bone-result-list").addEventListener("click", (e) => {
     const b = e.target.closest("[data-group]");
@@ -68,6 +73,52 @@ export async function loadBoneExample(name) {
   }
 }
 
+// What the "Animal" choice in the form means in the data.
+const WHO = { young: ["non-adult", ""], "adult-f": ["adult", "F"], "adult-m": ["adult", "M"], adult: ["adult", ""] };
+// Form boxes that hold the same field as the data (the ages are converted first).
+const COPIED = ["specimen_id", "site", "species", "element", "d15N", "d13C", "cn_ratio", "pct_C", "pct_N", "collagen_yield_pct"];
+
+/** Check one animal typed into the form and add it, using the same checks as a file. */
+async function addAnimalByHand(event) {
+  event.preventDefault();
+  const form = event.target;
+  const data = Object.fromEntries(new FormData(form));
+  const [ageClass, sex] = WHO[data.who];
+  const row = { age_class: ageClass, sex };
+  for (const name of COPIED) if (data[name] !== "" && data[name] != null) row[name] = data[name];
+  if (ageClass === "non-adult") { // ages are typed in the chosen unit and stored in months
+    row.age_min_months = fromUnit(data.age_from);
+    row.age_max_months = fromUnit(data.age_to === "" ? data.age_from : data.age_to);
+  }
+  const msg = $("#bone-form-msg");
+  try {
+    const check = await api.boneRecords([row]);
+    const errors = check.issues.filter((i) => i.severity === "error");
+    const fieldOf = (f) => (f && f.startsWith("age") ? "age_from" : f);
+    for (const input of form.elements) {
+      const bad = errors.some((e) => fieldOf(e.field) === input.name) || (!errors.some((e) => e.field) && errors.length && input.name === "age_from");
+      input.classList.toggle("invalid", bad);
+      if (bad) input.setAttribute("aria-invalid", "true");
+      else input.removeAttribute("aria-invalid");
+    }
+    if (errors.length) {
+      msg.className = "inline-msg error";
+      msg.textContent = errors.map((e) => e.message).join("; ");
+      return;
+    }
+    setBoneReport(await api.boneRecords([...state.bone.samples, check.samples[0]]));
+    msg.className = "inline-msg ok";
+    msg.textContent = `Added ${row.specimen_id}`;
+    for (const name of ["specimen_id", "age_from", "age_to", "d15N", "d13C", "cn_ratio", "pct_C", "pct_N", "collagen_yield_pct"]) {
+      form.elements[name].value = "";
+    }
+    form.elements.specimen_id.focus(); // site, species and animal type stay for the next entry
+  } catch (e) {
+    msg.className = "inline-msg error";
+    msg.textContent = e.message;
+  }
+}
+
 export function setBoneReport(report, keepResults = false) {
   state.bone.report = report;
   state.bone.samples = report.samples;
@@ -98,7 +149,7 @@ export function renderBoneData() {
     { label: "Site", key: "site" },
     { label: "Species", key: "species" },
     { label: "Adult / young", render: (s) => (s.age_class === "adult" ? `adult${s.sex === "f" ? " ♀" : s.sex === "m" ? " ♂" : ""}` : "young") },
-    { label: "Age (months)", cls: "num", render: (s) => (s.age_months == null ? "—" : s.age_min_months !== s.age_max_months ? `${num(s.age_min_months, 1)}–${num(s.age_max_months, 1)}` : num(s.age_months, 1)) },
+    { label: `Age (${unitWord()})`, cls: "num", render: (s) => (s.age_months == null ? "—" : s.age_min_months !== s.age_max_months ? `${ageNum(s.age_min_months)}–${ageNum(s.age_max_months)}` : ageNum(s.age_months)) },
     { label: "δ¹⁵N", cls: "num", render: (s) => num(s.d15N) },
     { label: "δ¹³C", cls: "num", render: (s) => num(s.d13C) },
     { label: "C:N", cls: "num", render: (s) => num(s.cn_ratio) },
@@ -189,7 +240,7 @@ export function renderBoneResults() {
     const problems = r.warnings.filter((w) => !isNote(w)).length;
     return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-group="${esc(r.group)}" class="${chosen ? "active" : ""}">
       <span><strong>${esc(r.site)}</strong><small>${esc(r.species)}${r.period ? ` · ${esc(r.period)}` : ""} · ${plural(r.n_young, "young animal")}</small></span>
-      <span><span class="age">${end ? `${num(end.estimate, 1)} mo` : "—"}</span>${problems ? `<span class="warn-dot" aria-label="${plural(problems, "warning")}">${problems}</span>` : ""}</span>
+      <span><span class="age">${end ? ageText(end.estimate) : "—"}</span>${problems ? `<span class="warn-dot" aria-label="${plural(problems, "warning")}">${problems}</span>` : ""}</span>
     </button></li>`;
   }).join("");
   const res = currentResult();
@@ -204,7 +255,7 @@ export function renderBoneResults() {
   const rows = res.estimates ? ESTIMATES.map(([key, label, unit]) => ({ label, unit, ...res.estimates[key] })) : [];
   table($("#bone-fit-table"), [
     { label: "Estimate", render: (r) => esc(r.label) },
-    { label: "Median", cls: "num", render: (r) => `${num(r.estimate, r.unit === "‰" ? 2 : 1)} ${r.unit === "‰" ? "‰" : "mo"}` },
+    { label: "Median", cls: "num", render: (r) => (r.unit === "‰" ? `${num(r.estimate)} ‰` : ageText(r.estimate)) },
     { label: "95% interval", cls: "num", render: (r) => (r.unit === "‰" ? `${num(r.ci_low)}–${num(r.ci_high)}` : ci(r)) },
   ], rows);
   if (res.rhat != null) {
@@ -220,7 +271,7 @@ function summary(res) {
   const signal = c?.p_value == null ? "" : c.p_value < 0.05
     ? ` The youngest animals are ${num(c.difference_permil, 1)}‰ above the mothers (p ${c.p_value < 0.001 ? "< 0.001" : `= ${num(c.p_value, 3)}`}), so there is a nursing signal ${help("nursing_check")}.`
     : ` <span class="warn-text">The youngest animals are not clearly above the mothers ${help("nursing_check")}.</span>`;
-  return `${readout(e.completion, "suckling ends")}<p>Weaning started at about ${num(e.onset.estimate, 1)} months
+  return `${readout(e.completion, "suckling ends")}<p>Weaning started at about ${ageNum(e.onset.estimate)} ${unitWord()}
     (95% interval ${ci(e.onset)}). Milk-fed young were about ${num(e.enrichment_permil.estimate, 1)}‰ above their mothers.${signal}
     ${res.turnover_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder bone turnover.</span>' : ""}</p>`;
 }
@@ -230,23 +281,24 @@ function chartOptions(res, palette) {
   const e = res.estimates;
   const bone = color("average", palette);
   const accent = color("logistic", palette);
-  const marker = (key, text) => ({ x: e[key].estimate, lo: e[key].ci_low, hi: e[key].ci_high, color: accent, label: `${text} ${num(e[key].estimate, 1)} mo` });
+  const marker = (key, text) => ageMarker(e[key], accent, `${text} `);
   const young = res.points.filter((p) => p.role === "non-adult");
+  const ages = c.age.map(toUnit);
   return {
     title: `Bone δ15N against age at death: ${res.group}`,
-    desc: `${young.length} young animals; fitted bone curve with 95% band and the diet it implies. Weaning from ${num(e.onset.estimate, 1)} to ${num(e.completion.estimate, 1)} months.`,
-    xLabel: "Age at death (months)",
+    desc: `${young.length} young animals; fitted bone curve with 95% band and the diet it implies. Weaning from ${ageText(e.onset.estimate)} to ${ageText(e.completion.estimate)}.`,
+    xLabel: `Age at death (${unitWord()})`,
     yLabel: "Bone collagen δ¹⁵N (‰ AIR)",
     markers: [marker("onset", "start"), marker("completion", "suckling ends")],
-    bands: [{ xs: c.age, lo: c.bone_low, hi: c.bone_high, color: bone }],
+    bands: [{ xs: ages, lo: c.bone_low, hi: c.bone_high, color: bone }],
     curves: [
-      { xs: c.age, ys: c.bone, color: bone },
-      { xs: c.age, ys: c.diet, color: bone, dash: "2 4", width: 2 },
-      { xs: [c.age[0], c.age.at(-1)], ys: [e.female_mean_d15N.estimate, e.female_mean_d15N.estimate], color: bone, dash: "8 6", width: 1.5 },
+      { xs: ages, ys: c.bone, color: bone },
+      { xs: ages, ys: c.diet, color: bone, dash: "2 4", width: 2 },
+      { xs: [ages[0], ages.at(-1)], ys: [e.female_mean_d15N.estimate, e.female_mean_d15N.estimate], color: bone, dash: "8 6", width: 1.5 },
     ],
     points: young.map((p) => ({
-      x: p.age_months, y: p.d15N, xMin: p.age_min !== p.age_max ? p.age_min : null, xMax: p.age_max, used: p.used_in_fit,
-      label: `${esc(p.specimen_id)}: ${p.age_min !== p.age_max ? `${num(p.age_min, 1)}–${num(p.age_max, 1)}` : num(p.age_months, 1)} months<br>δ¹⁵N ${num(p.d15N)}‰` +
+      x: toUnit(p.age_months), y: p.d15N, xMin: p.age_min !== p.age_max ? toUnit(p.age_min) : null, xMax: toUnit(p.age_max), used: p.used_in_fit,
+      label: `${esc(p.specimen_id)}: ${p.age_min !== p.age_max ? `${ageNum(p.age_min)}–${ageNum(p.age_max)}` : ageNum(p.age_months)} ${unitWord()}<br>δ¹⁵N ${num(p.d15N)}‰` +
         `${p.qc_flags.length ? `<br><em>${esc(p.qc_flags.join(", "))}</em>` : ""}`,
     })),
   };

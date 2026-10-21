@@ -25,7 +25,31 @@ export function esc(value) {
 /** "1 warning", "3 warnings" */
 export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export const num = (v, d = 2) => (v == null || !isFinite(v) ? "—" : Number(v).toFixed(d));
-export const ci = (x) => (x && x.ci_low != null ? `${num(x.ci_low, 1)}–${num(x.ci_high, 1)}` : "");
+
+// ───────────── ages in months or years ─────────────
+// The analysis always works in months; results can be shown in years instead (humans and other
+// long-lived species). Inputs such as growth tables stay in months and say so.
+let ageUnit = "months";
+try {
+  if (localStorage.getItem("weanage-units") === "years") ageUnit = "years";
+} catch {}
+export const getAgeUnit = () => ageUnit;
+export function setAgeUnit(unit) {
+  ageUnit = unit === "years" ? "years" : "months";
+  try { localStorage.setItem("weanage-units", ageUnit); } catch {}
+}
+/** A value in months, in the chosen unit. */
+export const toUnit = (months) => (months == null || !isFinite(months) ? months : ageUnit === "years" ? months / 12 : months);
+/** A value typed in the chosen unit, back in months. */
+export const fromUnit = (value) => (value == null || value === "" ? null : ageUnit === "years" ? Number(value) * 12 : Number(value));
+/** An age in months, shown as a number in the chosen unit (years get one more decimal place). */
+export const ageNum = (months, d = 1) => num(toUnit(months), ageUnit === "years" ? d + 1 : d);
+export const unitWord = () => ageUnit; // "months" or "years"
+export const unitShort = () => (ageUnit === "years" ? "yr" : "mo");
+/** "9.3 mo" or "0.78 yr" */
+export const ageText = (months, d = 1) => `${ageNum(months, d)} ${unitShort()}`;
+/** The 95% interval of an age, in the chosen unit: "7.3–11.5". */
+export const ci = (x) => (x && x.ci_low != null ? `${ageNum(x.ci_low)}–${ageNum(x.ci_high)}` : "");
 export const pval = (p) => (p == null ? "—" : p < 0.001 ? "< 0.001" : p.toFixed(3));
 
 export function toast(message, kind = "error") {
@@ -113,5 +137,5 @@ export function renderWarnings(box, summary, list, items, classOf) {
 
 /** The headline figure of a result: "9.3 months · weaning completion, 95% interval 7.3–11.5". */
 export const readout = (value, what) => (value?.estimate == null ? "" :
-  `<p class="readout"><span class="figure">${num(value.estimate, 1)}</span><span class="unit">months</span>
+  `<p class="readout"><span class="figure">${ageNum(value.estimate)}</span><span class="unit">${unitWord()}</span>
     <span class="what">${what}${value.ci_low != null ? ` · 95% interval ${ci(value)}` : ""}</span></p>`);

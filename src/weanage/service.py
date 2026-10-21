@@ -15,6 +15,7 @@ from . import __version__, config
 from .aggregate import aggregate, model_disagreement, records, validate
 from .analysis import analyze, estimate_rows
 from .bone import analyze_bones, ingest_bone_dataframe
+from .bone_planner import BoneScenario, BoneSweepParam, run_bone_plan
 from .calibrate import CalibrationPoint, Method, calibrate_growth_table
 from .inference import compare_groups
 from .ingest import ingest_csv, ingest_file, ingest_records, is_excel
@@ -33,6 +34,13 @@ class AnalyzeIn(BaseModel):
 class BoneAnalyzeIn(BaseModel):
     samples: list[BoneSample] = Field(min_length=1)
     options: BoneOptions | None = None
+
+
+class SimulateBoneIn(BaseModel):
+    scenario: BoneScenario = BoneScenario()
+    options: BoneOptions | None = None
+    sweep_param: BoneSweepParam | None = None
+    sweep_values: list[float] = Field(default=[], max_length=8)
 
 
 class AggregateIn(BaseModel):
@@ -181,6 +189,10 @@ def bone_template_path():
 
 def run_bone_analysis(body: BoneAnalyzeIn, progress=None):
     return {"results": analyze_bones(body.samples, body.options or BoneOptions(), progress)}
+
+
+def run_bone_planner(body: SimulateBoneIn, progress=None):
+    return run_bone_plan(body.scenario, body.options, body.sweep_param, body.sweep_values, progress)
 
 
 def save_table(table: GrowthTable):

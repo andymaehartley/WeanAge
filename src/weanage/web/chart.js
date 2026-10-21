@@ -1,5 +1,5 @@
 // Charts drawn as SVG (no chart library): weaning curves, group "forest" plots and line charts.
-import { color, esc, MODEL_STYLE, num, theme } from "./util.js";
+import { ageText, color, esc, MODEL_STYLE, num, theme, toUnit, unitWord } from "./util.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const SHAPES = ["circle", "square", "diamond", "triangle"];
@@ -239,7 +239,8 @@ export function forestChart(box, groups, xTitle) {
 /** Line chart for the planner. series: [{name, color, dash, points: [{x, y}]}] */
 export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   const desc = series.map((s) => `${s.name}: ${s.points.map((p) => `${label(p.x)} → ${num(p.y)}`).join(", ")}`).join("; ");
-  const { svg, area } = newChart(box, 760, 360, { l: 64, r: 130, t: 16, b: 56 }, title, desc);
+  const legend = series.length > 1; // one line needs no legend: the axis title names it
+  const { svg, area } = newChart(box, 760, 360, { l: 64, r: legend ? 130 : 24, t: 16, b: 56 }, title, desc);
   const hasValue = (p) => p.y != null && isFinite(p.y);
   const pts = series.flatMap((s) => s.points).filter(hasValue);
   if (!pts.length) return svg;
@@ -254,6 +255,7 @@ export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
     const ok = s.points.filter(hasValue);
     el("path", { d: path(ok.map((p) => [p.x, p.y]), xs, ys), fill: "none", stroke: s.color, "stroke-width": 3, "stroke-dasharray": s.dash }, svg);
     for (const p of ok) marker(SHAPES[i % 4], xs(p.x), ys(p.y), 5, { fill: s.color }, svg);
+    if (!legend) return;
     const y = area.top + 12 + i * 18; // legend
     el("line", { x1: area.right + 12, x2: area.right + 34, y1: y, y2: y, stroke: s.color, "stroke-width": 3, "stroke-dasharray": s.dash }, svg);
     el("text", { x: area.right + 40, y: y + 4, class: "legend-text" }, svg).textContent = s.name;
@@ -261,26 +263,31 @@ export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   return svg;
 }
 
+/** A weaning age (in months) as a chart marker in the chosen unit. */
+export const ageMarker = (value, colour, prefix = "") => ({
+  x: toUnit(value.estimate), lo: toUnit(value.ci_low), hi: toUnit(value.ci_high), color: colour, label: `${prefix}${ageText(value.estimate)}`,
+});
+
 /** Everything the weaning chart needs for one specimen's results. */
 // `palette` is "dark" or "light"; the report always uses light so it prints well.
 export function curveOptions(res, { visible, milestone, xRange = null, showD13C = false, onZoom = null, palette = theme() }) {
   const fits = res.fits.filter((f) => f.converged && visible.has(f.model));
   const multiTooth = new Set(res.points.map((p) => p.tooth)).size > 1;
   const markers = fits.filter((f) => f[milestone]?.estimate != null)
-    .map((f) => ({ x: f[milestone].estimate, lo: f[milestone].ci_low, hi: f[milestone].ci_high, color: color(f.model, palette), label: `${num(f[milestone].estimate, 1)} mo` }));
+    .map((f) => ageMarker(f[milestone], color(f.model, palette), ""));
   const avg = res.model_average?.[milestone];
-  if (visible.has("average") && avg) markers.push({ x: avg.estimate, lo: avg.ci_low, hi: avg.ci_high, color: color("average", palette), label: `avg ${num(avg.estimate, 1)} mo` });
+  if (visible.has("average") && avg) markers.push(ageMarker(avg, color("average", palette), "avg "));
   return {
     title: `Weaning curve for ${res.specimen_id}`,
     desc: `${res.points.length} samples of δ15N against age; ${fits.length} model ${fits.length === 1 ? "curve" : "curves"} shown.`,
-    xLabel: "Age at dentine formation (months)",
+    xLabel: `Age at dentine formation (${unitWord()})`,
     yLabel: "δ¹⁵N (‰ AIR)",
     xRange, showD13C, onZoom, positionAxis: !multiTooth, markers,
-    curves: fits.map((f) => ({ color: color(f.model, palette), dash: MODEL_STYLE[f.model].dash, xs: f.curve_age, ys: f.curve_d15N })),
+    curves: fits.map((f) => ({ color: color(f.model, palette), dash: MODEL_STYLE[f.model].dash, xs: f.curve_age.map(toUnit), ys: f.curve_d15N })),
     points: res.points.map((p) => ({
-      x: p.age_months, y: p.d15N, xMin: p.age_min, xMax: p.age_max, d13C: p.d13C, position: p.position_mm,
+      x: toUnit(p.age_months), y: p.d15N, xMin: toUnit(p.age_min), xMax: toUnit(p.age_max), d13C: p.d13C, position: p.position_mm,
       group: multiTooth ? p.tooth : null, used: p.used_in_fit, extrapolated: p.extrapolated,
-      label: `${multiTooth ? `${esc(p.tooth)} · ` : ""}${p.position_mm} mm → ${num(p.age_months, 1)} mo${p.age_min != null ? ` (window ${num(p.age_min, 1)}–${num(p.age_max, 1)})` : ""}` +
+      label: `${multiTooth ? `${esc(p.tooth)} · ` : ""}${p.position_mm} mm → ${ageText(p.age_months)}${p.age_min != null ? ` (window ${ageText(p.age_min)}–${ageText(p.age_max)})` : ""}` +
         `<br>δ¹⁵N ${num(p.d15N)}‰${p.d13C != null ? ` · δ¹³C ${num(p.d13C)}‰` : ""}${p.qc_flags.length ? `<br><em>${esc(p.qc_flags.join(", "))}</em>` : ""}`,
     })),
   };
