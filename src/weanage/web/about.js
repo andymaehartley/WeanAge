@@ -1,10 +1,8 @@
 // The About panel (citation, licences, acknowledgements) and the tooth guide.
 //
-// The tooth guide shows a real reference figure (not drawn by us): Gray's Anatomy (1918),
-// Fig. 1005, public domain. scripts/fetch_tooth_figure.py downloads it from Wikimedia Commons
-// with its licence details into figures/tooth.json, which says `available: false` until then.
-// That file can also list `labels`: WeanAge terms placed over the figure, at x/y given as %
-// of the image width/height.
+// The tooth guide shows a real, credited figure (not drawn by us): "Tooth Section" by
+// Sam Fentress, Wikimedia Commons, CC BY-SA 2.0. figures/tooth.json holds its credit and the
+// WeanAge `labels` drawn over it: x/y in % of the image, with an optional line `to` a point.
 import { $ } from "./util.js";
 
 const MANIFEST = "figures/tooth.json";
@@ -49,6 +47,11 @@ async function loadFigure() {
   img.onload = () => {
     $("#tooth-figure").hidden = false;
     const wrap = img.parentElement;
+    const lines = (credit.labels || []).filter((l) => l.to).map((l) =>
+      `<line x1="${l.x}" y1="${l.y + 2}" x2="${l.to[0]}" y2="${l.to[1]}" ${l.arrow ? 'marker-end="url(#arrow)"' : ""}/>`);
+    wrap.insertAdjacentHTML("beforeend", `<svg class="figure-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <defs><marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0 0 10 5 0 10z"/></marker></defs>${lines.join("")}</svg>`);
     for (const label of credit.labels || []) {
       const tag = document.createElement("span");
       tag.className = "figure-label";
@@ -58,7 +61,9 @@ async function loadFigure() {
       wrap.appendChild(tag);
     }
   };
-  const text = `${credit.title}. ${credit.author}. ${credit.licence}. Source: ${credit.source_url}`;
-  $("#tooth-caption").textContent = `${credit.caption || ""} ${text}`.trim();
-  $("#about-figure-credit").textContent = text;
+  const source = `<a href="${credit.source_url}" target="_blank" rel="noopener">Wikimedia Commons</a>`;
+  const licence = `<a href="${credit.licence_url}" target="_blank" rel="noopener">${credit.licence}</a>`;
+  const text = `“${credit.title}” by ${credit.author}, ${source}, ${licence}.`;
+  $("#tooth-caption").innerHTML = `${credit.caption || ""} ${text}`;
+  $("#about-figure-credit").innerHTML = text;
 }

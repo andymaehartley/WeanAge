@@ -67,6 +67,10 @@ One row per dentine slice. Required columns: `specimen_id`, `site`, `species`, `
   (Zimbabwe) and Bornais (Outer Hebrides) taken from the IsoArcH database. In the real
   example the slice positions are assumed (see `src/weanage/data/examples/README.md`).
 
+Not sure what *cusp apex*, *cervix* or `position_mm` mean? The **Tooth terms and how positions are
+measured** link in the instructions opens a labelled tooth diagram ("Tooth Section" by Sam Fentress,
+Wikimedia Commons, CC BY-SA 2.0) with every term the app uses.
+
 Data exported from [IsoArcH](https://isoarch.eu) can be converted with
 `weanage isoarch export.xlsx --site <name> -o file.csv`.
 

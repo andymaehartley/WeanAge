@@ -1,4 +1,15 @@
 {
-  "available": false,
-  "note": "Run scripts/fetch_tooth_figure.py to download the reference figure (Gray's Anatomy 1918, Fig. 1005, public domain) from Wikimedia Commons."
+  "available": true,
+  "file": "tooth_section_fentress.png",
+  "title": "Tooth Section",
+  "author": "Sam Fentress",
+  "licence": "CC BY-SA 2.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/2.0/",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Tooth_Section.svg",
+  "caption": "A human molar in section. Livestock molars have the same parts, with much taller crowns. The figure is shown unchanged; the blue labels are WeanAge's terms, drawn over it.",
+  "labels": [
+    {"text": "Cusp apex = 0 mm", "x": 53.7, "y": 6.3, "to": [53.7, 10.9]},
+    {"text": "position_mm", "x": 10, "y": 8, "to": [10, 24], "arrow": true},
+    {"text": "Cervix", "x": 8, "y": 38, "to": [30.4, 42.6]}
+  ]
 }
