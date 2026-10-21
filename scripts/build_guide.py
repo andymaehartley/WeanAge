@@ -88,7 +88,6 @@ def app_screenshots():
         page.wait_for_selector("#specimens-card:not([hidden])")
         page.screenshot(path=str(FIGURES / "app_data.png"))
         click(page, '.step[data-view="settings"]')
-        page.screenshot(path=str(FIGURES / "app_settings.png"))
         click(page, "#btn-run")
         page.wait_for_selector("#view-results.active", timeout=300000)
         page.click('[data-specimen="KNPM121"]')
