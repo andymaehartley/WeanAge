@@ -152,6 +152,7 @@ def test_browser_version():
             click(page, "#btn-example")
             page.wait_for_selector("#specimens-card:not([hidden])", timeout=60000)
             click(page, '.step[data-view="settings"]')
+            page.click("#view-settings .grid-3 > article:first-child details.advanced > summary")  # draws are under Advanced
             page.fill("#opt-draws", "100")
             click(page, "#btn-run")  # 11 specimens: shared between several engines on a multi-core machine
             page.wait_for_selector("#view-results.active", timeout=600000)
