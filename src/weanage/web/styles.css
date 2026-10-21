@@ -64,7 +64,7 @@ a { color: var(--accent); }
 .brand { gap: .6rem; padding: .6rem 0; align-items: baseline; }
 .brand .version { font: .75rem var(--mono); color: var(--muted); }
 .subtitle { margin: 0; font-size: .82rem; }
-.logo { display: none; } /* the wordmark is enough */
+.logo-mark { width: 20px; height: 20px; color: var(--accent); align-self: center; flex: none; }
 .steps { gap: 0; flex-wrap: wrap; align-self: stretch; }
 .actions { gap: 0; flex-wrap: wrap; margin-left: auto; }
 .actions .divider { width: 1px; align-self: stretch; margin: .7rem .4rem; background: var(--rule); }
@@ -112,8 +112,11 @@ label.check { flex-direction: row; align-items: center; gap: .45rem; color: var(
 label.check input { width: auto; accent-color: var(--accent); }
 label.inline { flex-direction: row; align-items: center; gap: .5rem; }
 label.inline select { width: auto; }
-label:has(> [data-helpslot]) { position: relative; padding-right: 1.3rem; }
-label > [data-helpslot] { position: absolute; top: 0; right: 0; }
+/* A field label with a "?": the text and the "?" share the first line, the input spans the full width. */
+label:has(> [data-helpslot]) { display: grid; grid-template-columns: 1fr auto; align-items: start; column-gap: .4rem; }
+label:has(> [data-helpslot]) > :is(input, select, textarea, .tbd-badge) { grid-column: 1 / -1; }
+label:has(> [data-helpslot]) > .tbd-badge { justify-self: start; }
+button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; font: inherit; display: inline; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .6rem .9rem; }
 .form-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: .75rem; }
 fieldset.inline { border: 0; padding: 0; margin: 0; display: flex; gap: .8rem; align-items: center; }
@@ -236,6 +239,29 @@ svg.chart .zoom-sel { fill: var(--accent); opacity: .12; }
 svg.chart .c13, svg.chart .c13-pt { fill: var(--carbon); }
 svg.chart .c13-line { fill: none; stroke: var(--carbon); stroke-width: 1.2; stroke-dasharray: 2 3; opacity: .8; }
 .chart-tip { position: absolute; pointer-events: none; background: var(--raised); color: var(--text); border: 1px solid var(--border); padding: .3rem .5rem; border-radius: var(--radius); font: .78rem var(--mono); white-space: nowrap; z-index: 5; }
+
+/* ── dialogs: About and the tooth guide ── */
+.dialog { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--text); width: min(680px, 94vw); max-height: 90vh; padding: 0 1.25rem 1.25rem; box-shadow: 0 10px 40px rgb(0 0 0 / .35); }
+.dialog.wide { width: min(1040px, 96vw); }
+.dialog::backdrop { background: rgb(0 0 0 / .55); }
+.dialog-head { display: flex; align-items: center; gap: .6rem; position: sticky; top: 0; z-index: 1; background: var(--card); padding: 1rem 0 .6rem; border-bottom: 1px solid var(--rule); margin-bottom: .9rem; }
+.dialog-head h2 { margin: 0; flex: 1; }
+.dialog h3 { color: var(--text); }
+.citation { white-space: pre-wrap; font: .82rem/1.5 var(--mono); background: var(--bg); border: 1px solid var(--rule); padding: .6rem .7rem; border-radius: var(--radius); margin: 0 0 .5rem; }
+ul.plain { padding-left: 1.1rem; margin: .3rem 0; }
+ul.plain li { margin-bottom: .35rem; }
+.tooth-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 1.4rem; align-items: start; }
+.tooth-layout:has(> figure[hidden]) { grid-template-columns: 1fr; }
+@media (max-width: 760px) { .tooth-layout { grid-template-columns: 1fr; } }
+.tooth-layout figure { margin: 0; }
+.figure-wrap { position: relative; background: #ffffff; border: 1px solid var(--rule); }
+.figure-wrap img { display: block; width: 100%; height: auto; }
+.figure-label { position: absolute; transform: translate(-50%, -50%); font: 500 .72rem/1.4 var(--mono); background: var(--accent); color: var(--accent-ink); padding: 0 .3rem; border-radius: 2px; white-space: nowrap; }
+.tooth-layout figcaption { font-size: .8rem; color: var(--muted); margin-top: .4rem; }
+dl.terms { margin: 0; }
+dl.terms dt { font-weight: 700; margin-top: .6rem; }
+dl.terms dt:first-child { margin-top: 0; }
+dl.terms dd { margin: .1rem 0 0; font-size: .9rem; }
 
 /* ── help, guided tour and accessibility ── */
 .help-btn { display: inline-grid; place-items: center; width: 1.05rem; height: 1.05rem; padding: 0; border-radius: 50%; font: 700 .66rem/1 var(--sans); background: transparent; color: var(--muted); border: 1px solid var(--border); vertical-align: middle; margin-left: .2rem; }

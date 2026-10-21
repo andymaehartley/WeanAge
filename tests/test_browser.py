@@ -54,6 +54,12 @@ def click(page, selector):
 def test_whole_workflow(page):
     page.wait_for_selector(".tour-card")
     page.keyboard.press("Escape")  # close the first-visit tour
+    click(page, "#btn-about")
+    assert "Hartley" in page.text_content("#about-citation") and page.evaluate("document.querySelector('#about-dialog').open")
+    page.keyboard.press("Escape")
+    click(page, "#btn-tooth")
+    assert "Cusp apex" in page.text_content("#tooth-dialog")
+    page.keyboard.press("Escape")
     click(page, "#btn-example")
     page.wait_for_selector("#specimens-card:not([hidden])")
     click(page, '.step[data-view="settings"]')

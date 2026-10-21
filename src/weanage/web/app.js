@@ -1,11 +1,12 @@
 // The main page: holds the app's state and draws each of the five views.
+import { initAbout } from "./about.js";
 import { api, inBrowser, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ci, download, esc, help, MILESTONES, num, progressBar, pval, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
+import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, pval, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
@@ -50,7 +51,7 @@ function renderTbd() {
   const items = state.config.tbd;
   const ids = new Set(items.map((i) => i.id));
   $("#tbd-banner").hidden = !items.length;
-  $("#tbd-count").textContent = items.length;
+  $("#tbd-count").textContent = `${plural(items.length, "placeholder value")} ${items.length === 1 ? "is" : "are"}`;
   $("#sb-tbd").textContent = items.length ? `${items.length} placeholder values (TBD-LAB)` : "";
   $("#tbd-list").innerHTML = items.map((i) => `<li><strong>${esc(i.area)}:</strong> ${esc(i.label)} — ${esc(i.note)} <code>${esc(i.file)}</code></li>`).join("");
   for (const node of $$("[data-tbd]")) {
@@ -301,7 +302,7 @@ function renderResults() {
       const chosen = r.specimen_id === state.current;
       return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
         <span><strong>${esc(r.specimen_id)}</strong><small>${esc(r.site)} · ${esc(r.species)} ${esc(r.tooth)}</small></span>
-        <span><span class="age">${best ? `${num(best.estimate, 1)} mo` : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${warningCount(r)} warning(s)" aria-label="${warningCount(r)} warning(s)">${warningCount(r)}</span>` : ""}</span>
+        <span><span class="age">${best ? `${num(best.estimate, 1)} mo` : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${plural(warningCount(r), "warning")}" aria-label="${plural(warningCount(r), "warning")}">${warningCount(r)}</span>` : ""}</span>
       </button></li>`;
     })
     .join("");
@@ -688,6 +689,7 @@ async function init() {
   $("#sb-mode").textContent = inBrowser ? "Running in this browser" : "Local app";
   initSettings();
   initExamples();
+  initAbout(state.config);
   initPlanner(state);
   renderTbd();
   for (const slot of $$("[data-helpslot]")) slot.innerHTML = help(slot.dataset.helpslot);

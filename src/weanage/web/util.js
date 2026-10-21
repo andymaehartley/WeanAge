@@ -22,6 +22,8 @@ export function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
+/** "1 warning", "3 warnings" */
+export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export const num = (v, d = 2) => (v == null || !isFinite(v) ? "—" : Number(v).toFixed(d));
 export const ci = (x) => (x && x.ci_low != null ? `${num(x.ci_low, 1)}–${num(x.ci_high, 1)}` : "");
 export const pval = (p) => (p == null ? "—" : p < 0.001 ? "< 0.001" : p.toFixed(3));

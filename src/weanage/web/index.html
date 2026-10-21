@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WeanAge</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M4 9h24M4 16h17M4 23h10%27 stroke=%27%23094b5d%27 stroke-width=%274%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cg%20fill%3D%22%232a8aa3%22%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%224%22%20height%3D%2223%22%20rx%3D%221%22/%3E%3Crect%20x%3D%228%22%20y%3D%226%22%20width%3D%224%22%20height%3D%2222%22%20rx%3D%221%22/%3E%3Crect%20x%3D%2214%22%20y%3D%2213%22%20width%3D%224%22%20height%3D%2215%22%20rx%3D%221%22/%3E%3Crect%20x%3D%2220%22%20y%3D%2220%22%20width%3D%224%22%20height%3D%228%22%20rx%3D%221%22/%3E%3Crect%20x%3D%2226%22%20y%3D%2221%22%20width%3D%224%22%20height%3D%227%22%20rx%3D%221%22/%3E%3C/g%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
   <script>
     // Apply the saved theme and text size before the page draws, so it never flashes.
@@ -19,6 +19,7 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
     <div class="brand">
+      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="currentColor"><rect x="2" y="5" width="4" height="23" rx="1"/><rect x="8" y="6" width="4" height="22" rx="1"/><rect x="14" y="13" width="4" height="15" rx="1"/><rect x="20" y="20" width="4" height="8" rx="1"/><rect x="26" y="21" width="4" height="7" rx="1"/></g></svg>
       <h1>WeanAge</h1>
       <span class="version" id="app-version"></span>
       <span class="subtitle sr-only">Weaning-age estimation from incremental dentine δ15N</span>
@@ -39,6 +40,7 @@
       <button id="btn-text" class="ghost" aria-pressed="false" title="Make all text larger">Larger text</button>
       <span class="divider" aria-hidden="true"></span>
       <button id="btn-help" class="ghost" aria-label="Help: start the guided tour">Help</button>
+      <button id="btn-about" class="ghost">About</button>
     </div>
   </header>
 
@@ -47,7 +49,7 @@
 
   <!-- Highlighted list of every value still waiting on lab work (TBD-LAB). -->
   <details id="tbd-banner" class="tbd-banner" hidden>
-    <summary><strong>Lab data still needed:</strong> <span id="tbd-count"></span> placeholder value(s) are in use.
+    <summary><strong>Lab data still needed:</strong> <span id="tbd-count"></span> in use.
       Results are illustrative until these are filled in.</summary>
     <ul id="tbd-list"></ul>
   </details>
@@ -67,7 +69,8 @@
           <p class="hint">One row per dentine increment, as CSV or Excel. Required columns:
             <code>specimen_id, site, species, tooth, position_mm, d15N</code>
             <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
-            <code>position_reference</code> + <code>crown_height_mm</code> (if measured from the cervix).</p>
+            <code>position_reference</code> + <code>crown_height_mm</code> (if measured from the cervix).
+            <button id="btn-tooth" class="link" type="button">Tooth terms and how positions are measured</button></p>
           <label id="dropzone" class="dropzone">
             <input id="csv-input" type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls" hidden>
             <strong>Drop a CSV or Excel file here</strong> or click to choose one
@@ -140,9 +143,9 @@
           <div class="form-grid">
             <label>Weaning milestone
               <select id="opt-milestone">
-                <option value="completion">Completion (weaning finished)</option>
-                <option value="midpoint">Midpoint (half of the δ¹⁵N drop)</option>
-                <option value="onset">Onset (weaning begins)</option>
+                <option value="completion" title="Weaning finished">Completion</option>
+                <option value="midpoint" title="Half of the δ¹⁵N drop">Midpoint</option>
+                <option value="onset" title="Weaning begins">Onset</option>
               </select>
             </label>
             <label data-tbd="lab:transition_threshold">Transition threshold (% of drop) <span data-helpslot="threshold"></span>
@@ -419,6 +422,64 @@
       </article>
     </section>
   </main>
+
+
+  <!-- About: citation, licences and acknowledgements. -->
+  <dialog id="about-dialog" class="dialog" aria-labelledby="about-title">
+    <form method="dialog" class="dialog-head">
+      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="currentColor"><rect x="2" y="5" width="4" height="23" rx="1"/><rect x="8" y="6" width="4" height="22" rx="1"/><rect x="14" y="13" width="4" height="15" rx="1"/><rect x="20" y="20" width="4" height="8" rx="1"/><rect x="26" y="21" width="4" height="7" rx="1"/></g></svg>
+      <h2 id="about-title">About WeanAge</h2>
+      <button class="ghost tiny" value="close">Close</button>
+    </form>
+    <p>WeanAge estimates the age at which young animals were weaned from δ<sup>15</sup>N measured in
+      slices of tooth dentine. It was written for zooarchaeology: cattle, pigs and horses, and any species
+      with a tooth growth table. Version <span id="about-version" class="mono"></span>.</p>
+    <h3>How to cite</h3>
+    <pre id="about-citation" class="citation"></pre>
+    <button id="btn-copy-citation" class="secondary tiny">Copy citation</button>
+    <span id="copy-msg" class="inline-msg ok" role="status"></span>
+    <h3>Licences</h3>
+    <ul class="plain">
+      <li><strong>WeanAge</strong>: MIT licence.</li>
+      <li><strong>Fonts</strong>: Atkinson Hyperlegible (Braille Institute) and IBM Plex Mono (IBM), both under the SIL Open Font License.</li>
+      <li><strong>Real example data</strong>: IsoArcH datasets under CC BY 4.0; please cite the original studies (listed in the data notes).</li>
+      <li><strong>Tooth figure</strong>: <span id="about-figure-credit">Gray's <i>Anatomy of the Human Body</i> (1918), public domain.</span></li>
+    </ul>
+    <h3>Acknowledgements</h3>
+    <ul class="plain">
+      <li>The methods build on WARN (Tsutaya &amp; Yoneda 2013), MDSS (Tsutaya 2020) and WEAN (Ganiatsou et al. 2023).
+        They were re-implemented from the publications; no code was copied.</li>
+      <li>Example data from Dyvart, Sealy &amp; Fredriksen (2018) and Griffith &amp; Mulville (2020), shared through IsoArcH.</li>
+      <li>Built with NumPy, SciPy, pandas, pydantic and FastAPI; the browser version runs on Pyodide.</li>
+      <li class="tbd-inline">Supervisors, laboratory and funders: to be added.</li>
+    </ul>
+  </dialog>
+
+  <!-- Tooth guide: the parts of a tooth and the terms WeanAge uses for them. -->
+  <dialog id="tooth-dialog" class="dialog wide" aria-labelledby="tooth-title">
+    <form method="dialog" class="dialog-head">
+      <h2 id="tooth-title">Tooth terms used in WeanAge</h2>
+      <button class="ghost tiny" value="close">Close</button>
+    </form>
+    <div class="tooth-layout">
+      <figure id="tooth-figure" hidden>
+        <div class="figure-wrap"><img id="tooth-img" alt="Vertical section of a tooth showing enamel, dentine, the pulp cavity, cement and the surrounding bone, from Gray's Anatomy (1918)."></div>
+        <figcaption id="tooth-caption"></figcaption>
+      </figure>
+      <dl class="terms">
+        <dt>Cusp apex</dt><dd>The tip of the crown. Dentine starts forming here, so it is the zero point: <code>position_mm</code> = 0.</dd>
+        <dt>Crown</dt><dd>The part covered by enamel. Livestock molars have tall crowns; a cattle M2 crown records roughly the first year of life.</dd>
+        <dt>Cervix (neck)</dt><dd>Where the crown meets the root. If you measure from here, set <code>position_reference</code> = cervix and give <code>crown_height_mm</code> (apex to cervix).</dd>
+        <dt>Root</dt><dd>Dentine keeps forming in the root after the crown is complete. Samples beyond a growth table are flagged as extrapolated.</dd>
+        <dt>Enamel</dt><dd>The hard outer layer. It holds almost no collagen, so it is not used for δ<sup>15</sup>N.</dd>
+        <dt>Dentine</dt><dd>The collagen-rich tissue that is sampled. It is laid down from the cusp towards the root and is not remodelled afterwards, so each slice keeps the diet of the time it formed.</dd>
+        <dt>Growth layers</dt><dd>Dentine forms in thin layers that slant across the tooth, so a horizontal slice also holds some later dentine: <code>growth_layer_offset_mm</code>.</dd>
+        <dt>Pulp cavity</dt><dd>The space in the middle. The dentine next to it formed last, and there is less of it: <code>inner_dentine_weight</code>.</dd>
+        <dt>Slice (increment)</dt><dd>One sample of dentine: its middle is at <code>position_mm</code> and its height is <code>increment_width_mm</code>.</dd>
+        <dt>Tooth codes</dt><dd>M1, M2, M3 are the first, second and third molars (P premolar, I incisor). Each tooth needs its own growth table.</dd>
+      </dl>
+    </div>
+  </dialog>
 
   <footer class="statusbar" aria-label="Status">
     <span id="sb-data">No data loaded</span>

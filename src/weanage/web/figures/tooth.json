@@ -1,0 +1,4 @@
+{
+  "available": false,
+  "note": "Run scripts/fetch_tooth_figure.py to download the reference figure (Gray's Anatomy 1918, Fig. 1005, public domain) from Wikimedia Commons."
+}

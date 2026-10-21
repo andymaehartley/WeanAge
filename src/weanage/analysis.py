@@ -186,10 +186,12 @@ def analyze_specimen(samples, options):
 
     extrapolated = sum(p["extrapolated"] for p in points)
     if extrapolated:
-        warnings.append(f"{extrapolated} sample(s) lie beyond the growth table; their ages are extrapolated")
+        warnings.append(f"{extrapolated} sample{'s lie' if extrapolated > 1 else ' lies'} beyond the growth table; "
+                        f"{'their ages are' if extrapolated > 1 else 'its age is'} extrapolated")
     excluded = sum(not p["used_in_fit"] for p in points)
     if excluded:
-        warnings.append(f"{excluded} sample(s) failed collagen QC and were excluded from fitting")
+        warnings.append(f"{excluded} sample{'s' if excluded > 1 else ''} failed collagen QC and "
+                        f"{'were' if excluded > 1 else 'was'} left out of the fit")
     used = [p for p in points if p["used_in_fit"]]
     t = np.array([p["age_months"] for p in used])
     y = np.array([p["d15N"] for p in used])

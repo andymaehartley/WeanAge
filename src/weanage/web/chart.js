@@ -262,7 +262,7 @@ export function curveOptions(res, { visible, milestone, xRange = null, showD13C 
   if (visible.has("average") && avg) markers.push({ x: avg.estimate, lo: avg.ci_low, hi: avg.ci_high, color: color("average", palette), label: `avg ${num(avg.estimate, 1)} mo` });
   return {
     title: `Weaning curve for ${res.specimen_id}`,
-    desc: `${res.points.length} samples of δ15N against age; ${fits.length} model curve(s) shown.`,
+    desc: `${res.points.length} samples of δ15N against age; ${fits.length} model ${fits.length === 1 ? "curve" : "curves"} shown.`,
     xLabel: "Age at dentine formation (months)",
     yLabel: "δ¹⁵N (‰ AIR)",
     xRange, showD13C, onZoom, positionAxis: !multiTooth, markers,

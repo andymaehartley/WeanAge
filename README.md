@@ -1,4 +1,4 @@
-# WeanAge
+# <img src="src/weanage/web/logo.svg" width="36" alt=""> WeanAge
 
 An open-source tool for estimating **age at weaning** in livestock (cattle, pigs, horses)
 from sequentially sampled **incremental dentine δ¹⁵N**. You give it isotope values
