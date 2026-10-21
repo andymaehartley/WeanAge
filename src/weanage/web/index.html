@@ -308,21 +308,25 @@
         <article class="card">
           <h2>Bone model <span data-helpslot="bone_model"></span></h2>
           <p class="hint">Priors: what is believed before seeing the data. With few animals they matter, so check
-            that the results do not simply repeat them.</p>
+            that the results do not simply repeat them. Leave a box blank to use the species' values below.</p>
           <div class="form-grid">
             <label>Shape of weaning <span data-helpslot="weaning_form"></span>
               <select id="bone-weaning_form">
-                <option value="parabolic">Parabolic (WARN default)</option>
+                <option value="parabolic">Parabolic (WARN)</option>
                 <option value="linear">Linear</option>
                 <option value="reverse">Reverse parabolic</option>
               </select>
             </label>
             <label>Latest possible end of weaning (months)
-              <input id="bone-max_weaning_age_months" type="number" min="1" max="120" step="1"></label>
+              <input id="bone-max_weaning_age_months" type="number" min="1" max="120" step="1" placeholder="species default"></label>
             <label>Nursing enrichment, expected (‰) <span data-helpslot="bone_enrichment"></span>
-              <input id="bone-enrichment_prior_mean" type="number" min="0" max="10" step="0.1"></label>
+              <input id="bone-enrichment_prior_mean" type="number" min="0" max="10" step="0.1" placeholder="species default"></label>
             <label>Nursing enrichment, uncertainty (SD ‰)
-              <input id="bone-enrichment_prior_sd" type="number" min="0.1" max="5" step="0.1"></label>
+              <input id="bone-enrichment_prior_sd" type="number" min="0.1" max="5" step="0.1" placeholder="species default"></label>
+            <label>Newborn above mothers, expected (‰) <span data-helpslot="newborn_offset"></span>
+              <input id="bone-newborn_offset_mean" type="number" min="-5" max="5" step="0.1" placeholder="species default"></label>
+            <label>Newborn above mothers, uncertainty (SD ‰)
+              <input id="bone-newborn_offset_sd" type="number" min="0.1" max="5" step="0.1" placeholder="species default"></label>
             <label>Weaning food δ¹⁵N, uncertainty around mothers (SD ‰)
               <input id="bone-weaning_food_prior_sd" type="number" min="0.1" max="10" step="0.1"></label>
           </div>
@@ -343,6 +347,11 @@
         </article>
         <div id="qc-bone-home" class="contents"></div>
       </div>
+      <article class="card" data-tbd="bone-priors:cattle">
+        <h2>Species priors <span data-helpslot="bone_enrichment"></span></h2>
+        <p class="hint">Used for any box left blank above. Edit <code>src/weanage/data/bone_priors.json</code> to change them.</p>
+        <div class="table-wrap"><table id="species-priors"></table></div>
+      </article>
       <article class="card" data-tbd="turnover:cattle">
         <h2>Bone collagen turnover <span data-helpslot="turnover"></span></h2>
         <p class="hint">Share of the bone collagen newly made each month, at each age. Edit
@@ -424,7 +433,7 @@
               <span><i class="line solid"></i> bone δ¹⁵N, fitted ± 95%</span>
               <span><i class="line dotted"></i> diet</span>
               <span><i class="line dashed"></i> mothers' mean</span>
-              <span><i class="dash"></i> weaning start and end ± 95%</span>
+              <span><i class="dash"></i> weaning start and end of suckling ± 95%</span>
             </div>
             <ul id="bone-res-warnings" class="issues"></ul>
           </article>

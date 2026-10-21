@@ -77,6 +77,7 @@ def get_config():
         "bone_defaults": BoneOptions().model_dump(),
         "bone_examples": [{"name": key, "label": label} for key, (_, label, _) in BONE_EXAMPLES.items()],
         "turnover_tables": [t.model_dump() for t in config.turnover_tables()],
+        "bone_priors": config.bone_priors(),
     }
 
 

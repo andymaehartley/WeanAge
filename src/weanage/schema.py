@@ -266,9 +266,12 @@ class BoneOptions(BaseModel):
     """Settings of the bone model. Priors are what is believed before seeing the data."""
 
     weaning_form: Literal["parabolic", "linear", "reverse"] = "parabolic"  # how milk gives way to food (WARN)
-    max_weaning_age_months: float = Field(default=24.0, gt=0, le=120)  # weaning ends no later than this
-    enrichment_prior_mean: float = Field(default=1.9, ge=0, le=10)  # ‰ nursing young above mothers (WARN default)
-    enrichment_prior_sd: float = Field(default=0.9, gt=0, le=5)
+    # Left blank (None), these come from the species' entry in data/bone_priors.json.
+    max_weaning_age_months: float | None = Field(default=None, gt=0, le=120)  # weaning ends no later than this
+    enrichment_prior_mean: float | None = Field(default=None, ge=0, le=10)  # ‰ milk collagen above the mothers
+    enrichment_prior_sd: float | None = Field(default=None, gt=0, le=5)
+    newborn_offset_mean: float | None = Field(default=None, ge=-5, le=5)  # ‰ newborn bone above the mothers
+    newborn_offset_sd: float | None = Field(default=None, gt=0, le=5)
     weaning_food_prior_sd: float = Field(default=3.0, gt=0, le=10)  # ‰ around the adult-female mean (WARN default)
     female_mean: float | None = Field(default=None, ge=-10, le=30)  # used when there are no adult females
     female_sd: float = Field(default=0.5, gt=0)

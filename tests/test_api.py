@@ -72,7 +72,8 @@ def test_frontend_is_served():
 
 def test_bone_requests():
     body = client.get("/api/config").json()
-    assert body["bone_examples"][0]["name"] == "synthetic_bone" and body["bone_defaults"]["max_weaning_age_months"] == 24
+    assert body["bone_examples"][0]["name"] == "synthetic_bone" and body["bone_defaults"]["max_weaning_age_months"] is None
+    assert body["bone_priors"]["cattle"]["max_weaning_age_months"] == 24  # blank settings use the species priors
     assert any(item["id"] == "turnover:cattle" for item in body["tbd"])
     example = client.get("/api/bone/example").json()
     assert len(example["samples"]) > 100 and "SYNTHETIC" in example["message"]

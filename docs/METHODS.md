@@ -224,16 +224,23 @@ site × species (× period) group is fitted on its own.
   ((t − t1)/(t2 − t1))² ("parabolic", WARN's default: slow, then fast). Linear and reverse
   parabolic are offered too; WARN's sigmoid form is not, because its formula is not given in
   the paper or manual.
-* *Bone* (Eq. 9–10). At birth bone collagen equals the mother's value (F). Every quarter
-  month a share r(t) of it is rebuilt from the current diet:
-  bone(t + Δ) = (1 − r)·bone(t) + r·δ¹⁵N_new(t). The shares come from
-  `data/bone_turnover.json`. WARN gives turnover as a rate per year (above 1 in the first
-  years of life); WeanAge converts it to a monthly share as 1 − exp(−T/12).
-* *Fit.* t1, t2, E, W, F and the scatter between animals σ are estimated together, and each
-  animal's age at death is sampled within its range (from tooth wear, fusion etc.). Priors:
-  t1 and t2 flat with 0 ≤ t1 ≤ t2 ≤ the latest possible end of weaning (24 months by
-  default); E ~ N(1.9, 0.9) and W ~ N(F, 3), WARN's defaults (E from Waters-Rist & Katzenberg
-  2010); σ ~ |N(0, 1)|, as in WARN; F ~ N(mean of the adult females, its standard error).
+* *Bone* (Eq. 9–10). At birth bone collagen equals the mothers' value plus a newborn offset
+  b (WARN assumes b = 0). Every quarter month a share r(t) of it is rebuilt from the current
+  diet: bone(t + Δ) = (1 − r)·bone(t) + r·δ¹⁵N_new(t). The shares come from
+  `data/bone_turnover.json`. WARN gives T, the share of the bone replaced in each year of age
+  (Eq. 9; 1 or more means all of it); WeanAge converts it to a monthly share as
+  1 − (1 − min(T, 0.97))^(1/12), which reproduces WARN's 96.6% replaced by 31 weeks.
+* *Fit.* t1, t2, E, W, F, b and the scatter between animals σ are estimated together, and
+  each animal's age at death is sampled within its range (from tooth wear, fusion etc.).
+  Priors: t1 and t2 flat with 0 ≤ t1 ≤ t2 ≤ the latest possible end of weaning; E ~ N(mean,
+  SD) and b ~ N(mean, SD) per species from `data/bone_priors.json` (humans: WARN's E ~ N(1.9,
+  0.9) and b ≈ 0; livestock: E ~ N(2.5–3.0, 1.0) and b ~ N(1.0, 1.0), placeholders drawn from
+  the animal studies in [BONE_LITERATURE.md](BONE_LITERATURE.md)); W ~ N(F, 3) and σ ~ |N(0, 1)|
+  as in WARN; F ~ N(mean of the adult females, its standard error). Values typed in Settings
+  override the species entry.
+* *Reading t2.* δ¹⁵N falls when suckling stops, rather than as the amount of milk slowly
+  drops (Balasse et al. 2001 in cattle; Díez-Canseco & Tornero 2026 in sheep), so t2 is
+  reported as the end of suckling.
 
 **How it differs from WARN.** WARN uses approximate Bayesian computation with sequential
 Monte Carlo (Sisson et al. 2007). WeanAge writes down the likelihood (normal scatter σ around
@@ -244,12 +251,21 @@ WARN's t1/t2 priors are normal distributions in years, set for humans; for lives
 priors up to a user-set limit avoid importing human weaning ages.
 
 **Turnover.** WARN's human rib values (Table 1, "Collagen (QP)") are included as the
-`human` table, so results can be checked against WARN. The quartic printed as Eq. 6 does not
+`human` table, so results can be checked against WARN. The livestock placeholders are anchored
+to the one non-human benchmark found: complete turnover of young fur seals' bone collagen in
+about 8–10 months (Newsome et al. 2006); they replace about 95% of a newborn's collagen by
+9 months, close to the human rate in the first year. The quartic printed as Eq. 6 does not
 reproduce Table 1 beyond about age 2, probably because its coefficients are rounded, so the
 table values are used. **No livestock turnover rates are established**: the cattle, sheep,
 goat and pig tables are placeholders (TBD-LAB). They should be derived as WARN derived the
 human ones: skeletal growth (modelling) plus remodelling, corrected for mineralisation delay.
 Like WARN, the method suits fast-turnover bone (ribs, other cancellous bone).
+
+**Nursing-signal check.** Reynard & Tuross (2015) showed that a raised δ¹⁵N in the very
+young is common but that weaning ages are hard to extract, often because samples are small.
+Before the fit, the youngest third of the young animals are compared with the mothers
+(one-sided Welch t-test); if they are not clearly higher, a warning says the data may hold no
+nursing signal.
 
 **Checks.** Warnings are raised for fewer than 10 young animals, no young animal dying
 before or after the estimated end of weaning, a completion interval covering most of the
@@ -262,11 +278,17 @@ WARN R package manual, version 1.2-5 (2025). Millard AR (2000) A model for the e
 weaning on nitrogen isotope ratios in humans. In Goodfriend et al. (eds), *Perspectives in
 Amino Acid and Protein Geochemistry*, Oxford University Press. Waters-Rist AL, Katzenberg MA
 (2010) *Int. J. Osteoarchaeol.* 20: 172–191. Sisson SA, Fan Y, Tanaka MM (2007) *PNAS* 104:
-1760–1765. ter Braak CJF (2006) *Statistics and Computing* 16: 239–249.
+1760–1765. ter Braak CJF (2006) *Statistics and Computing* 16: 239–249. Reynard LM, Tuross N
+(2015) *J. Archaeol. Sci.* 53: 618–625. Jenkins SG et al. (2001) *Oecologia* 129: 336–341.
+Newsome SD, Koch PL, Etnier MA, Aurioles-Gamboa D (2006) *Marine Mammal Science* 22: 556–572.
+Balasse M et al. (2001) *J. Archaeol. Sci.* 28: 235–245. Díez-Canseco, Tornero (2026)
+*J. Archaeol. Sci.: Reports* 71: 105651. The full list, with what each source changed, is in
+[BONE_LITERATURE.md](BONE_LITERATURE.md).
 
 **Test.** `scripts/make_bone_example.py` simulates two cattle sites with the model itself
-(true weaning 3–9 and 1–4 months; ages as ranges). The tests check that both are recovered
-within their 95% intervals.
+(true weaning 3–9 and 1–4 months, newborn offset 0.8‰; ages as ranges). The tests check that
+both are recovered within their 95% intervals, and that a flat dataset with no nursing rise
+is flagged.
 
 ## Limitations / future work
 

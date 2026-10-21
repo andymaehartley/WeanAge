@@ -3,15 +3,16 @@
 import { api } from "./api.js";
 import { curveChart } from "./chart.js";
 import { offscreen } from "./report.js";
-import { $, ci, color, download, esc, num, plural, progressBar, table, tbdBadge, toast, toCsv } from "./util.js";
+import { $, ci, color, download, esc, help, num, plural, progressBar, table, tbdBadge, toast, toCsv } from "./util.js";
 
 // Bone settings and the form box that holds each (all numbers).
-const FIELDS = ["max_weaning_age_months", "enrichment_prior_mean", "enrichment_prior_sd", "weaning_food_prior_sd",
-  "female_mean", "female_sd", "chains", "warmup", "keep"];
+const FIELDS = ["max_weaning_age_months", "enrichment_prior_mean", "enrichment_prior_sd", "newborn_offset_mean",
+  "newborn_offset_sd", "weaning_food_prior_sd", "female_mean", "female_sd", "chains", "warmup", "keep"];
 const ESTIMATES = [
-  ["onset", "Weaning starts", "months"], ["midpoint", "Weaning midpoint", "months"], ["completion", "Weaning ends", "months"],
+  ["onset", "Weaning starts", "months"], ["midpoint", "Weaning midpoint", "months"], ["completion", "Suckling ends", "months"],
   ["enrichment_permil", "Nursing enrichment", "‰"], ["weaning_food_d15N", "Weaning-food δ¹⁵N", "‰"],
-  ["female_mean_d15N", "Mothers' mean δ¹⁵N", "‰"], ["sigma_permil", "Scatter between animals (SD)", "‰"],
+  ["female_mean_d15N", "Mothers' mean δ¹⁵N", "‰"], ["newborn_offset_permil", "Newborn above mothers", "‰"],
+  ["sigma_permil", "Scatter between animals (SD)", "‰"],
 ];
 
 let state;
@@ -129,6 +130,14 @@ export function boneSettings(qc) {
 
 export function renderTurnover() {
   const species = [...new Set(state.bone.samples.map((s) => s.species))];
+  const priors = Object.entries(state.config.bone_priors).filter(([name]) => species.includes(name) || name === "default");
+  table($("#species-priors"), [
+    { label: "Species", render: ([name, p]) => `${esc(name)} ${p.placeholder ? tbdBadge : ""}` },
+    { label: "Enrichment (‰)", cls: "num", render: ([, p]) => `${num(p.enrichment_mean, 1)} ± ${num(p.enrichment_sd, 1)}` },
+    { label: "Newborn above mothers (‰)", cls: "num", render: ([, p]) => `${num(p.newborn_offset_mean, 1)} ± ${num(p.newborn_offset_sd, 1)}` },
+    { label: "Latest end of weaning", cls: "num", render: ([, p]) => `${num(p.max_weaning_age_months, 0)} mo` },
+    { label: "Source", render: ([, p]) => `<small>${esc(p.source)}</small>` },
+  ], priors);
   const tables = state.config.turnover_tables.filter((t) => !species.length || species.includes(t.species));
   $("#turnover-list").innerHTML = tables.length ? tables.map((t) => `<h3>${esc(t.label)} ${t.placeholder ? tbdBadge : ""}</h3>
     <table><thead><tr><th>Age (months)</th>${t.ages_months.map((a) => `<th class="num">${num(a, 0)}</th>`).join("")}</tr></thead>
@@ -160,6 +169,7 @@ async function runBone() {
 // ───────────── results ─────────────
 const currentResult = () => state.bone.results?.find((r) => r.group === state.bone.current) || state.bone.results?.[0];
 const isNote = (w) => /PLACEHOLDER|stand in|taken from Settings/.test(w);
+const isTbd = (w) => /PLACEHOLDER/.test(w);
 
 function choose(group) {
   state.bone.current = group;
@@ -186,7 +196,7 @@ export function renderBoneResults() {
   if (res.curve) curveChart($("#bone-res-chart"), chartOptions(res));
   else $("#bone-res-chart").innerHTML = `<p class="muted">${esc(res.message)}</p>`;
   $("#bone-res-warnings").innerHTML = res.warnings
-    .map((w) => `<li class="${/PLACEHOLDER/.test(w) ? "tbd-li" : isNote(w) ? "info" : "warning"}">${esc(w)}</li>`).join("");
+    .map((w) => `<li class="${isTbd(w) ? "tbd-li" : isNote(w) ? "info" : "warning"}">${esc(w)}</li>`).join("");
   const rows = res.estimates ? ESTIMATES.map(([key, label, unit]) => ({ label, unit, ...res.estimates[key] })) : [];
   table($("#bone-fit-table"), [
     { label: "Estimate", render: (r) => esc(r.label) },
@@ -202,8 +212,12 @@ export function renderBoneResults() {
 function summary(res) {
   if (!res.estimates) return esc(res.message);
   const e = res.estimates;
-  return `Weaning ran from about <strong>${num(e.onset.estimate, 1)}</strong> to <strong>${num(e.completion.estimate, 1)} months</strong>
-    (end: 95% interval ${ci(e.completion)} months). Nursing young were about ${num(e.enrichment_permil.estimate, 1)}‰ above their mothers.
+  const c = res.nursing_check;
+  const signal = c?.p_value == null ? "" : c.p_value < 0.05
+    ? ` The youngest animals are ${num(c.difference_permil, 1)}‰ above the mothers (p ${c.p_value < 0.001 ? "< 0.001" : `= ${num(c.p_value, 3)}`}), so there is a nursing signal ${help("nursing_check")}.`
+    : ` <span class="warn-text">The youngest animals are not clearly above the mothers ${help("nursing_check")}.</span>`;
+  return `Weaning ran from about <strong>${num(e.onset.estimate, 1)}</strong> months; suckling ended at about <strong>${num(e.completion.estimate, 1)} months</strong>
+    (95% interval ${ci(e.completion)}). Milk-fed young were about ${num(e.enrichment_permil.estimate, 1)}‰ above their mothers.${signal}
     ${res.turnover_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder bone turnover.</span>' : ""}`;
 }
 
@@ -219,7 +233,7 @@ function chartOptions(res, palette) {
     desc: `${young.length} young animals; fitted bone curve with 95% band and the diet it implies. Weaning from ${num(e.onset.estimate, 1)} to ${num(e.completion.estimate, 1)} months.`,
     xLabel: "Age at death (months)",
     yLabel: "Bone collagen δ¹⁵N (‰ AIR)",
-    markers: [marker("onset", "start"), marker("completion", "end")],
+    markers: [marker("onset", "start"), marker("completion", "suckling ends")],
     bands: [{ xs: c.age, lo: c.bone_low, hi: c.bone_high, color: bone }],
     curves: [
       { xs: c.age, ys: c.bone, color: bone },

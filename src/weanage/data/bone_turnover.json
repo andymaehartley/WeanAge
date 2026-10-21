@@ -1,5 +1,5 @@
 {
-  "_README": "Bone collagen turnover for the bone (cross-sectional) weaning model: the share of a young animal's bone collagen that is newly made each month, at each age. Values are monthly shares; a yearly turnover rate T (as in WARN) converts as 1 - exp(-T/12). In growing animals most new collagen comes from skeletal growth, so the share is high at birth and falls with age. WARN (Tsutaya & Yoneda 2013) estimated these values for human rib bone from tissue-level bone data (included below as 'human', for checking against WARN); no equivalent values are established for livestock. Every livestock table here is a PLACEHOLDER (TBD-LAB): replace it with values from bone growth and remodelling data for the species (e.g. skeletal mass gain with age plus remodelling rate), then set placeholder to false.",
+  "_README": "Bone collagen turnover for the bone (cross-sectional) weaning model: the share of a young animal's bone collagen that is newly made each month, at each age. Values are monthly shares; a yearly turnover T as in WARN (the share replaced in a year) converts as 1 - (1 - min(T, 0.97))^(1/12). In growing animals most new collagen comes from skeletal growth, so the share is high at birth and falls with age. WARN (Tsutaya & Yoneda 2013) estimated these values for human rib bone from tissue-level bone data (included below as 'human', for checking against WARN); no equivalent values are established for livestock. Every livestock table here is a PLACEHOLDER (TBD-LAB): replace it with values from bone growth and remodelling data for the species (e.g. skeletal mass gain with age plus remodelling rate), then set placeholder to false.",
   "tables": [
     {
       "species": "cattle",
@@ -8,21 +8,23 @@
         0,
         3,
         6,
+        9,
         12,
         24,
         48,
         120
       ],
       "renewed_per_month": [
+        0.4,
+        0.33,
+        0.26,
         0.2,
-        0.12,
-        0.08,
-        0.05,
-        0.03,
-        0.015,
-        0.008
+        0.14,
+        0.06,
+        0.025,
+        0.01
       ],
-      "source": "",
+      "source": "Placeholder shape, anchored to two benchmarks: bone collagen of young-of-the-year northern fur seals turns over completely in about 8-10 months (Newsome et al. 2006, Marine Mammal Science 22: 556-572), and WARN's human rib values (Tsutaya & Yoneda 2013). With these values about 95% of a newborn's collagen is replaced by 9 months, and turnover slows to a few % per month in adults.",
       "placeholder": true,
       "tbd_note": "Monthly share of bone collagen newly made at each age in calves and young cattle. Needed from skeletal growth curves (bone mass gain) plus remodelling rates."
     },
@@ -33,21 +35,23 @@
         0,
         3,
         6,
+        9,
         12,
         24,
         48,
         120
       ],
       "renewed_per_month": [
-        0.24,
+        0.45,
+        0.36,
+        0.27,
+        0.2,
         0.14,
-        0.09,
-        0.05,
-        0.03,
-        0.015,
-        0.008
+        0.06,
+        0.025,
+        0.01
       ],
-      "source": "",
+      "source": "Placeholder shape, anchored to two benchmarks: bone collagen of young-of-the-year northern fur seals turns over completely in about 8-10 months (Newsome et al. 2006, Marine Mammal Science 22: 556-572), and WARN's human rib values (Tsutaya & Yoneda 2013). With these values about 95% of a newborn's collagen is replaced by 9 months, and turnover slows to a few % per month in adults.",
       "placeholder": true,
       "tbd_note": "Monthly share of bone collagen newly made at each age in lambs and young sheep."
     },
@@ -58,21 +62,23 @@
         0,
         3,
         6,
+        9,
         12,
         24,
         48,
         120
       ],
       "renewed_per_month": [
-        0.24,
+        0.45,
+        0.36,
+        0.27,
+        0.2,
         0.14,
-        0.09,
-        0.05,
-        0.03,
-        0.015,
-        0.008
+        0.06,
+        0.025,
+        0.01
       ],
-      "source": "",
+      "source": "Placeholder shape, anchored to two benchmarks: bone collagen of young-of-the-year northern fur seals turns over completely in about 8-10 months (Newsome et al. 2006, Marine Mammal Science 22: 556-572), and WARN's human rib values (Tsutaya & Yoneda 2013). With these values about 95% of a newborn's collagen is replaced by 9 months, and turnover slows to a few % per month in adults.",
       "placeholder": true,
       "tbd_note": "Monthly share of bone collagen newly made at each age in kids and young goats."
     },
@@ -83,21 +89,23 @@
         0,
         2,
         4,
-        8,
+        6,
+        9,
         12,
         24,
         60
       ],
       "renewed_per_month": [
-        0.3,
+        0.5,
+        0.4,
+        0.32,
+        0.25,
         0.18,
         0.12,
-        0.07,
         0.05,
-        0.025,
-        0.01
+        0.015
       ],
-      "source": "",
+      "source": "Placeholder shape, anchored to two benchmarks: bone collagen of young-of-the-year northern fur seals turns over completely in about 8-10 months (Newsome et al. 2006, Marine Mammal Science 22: 556-572), and WARN's human rib values (Tsutaya & Yoneda 2013). With these values about 95% of a newborn's collagen is replaced by 9 months, and turnover slows to a few % per month in adults.",
       "placeholder": true,
       "tbd_note": "Monthly share of bone collagen newly made at each age in piglets and young pigs."
     },
@@ -118,19 +126,19 @@
         114
       ],
       "renewed_per_month": [
-        0.1111,
-        0.1111,
-        0.0902,
-        0.0741,
-        0.0622,
-        0.0538,
-        0.048,
-        0.044,
-        0.0414,
-        0.0395,
-        0.0378
+        0.3748,
+        0.3748,
+        0.2534,
+        0.1933,
+        0.1156,
+        0.0869,
+        0.0716,
+        0.0627,
+        0.0572,
+        0.0535,
+        0.0505
       ],
-      "source": "Tsutaya T, Yoneda M (2013) PLoS ONE 8: e72327, Table 1, 'Collagen (QP)' turnover per year for each year of age 0-10. Converted to a monthly share as 1 - exp(-T/12) and placed at the middle of each year; the first year's value is also used at birth. (The quartic printed as Eq. 6 does not reproduce Table 1 beyond about age 2, probably because its coefficients are rounded, so the table is used.)",
+      "source": "Tsutaya T, Yoneda M (2013) PLoS ONE 8: e72327, Table 1 ('Collagen (QP)': the share of bone collagen replaced in each year of age, Eq. 9). Each yearly share T becomes the monthly share 1 - (1 - min(T, 0.97))^(1/12), so twelve months replace T (T of 1 or more, meaning complete replacement within the year, is capped at 97%). The first year follows the paper's statement that 96.6% is replaced by 0.6 years (31 weeks): 1 - 0.034^(1/7.2). The quartic printed as Eq. 6 does not reproduce Table 1 beyond about age 2, probably because its coefficients are rounded, so the table is used.",
       "placeholder": false,
       "tbd_note": null
     }

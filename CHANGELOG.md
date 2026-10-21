@@ -22,6 +22,12 @@
   animals that died at different ages, after WARN (Tsutaya & Yoneda 2013): WARN's diet forms
   and priors, age-dependent collagen turnover (WARN's human rib values included; livestock
   values are TBD-LAB placeholders), ages at death as ranges, and a Bayesian sampler.
+* **Bone method updated from the animal literature** (`docs/BONE_LITERATURE.md`): species
+  priors for nursing enrichment and newborn offset (`data/bone_priors.json`); the newborn offset
+  is estimated, as foetal tissue is enriched over the mother in other mammals; livestock turnover
+  placeholders anchored to young-mammal turnover (Newsome et al. 2006); WARN's yearly turnover
+  converted as the share replaced per year; a nursing-signal check (Reynard & Tuross 2015); the
+  end of weaning reported as the end of suckling (Balasse et al. 2001).
 * The **model average is flagged** "beyond the sampled teeth" when most of its support comes
   from models that put the weaning age outside the samples.
 

@@ -18,7 +18,8 @@ from weanage.bone import STEP, bone_curve, renewal
 
 OUT = Path(__file__).resolve().parents[1] / "src" / "weanage" / "data" / "examples" / "synthetic_bone_example.csv"
 SITES = {"Site A": (3.0, 9.0), "Site B": (1.0, 4.0)}  # true weaning start and end (months)
-FEMALE_MEAN, ENRICHMENT, WEANING_FOOD, SCATTER = 6.0, 2.2, 5.6, 0.35  # weaning follows WARN's parabolic form
+FEMALE_MEAN, ENRICHMENT, WEANING_FOOD, SCATTER = 6.0, 2.8, 5.6, 0.35  # weaning follows WARN's parabolic form
+NEWBORN_OFFSET = 0.8  # newborn bone above the mothers' mean
 
 
 def age_range(age):
@@ -33,7 +34,8 @@ def main():
     grid = np.arange(0, 60 + STEP, STEP)
     rows = []
     for site, (t1, t2) in SITES.items():
-        bone, _ = bone_curve(grid, renewal(table, grid), t1, t2, ENRICHMENT, WEANING_FOOD, FEMALE_MEAN)
+        bone, _ = bone_curve(grid, renewal(table, grid), t1, t2, ENRICHMENT, WEANING_FOOD, FEMALE_MEAN,
+                             newborn_offset=NEWBORN_OFFSET)
         ages = np.sort(np.concatenate([rng.uniform(0, 12, 26), rng.uniform(12, 36, 14)]))
         for i, age in enumerate(ages, start=1):
             low, high = age_range(age)

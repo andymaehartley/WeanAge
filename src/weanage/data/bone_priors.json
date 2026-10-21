@@ -1,0 +1,64 @@
+{
+  "_README": "Prior beliefs for the bone calculation, per species: the nursing enrichment E (collagen made from milk minus the mothers' collagen, ‰), the newborn offset (newborn bone minus the mothers' mean, ‰) and the latest age at which weaning can have ended (a generous bound for the sampler, not an estimate). Values entered in Settings override these. Entries marked placeholder need checking against known-age animals of that species (TBD-LAB). 'default' is used for species not listed.",
+  "species": {
+    "human": {
+      "enrichment_mean": 1.9,
+      "enrichment_sd": 0.9,
+      "newborn_offset_mean": 0.0,
+      "newborn_offset_sd": 0.3,
+      "max_weaning_age_months": 72,
+      "source": "WARN defaults (Tsutaya & Yoneda 2013; WARN manual 1.2-5): E ~ N(1.9, 0.9) from archaeological populations (Waters-Rist & Katzenberg 2010); newborns assumed equal to their mothers. The newborn SD of 0.3‰ lets the data move that assumption slightly. WARN allows ages up to 10 years.",
+      "placeholder": false
+    },
+    "cattle": {
+      "enrichment_mean": 3.0,
+      "enrichment_sd": 1.0,
+      "newborn_offset_mean": 1.0,
+      "newborn_offset_sd": 1.0,
+      "max_weaning_age_months": 24,
+      "source": "Enrichment: a c. 3-3.5‰ collagen offset between nursing calves and their mothers is reported for bovids (as summarised in sequential dentine studies following Balasse et al. 2001); Jenkins et al. (2001) found only c. 0.9‰ between offspring and maternal plasma across 11 mammal species, so the SD is wide. Newborn offset: foetal tissue is enriched over the mother in mammals (1.7 ± 0.5‰, range 0.9-2.7‰, in a marine mammal, Conservation Physiology 8: coaa060, 2020; 2.6-2.7‰ is reported for calf and sheep foetal bone collagen, primary source not yet checked), against WARN's human assumption of 0.",
+      "placeholder": true,
+      "tbd_note": "Nursing enrichment and newborn offset for cattle bone collagen, from known-age calves and their dams."
+    },
+    "sheep": {
+      "enrichment_mean": 2.5,
+      "enrichment_sd": 1.0,
+      "newborn_offset_mean": 1.0,
+      "newborn_offset_sd": 1.0,
+      "max_weaning_age_months": 12,
+      "source": "No bone-collagen values for lambs found. Enrichment between Jenkins et al. (2001, c. 0.9‰ in plasma) and the bovid collagen offset (c. 3-3.5‰), with a wide SD. Newborn offset as for cattle. Known-age dentine data now exist for early-weaned sheep (Díez-Canseco & Tornero 2026).",
+      "placeholder": true,
+      "tbd_note": "Nursing enrichment and newborn offset for sheep bone collagen, from known-age lambs and ewes."
+    },
+    "goat": {
+      "enrichment_mean": 2.5,
+      "enrichment_sd": 1.0,
+      "newborn_offset_mean": 1.0,
+      "newborn_offset_sd": 1.0,
+      "max_weaning_age_months": 12,
+      "source": "As for sheep; no goat-specific values found.",
+      "placeholder": true,
+      "tbd_note": "Nursing enrichment and newborn offset for goat bone collagen, from known-age kids and does."
+    },
+    "pig": {
+      "enrichment_mean": 2.5,
+      "enrichment_sd": 1.0,
+      "newborn_offset_mean": 1.0,
+      "newborn_offset_sd": 1.0,
+      "max_weaning_age_months": 12,
+      "source": "No piglet bone-collagen values found. Generic mammalian values as for sheep.",
+      "placeholder": true,
+      "tbd_note": "Nursing enrichment and newborn offset for pig bone collagen, from known-age piglets and sows."
+    },
+    "default": {
+      "enrichment_mean": 2.5,
+      "enrichment_sd": 1.0,
+      "newborn_offset_mean": 1.0,
+      "newborn_offset_sd": 1.0,
+      "max_weaning_age_months": 24,
+      "source": "Generic mammal: between the offspring-plasma offset of Jenkins et al. (2001) and the bovid collagen offset; newborn offset from mammalian foetal enrichment.",
+      "placeholder": true,
+      "tbd_note": "Priors for a species without its own entry."
+    }
+  }
+}

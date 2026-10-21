@@ -70,7 +70,7 @@ def test_recovers_the_synthetic_weaning_ages():
         assert e["onset"]["ci_low"] < t1 < e["onset"]["ci_high"]
         assert e["completion"]["ci_low"] < t2 < e["completion"]["ci_high"]
         assert e["completion"]["estimate"] == pytest.approx(t2, abs=1.5)
-        assert e["enrichment_permil"]["ci_low"] < 2.2 < e["enrichment_permil"]["ci_high"]
+        assert e["enrichment_permil"]["ci_low"] < 2.8 < e["enrichment_permil"]["ci_high"]
         assert results[site]["rhat"] < 1.2 and len(results[site]["curve"]["age"]) > 50
         assert any("PLACEHOLDER" in w for w in results[site]["warnings"])
     assert results["Site A"]["estimates"]["completion"]["estimate"] > results["Site B"]["estimates"]["completion"]["estimate"]
@@ -95,5 +95,38 @@ def test_weaning_forms_follow_warn():
 def test_human_turnover_matches_warn_table_1():
     human = config.find_turnover_table("human")
     assert not human.placeholder
-    first_year = 1 - (1 - human.renewed_per_month[1]) ** 12  # share renewed over the first year
-    assert first_year == pytest.approx(1 - np.exp(-1.413), abs=1e-3)
+    by_31_weeks = 1 - (1 - human.renewed_per_month[1]) ** 7.2  # WARN: 96.6% replaced by 0.6 years
+    assert by_31_weeks == pytest.approx(0.966, abs=1e-3)
+    third_year = 1 - (1 - human.renewed_per_month[3]) ** 12  # Table 1: 0.924 of the bone replaced in year 3
+    assert third_year == pytest.approx(0.924, abs=2e-3)
+
+
+def test_species_priors_fill_blank_settings():
+    from weanage.bone import priors_for
+
+    filled, entry = priors_for("sheep", BoneOptions())
+    assert filled.max_weaning_age_months == 12 and filled.enrichment_prior_mean == entry["enrichment_mean"]
+    mine, _ = priors_for("sheep", BoneOptions(enrichment_prior_mean=1.2))
+    assert mine.enrichment_prior_mean == 1.2  # a value typed in Settings wins
+    human, _ = priors_for("human", BoneOptions())
+    assert human.enrichment_prior_mean == 1.9 and human.enrichment_prior_sd == 0.9  # WARN's defaults
+    assert priors_for("deer", BoneOptions())[1]["source"].startswith("Generic mammal")
+
+
+def test_newborn_offset_sets_the_starting_value():
+    grid = np.arange(0, 24, STEP)
+    renewed = renewal(config.find_turnover_table("cattle"), grid)
+    bone, _ = bone_curve(grid, renewed, 3, 9, 2.5, 5.0, 6.0, newborn_offset=1.5)
+    assert bone[0] == pytest.approx(7.5)
+
+
+def test_flat_data_is_flagged_as_having_no_nursing_signal():
+    """Reynard & Tuross (2015): a model fitted to data without a nursing rise still returns ages."""
+    rng = np.random.default_rng(3)
+    young = [BoneSample(specimen_id=f"y{i}", site="S", species="cattle", age_months=a, d15N=6 + rng.normal(0, 0.3))
+             for i, a in enumerate(np.linspace(0.5, 30, 24))]
+    adults = [BoneSample(specimen_id=f"a{i}", site="S", species="cattle", age_class="adult", sex="F",
+                         d15N=6 + rng.normal(0, 0.3)) for i in range(10)]
+    result = analyze_bones(young + adults, QUICK)[0]
+    assert result["nursing_check"]["p_value"] > 0.05
+    assert any("no nursing signal" in w for w in result["warnings"])

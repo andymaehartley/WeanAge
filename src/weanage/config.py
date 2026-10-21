@@ -83,6 +83,21 @@ def find_turnover_table(species, extra_tables=()):
     return None
 
 
+PRIOR_FIELDS = {"max_weaning_age_months": "max_weaning_age_months", "enrichment_prior_mean": "enrichment_mean",
+                "enrichment_prior_sd": "enrichment_sd", "newborn_offset_mean": "newborn_offset_mean",
+                "newborn_offset_sd": "newborn_offset_sd"}
+
+
+def bone_priors():
+    return read_json(DATA_DIR / "bone_priors.json")["species"]
+
+
+def species_priors(species):
+    """The bone model's prior settings for a species (or the 'default' entry)."""
+    priors = bone_priors()
+    return priors.get(species.lower(), priors["default"])
+
+
 def qc_config():
     return read_json(DATA_DIR / "qc_thresholds.json")
 
@@ -113,6 +128,10 @@ def tbd_items():
         if table.placeholder:
             items.append({"id": f"turnover:{table.species}", "area": "Bone collagen turnover", "label": table.label,
                           "note": table.tbd_note or "", "file": "src/weanage/data/bone_turnover.json"})
+    for species, entry in bone_priors().items():
+        if entry.get("placeholder") and species != "default":
+            items.append({"id": f"bone-priors:{species}", "area": "Bone model priors", "label": f"{species} priors",
+                          "note": entry.get("tbd_note", ""), "file": "src/weanage/data/bone_priors.json"})
     qc = qc_config()
     if qc.get("placeholder"):
         items.append({"id": "qc:thresholds", "area": "Collagen QC", "label": "Quality-control thresholds",
