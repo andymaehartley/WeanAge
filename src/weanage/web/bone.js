@@ -23,7 +23,6 @@ export function initBone(appState, appHooks) {
   hooks = appHooks;
   state.bone = { samples: [], report: null, results: null, options: null, current: null };
   applyBoneSettings(state.config.bone_defaults);
-  $("#btn-bone-to-settings").addEventListener("click", () => hooks.show("settings"));
   $("#bone-form").addEventListener("submit", addAnimalByHand);
   $("#bone-form").elements.who.addEventListener("change", (e) => { // adults need no age at death
     for (const name of ["age_from", "age_to"]) $("#bone-form").elements[name].disabled = e.target.value !== "young";
@@ -235,7 +234,7 @@ export function renderBoneResults() {
     const chosen = r.group === state.bone.current;
     const end = r.estimates?.completion;
     const problems = r.warnings.filter((w) => !isNote(w)).length;
-    return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-group="${esc(r.group)}" class="${chosen ? "active" : ""}">
+    return `<li role="none"><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-group="${esc(r.group)}" class="${chosen ? "active" : ""}">
       <span><strong>${esc(r.site)}</strong><small>${esc(r.species)}${r.period ? ` · ${esc(r.period)}` : ""} · ${plural(r.n_young, "young animal")}</small></span>
       <span><span class="age">${end ? ageText(end.estimate) : "—"}</span>${problems ? `<span class="warn-dot" aria-label="${plural(problems, "warning")}">${problems}</span>` : ""}</span>
     </button></li>`;

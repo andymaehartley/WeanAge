@@ -58,13 +58,30 @@ export const pIs = (p) => (p != null && p < 0.001 ? "p < 0.001" : `p = ${pval(p)
 /** A share as a whole percentage: 0.83 → "83%". */
 export const percent = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 
+/** A message in the corner. Errors stay until closed; other messages close after 10 s. */
 export function toast(message, kind = "error") {
   const t = $("#toast");
-  t.textContent = message;
+  $("#toast-text").textContent = message;
+  $("#toast-live").textContent = ""; // re-announce a repeated message
+  setTimeout(() => ($("#toast-live").textContent = kind === "error" ? `Error: ${message}` : message), 50);
   t.className = `toast ${kind}`;
   t.hidden = false;
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => (t.hidden = true), 6000);
+  if (kind !== "error") toast.timer = setTimeout(() => (t.hidden = true), 10000);
+}
+
+/** Scrollable table boxes can be scrolled from the keyboard, and screen readers announce what they hold. */
+export function labelScrollBoxes() {
+  const used = new Map();
+  for (const box of $$(".table-wrap")) {
+    const heading = box.previousElementSibling?.matches("h2, h3") ? box.previousElementSibling
+      : box.closest("details")?.querySelector("summary") || box.closest(".card")?.querySelector("h2, h3");
+    const name = (heading?.textContent || "Table").trim();
+    used.set(name, (used.get(name) || 0) + 1);
+    box.tabIndex = 0;
+    box.setAttribute("role", "region");
+    box.setAttribute("aria-label", `${name}${used.get(name) > 1 ? ` ${used.get(name)}` : ""} (scrollable table)`);
+  }
 }
 
 export function download(name, blob) {
@@ -96,7 +113,7 @@ export function table(el, columns, rows, rowClass = () => "") {
 
 /** Placeholder-table warnings that the result summary already states ("Illustrative only: …"). */
 export const SAID_IN_SUMMARY = /PLACEHOLDER (growth )?table/;
-export const tbdBadge = '<span class="tbd-badge" title="Waiting on lab data; listed at the top of the page">placeholder</span>';
+export const tbdBadge = '<span class="tbd-badge">placeholder<span class="sr-only"> value, waiting on lab data</span></span>';
 
 export function swatch(model) {
   const s = MODEL_STYLE[model] || MODEL_STYLE.average;

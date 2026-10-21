@@ -7,6 +7,12 @@
   part of the calculation works and where it comes from, with references.
 
 ### Changed
+* One Next: settings button, in the Load isotope data box.
+* Accessibility (WCAG 2.2 AA, checked with axe-core on every page in both themes): result lists
+  and scrollable tables work with screen readers and the keyboard; 24 px help buttons and larger
+  checkboxes; error messages stay until closed and are announced; the chart can be zoomed by typing
+  an age range as well as by dragging; focused fields are not hidden under the sticky bars; pages
+  reflow without sideways scrolling at 320 px.
 * Every curve model reports no weaning age when δ¹⁵N falls by less than the minimum (1‰ by
   default) or the fall is centred before birth. The fitted curve is still drawn. The model
   average is given only when the models that report an age hold at least half the support.

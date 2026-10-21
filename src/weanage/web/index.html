@@ -54,11 +54,13 @@
   <p id="engine-status" class="engine-status" role="status" hidden></p>
 
   <!-- Highlighted list of every value still waiting on lab work (TBD-LAB). -->
-  <details id="tbd-banner" class="tbd-banner" hidden>
-    <summary><strong>Lab data still needed:</strong> <span id="tbd-count"></span> in use.
-      Results are illustrative until these are filled in.</summary>
-    <ul id="tbd-list"></ul>
-  </details>
+  <section aria-label="Lab data still needed">
+    <details id="tbd-banner" class="tbd-banner" hidden>
+      <summary><strong>Lab data still needed:</strong> <span id="tbd-count"></span> in use.
+        Results are illustrative until these are filled in.</summary>
+      <ul id="tbd-list"></ul>
+    </details>
+  </section>
   <div id="restore-banner" class="info-banner" hidden role="region" aria-label="Restore previous work">
     <span>Your previous session (<span id="restore-when"></span>) was saved in this browser.</span>
     <button id="btn-restore" class="tiny">Restore it</button>
@@ -206,10 +208,7 @@
             </form>
           </article>
           <article class="card" id="bone-groups-card" data-mode="bone" hidden>
-            <div class="row between">
-              <h2>Groups <span id="bone-count" class="muted"></span></h2>
-              <button id="btn-bone-to-settings">Next: settings</button>
-            </div>
+            <h2>Groups <span id="bone-count" class="muted"></span></h2>
             <p class="hint">Each site and species (and period, if given) is fitted on its own.</p>
             <div class="table-wrap"><table id="bone-group-table"></table></div>
             <details class="samples-details">
@@ -218,10 +217,7 @@
             </details>
           </article>
           <article class="card" id="specimens-card" hidden>
-            <div class="row between">
-              <h2>Specimens <span id="sample-count" class="muted"></span></h2>
-              <button id="btn-to-settings">Next: settings</button>
-            </div>
+            <h2>Specimens <span id="sample-count" class="muted"></span></h2>
             <div class="table-wrap"><table id="specimen-table"></table></div>
             <details class="samples-details">
               <summary>Show all samples</summary>
@@ -428,10 +424,10 @@
     <section id="view-results" class="view" aria-labelledby="h-results">
       <h2 id="h-results" class="sr-only">Results</h2>
       <div class="results-layout">
-        <aside class="card specimen-list" aria-label="Specimens">
-          <h2>Specimens</h2>
+        <section class="card specimen-list" aria-labelledby="h-specimen-list">
+          <h2 id="h-specimen-list">Specimens</h2>
           <ul id="result-list" role="listbox" aria-label="Choose a specimen"></ul>
-        </aside>
+        </section>
         <div class="results-main">
           <article class="card">
             <div class="row between wrap">
@@ -445,8 +441,13 @@
             <div class="row between wrap chart-tools">
               <span class="row gap">
                 <label class="check"><input id="opt-show13c" type="checkbox"> Show δ¹³C</label>
-                <button id="btn-zoom-reset" class="ghost tiny" hidden>Reset zoom</button>
-                <span class="muted small">Drag across the chart to zoom.</span>
+                <form id="zoom-form" class="row gap zoom-form" novalidate>
+                  <label class="inline">Ages from <input id="zoom-from" type="number" step="any" inputmode="decimal"></label>
+                  <label class="inline">to <input id="zoom-to" type="number" step="any" inputmode="decimal"></label>
+                  <button type="submit" class="ghost tiny">Zoom</button>
+                  <button id="btn-zoom-reset" type="button" class="ghost tiny" hidden>Reset zoom</button>
+                </form>
+                <span class="muted small">or drag across the chart.</span>
               </span>
               <span class="row gap export-links">
                 <span class="muted small">Export:</span>
@@ -488,10 +489,10 @@
     <section id="view-bone-results" class="view" aria-labelledby="h-bone-results">
       <h2 id="h-bone-results" class="sr-only">Bone results</h2>
       <div class="results-layout">
-        <aside class="card specimen-list" aria-label="Groups">
-          <h2>Groups</h2>
+        <section class="card specimen-list" aria-labelledby="h-group-list">
+          <h2 id="h-group-list">Groups</h2>
           <ul id="bone-result-list" role="listbox" aria-label="Choose a group"></ul>
-        </aside>
+        </section>
         <div class="results-main">
           <article class="card">
             <h2 id="bone-res-title"></h2>
@@ -801,6 +802,8 @@
     <span id="sb-data">No data loaded</span>
     <span id="sb-mode"></span>
   </footer>
-  <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
+  <div id="toast" class="toast" role="region" aria-label="Message" hidden><span id="toast-text"></span>
+    <button type="button" id="toast-close" class="ghost tiny">Close</button></div>
+  <div id="toast-live" class="sr-only" aria-live="polite"></div>
 </body>
 </html>

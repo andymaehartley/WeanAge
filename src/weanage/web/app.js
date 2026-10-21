@@ -8,7 +8,7 @@ import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ageNum, ageText, ageValue, ci, download, esc, getAgeUnit, help, MILESTONES, num, plural, progressBar, pIs, percent, pval, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
+import { $, $$, ageNum, ageText, ageValue, ci, download, esc, getAgeUnit, help, labelScrollBoxes, MILESTONES, num, plural, progressBar, pIs, percent, pval, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
@@ -330,7 +330,7 @@ function renderResults() {
     .map((r) => {
       const age = headline(r, milestone);
       const chosen = r.specimen_id === state.current;
-      return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
+      return `<li role="none"><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
         <span><strong>${esc(r.specimen_id)}</strong><small>${esc(r.site)} · ${esc(r.species)} ${esc(r.tooth)}</small></span>
         <span><span class="age">${age ? `${ageValue(age)} ${unitShort()}` : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${plural(warningCount(r), "warning")}" aria-label="${plural(warningCount(r), "warning")}">${warningCount(r)}</span>` : ""}</span>
       </button></li>`;
@@ -355,6 +355,7 @@ function renderResults() {
     $("#res-chart").innerHTML = '<p class="muted">No data points to plot.</p>';
   }
   $("#btn-zoom-reset").hidden = !state.zoom;
+  [$("#zoom-from").value, $("#zoom-to").value] = state.zoom ? state.zoom.map((v) => +v.toFixed(2)) : ["", ""];
 
   const warnings = [...res.warnings.filter((w) => !SAID_IN_SUMMARY.test(w)), ...res.fits.flatMap((f) => f.warnings.map((w) => `${f.label}: ${w}`))];
   renderWarnings("#res-warnings-box", "#res-warnings-summary", "#res-warnings", warnings, (w) => (isNote(w) ? "info" : "warning"));
@@ -472,6 +473,7 @@ async function refreshCompare() {
       { label: `Range (${unitWord()})`, cls: "num", render: (r) => `<strong>${ageNum(r.range)}</strong>` },
     ], out.disagreement);
     renderValidation(out.validation);
+    labelScrollBoxes(); // the tables above are new
   } catch (e) {
     toast(e.message);
   }
@@ -629,7 +631,6 @@ async function makeReport() {
 function bind() {
   const on = (selector, event, handler) => $(selector).addEventListener(event, handler);
   for (const b of $$(".step")) b.addEventListener("click", () => show(b.dataset.view));
-  on("#btn-to-settings", "click", () => show("settings"));
   on("#btn-next-settings", "click", () => show("settings"));
 
   const zone = $("#dropzone");
@@ -691,6 +692,16 @@ function bind() {
   });
   on("#opt-show13c", "change", renderResults);
   on("#btn-zoom-reset", "click", () => { state.zoom = null; renderResults(); });
+  // Typing the age range does the same as dragging across the chart, without needing a pointer.
+  on("#zoom-form", "submit", (e) => {
+    e.preventDefault();
+    const [from, to] = [$("#zoom-from").value, $("#zoom-to").value].map(Number);
+    if ($("#zoom-from").value === "" || $("#zoom-to").value === "" || !(from < to)) return toast("Enter two ages, the first smaller than the second.");
+    state.zoom = [from, to];
+    renderResults();
+  });
+  on("#toast-close", "click", () => ($("#toast").hidden = true));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#toast").hidden && !document.querySelector("dialog[open]")) $("#toast").hidden = true; });
   on("#btn-export-csv", "click", () => download("weanage_estimates.csv", new Blob([toCsv(state.estimates)], { type: "text/csv" })));
   on("#btn-export-json", "click", () => download("weanage_results.json", new Blob([JSON.stringify({ options: state.options, results: state.results }, null, 2)])));
   on("#btn-export-svg", "click", () => {
@@ -791,6 +802,7 @@ async function init() {
   initBonePlanner(state);
   renderTbd();
   for (const slot of $$("[data-helpslot]")) slot.innerHTML = help(slot.dataset.helpslot);
+  labelScrollBoxes();
   initGlossary();
   bind();
   showLook();

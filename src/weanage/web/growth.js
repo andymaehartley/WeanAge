@@ -28,7 +28,7 @@ function card(state, key, open = false) {
       <label>Age at crown initiation (months)<input type="number" step="0.1" class="ovr-init" value="${linear.initiation_age_months}"></label>
       <label>Extension rate (mm / month)<input type="number" step="0.1" min="0.01" class="ovr-rate" value="${linear.extension_rate_mm_per_month}"></label></div>`;
   } else if (t) {
-    body = `<table class="knots-edit"><thead><tr><th scope="col">Position (mm)</th><th scope="col">Age (months)</th><th></th></tr></thead>
+    body = `<table class="knots-edit"><thead><tr><th scope="col">Position (mm)</th><th scope="col">Age (months)</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
         <tbody>${pointRows(t)}</tbody></table>
       <button type="button" class="ghost tiny" data-act="add-point">Add point</button>
       <div class="form-grid">
