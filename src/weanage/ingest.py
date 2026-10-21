@@ -14,25 +14,27 @@ from .schema import IsotopeSample
 MIN_SAMPLES = 6  # fewer than this is too few to fit a curve
 
 # Other ways people write each column name (compared without spaces, case or symbols).
-ALIASES = {
-    "specimen_id": ["specimen", "specimenid", "sampleid", "toothid"],
-    "individual_id": ["individual", "individualid", "animal", "animalid"],
+COMMON_ALIASES = {
     "site": ["sitename"],
     "species": ["taxon"],
-    "tooth": ["element"],
-    "sample_index": ["increment", "sampleno"],
-    "position_mm": ["position", "distancemm", "distancefromapexmm", "heightmm"],
-    "position_reference": ["measuredfrom", "positionorigin"],
-    "crown_height_mm": ["crownheight"],
     "d15N": ["δ15n", "delta15n", "d15nair"],
     "d13C": ["δ13c", "delta13c", "d13cvpdb"],
     "pct_N": ["n", "percentn"],
     "pct_C": ["c", "percentc"],
     "cn_ratio": ["cn", "atomiccn"],
     "collagen_yield_pct": ["collagenyield", "yield", "yieldpct"],
-    "increment_width_mm": ["incrementwidth", "incrementheightmm"],
     "period": ["phase"],
     "notes": ["comment"],
+}
+TOOTH_ALIASES = {
+    "specimen_id": ["specimen", "specimenid", "sampleid", "toothid"],
+    "individual_id": ["individual", "individualid", "animal", "animalid"],
+    "tooth": ["element"],
+    "sample_index": ["increment", "sampleno"],
+    "position_mm": ["position", "distancemm", "distancefromapexmm", "heightmm"],
+    "position_reference": ["measuredfrom", "positionorigin"],
+    "crown_height_mm": ["crownheight"],
+    "increment_width_mm": ["incrementwidth", "incrementheightmm"],
     "known_weaning_age_months": ["knownweaningage"],
     "published_weaning_age_months": ["publishedweaningage"],
 }
@@ -43,10 +45,16 @@ def squash(name):
     return re.sub(r"[\s_\-().%‰:/]+", "", str(name).lower()).replace("permil", "")
 
 
-LOOKUP = {squash(field): field for field in IsotopeSample.model_fields}
-for field, spellings in ALIASES.items():
-    for spelling in spellings:
-        LOOKUP[squash(spelling)] = field
+def column_lookup(model, aliases):
+    """Squashed column name -> field of `model`, for the field names and all their aliases."""
+    lookup = {squash(field): field for field in model.model_fields}
+    for field, spellings in {**COMMON_ALIASES, **aliases}.items():
+        for spelling in spellings:
+            lookup[squash(spelling)] = field
+    return lookup
+
+
+LOOKUP = column_lookup(IsotopeSample, TOOTH_ALIASES)
 
 
 def canonical_column(name):
@@ -61,42 +69,57 @@ def is_blank(value):
     return value is None or (isinstance(value, float) and math.isnan(value))
 
 
-def ingest_records(records):
-    """Check a list of row dictionaries; returns samples, problems and a per-specimen summary."""
+def check_rows(model, records):
+    """Turn row dictionaries into `model` objects; rows that fail become issues."""
     samples, issues = [], []
     for row_number, raw in enumerate(records, start=1):
         row = {key: (None if is_blank(value) else value) for key, value in raw.items()}
         try:
-            samples.append(IsotopeSample(**row))
+            samples.append(model(**row))
         except ValidationError as err:
             for e in err.errors():
                 field = ".".join(str(part) for part in e["loc"]) or None
-                issues.append(issue(e["msg"], row_number, field))
-    issues += dataset_checks(samples)
-    return {"samples": samples, "issues": issues, "specimens": summarise(samples), "unrecognised_columns": []}
+                issues.append(issue(e["msg"].removeprefix("Value error, "), row_number, field))
+    return samples, issues
 
 
-def ingest_dataframe(df):
+def match_columns(df, lookup, model):
+    """Rename the table's columns to field names.
+
+    Returns the renamed table (or None if a required column is missing) and the issues found.
+    """
     renames, unknown = {}, []
     for column in df.columns:
-        field = canonical_column(column)
+        field = lookup.get(squash(column))
         if field and field not in renames.values():
             renames[column] = field
         else:
             unknown.append(str(column))
     df = df.rename(columns=renames)[list(renames.values())]
-    required = [f for f, info in IsotopeSample.model_fields.items() if info.is_required()]
-    missing = [f for f in required if f not in df]
+    missing = [f for f, info in model.model_fields.items() if info.is_required() and f not in df]
     if missing:
-        return {"samples": [], "issues": [issue(f"Missing required column(s): {', '.join(missing)}")],
-                "specimens": [], "unrecognised_columns": unknown}
-    for column in ["specimen_id", "individual_id", "site", "species", "tooth", "period", "notes", "position_reference"]:
-        if column in df:  # IDs like 001 must stay text, not become the number 1
-            df[column] = df[column].map(lambda v: None if pd.isna(v) else str(v))
-    report = ingest_records(df.to_dict(orient="records"))
-    report["unrecognised_columns"] = unknown
+        return None, [issue(f"Missing required column(s): {', '.join(missing)}")]
+    for column, info in model.model_fields.items():
+        if column in df and info.annotation in (str, str | None):  # IDs like 001 must stay text, not become 1
+            df[column] = df[column].map(lambda v: None if is_blank(v) else str(v))
     if unknown:
-        report["issues"].append(issue(f"Ignored unrecognised column(s): {', '.join(unknown)}", severity="warning"))
+        return df, [issue(f"Ignored unrecognised column(s): {', '.join(unknown)}", severity="warning")]
+    return df, []
+
+
+def ingest_records(records):
+    """Check a list of row dictionaries; returns samples, problems and a per-specimen summary."""
+    samples, issues = check_rows(IsotopeSample, records)
+    issues += dataset_checks(samples)
+    return {"samples": samples, "issues": issues, "specimens": summarise(samples)}
+
+
+def ingest_dataframe(df):
+    df, issues = match_columns(df, LOOKUP, IsotopeSample)
+    if df is None:
+        return {"samples": [], "issues": issues, "specimens": []}
+    report = ingest_records(df.to_dict(orient="records"))
+    report["issues"] += issues
     return report
 
 
@@ -104,20 +127,16 @@ def is_excel(name):
     return Path(str(name)).suffix.lower() in {".xlsx", ".xlsm", ".xls"}
 
 
-def ingest_file(filename, content):
-    """Read an uploaded file (Excel: first sheet; anything else is treated as CSV)."""
-    if is_excel(filename):
-        return ingest_dataframe(pd.read_excel(io.BytesIO(content)))
-    return ingest_csv(content)
+def read_table(source, filename=""):
+    """A CSV or Excel file (a path, or the bytes of an upload) as a table. The CSV separator is detected."""
+    uploaded = isinstance(source, bytes)
+    if is_excel(filename if uploaded else source):  # Excel: the first sheet
+        return pd.read_excel(io.BytesIO(source) if uploaded else source)
+    return pd.read_csv(io.StringIO(source.decode("utf-8-sig")) if uploaded else source, sep=None, engine="python")
 
 
-def ingest_csv(source):
-    """Read a CSV from a file path or raw bytes. The separator (comma, tab, ;) is detected."""
-    if isinstance(source, bytes):
-        source = io.StringIO(source.decode("utf-8-sig"))
-    elif is_excel(source):
-        return ingest_dataframe(pd.read_excel(source))
-    return ingest_dataframe(pd.read_csv(source, sep=None, engine="python"))
+def ingest_file(source, filename=""):
+    return ingest_dataframe(read_table(source, filename))
 
 
 def group(samples, attribute):
@@ -129,8 +148,7 @@ def group(samples, attribute):
 
 def summarise(samples):
     return [{"specimen_id": sid, "individual_id": rows[0].individual_id, "site": rows[0].site,
-             "species": rows[0].species, "tooth": rows[0].tooth, "n_samples": len(rows),
-             "has_growth_table": find_growth_table(rows[0].species, rows[0].tooth) is not None}
+             "species": rows[0].species, "tooth": rows[0].tooth, "n_samples": len(rows)}
             for sid, rows in group(samples, "specimen_id").items()]
 
 

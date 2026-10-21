@@ -45,14 +45,14 @@ def test_analysis_job_and_comparison():
     assert state["status"] == "done" and state["done"] == state["total"] == 2
     out = client.post("/api/aggregate", json={"estimates": state["result"]["estimates"], "group_by": ["site"]})
     assert out.status_code == 200 and len(out.json()["summary"]) == 2 and "tests" in out.json()
-    assert client.post("/api/aggregate", json={"estimates": [], "group_by": ["bad"]}).status_code == 400
+    assert client.post("/api/aggregate", json={"estimates": [], "group_by": ["bad"]}).status_code == 422
 
 
 def test_one_stage_comparison():
     wanted = {"SYN-C01", "SYN-C03", "SYN-C04", "SYN-C05"}
     samples = [s for s in client.get("/api/example").json()["samples"] if s["specimen_id"] in wanted]
-    result = client.post("/api/analyze", json={"samples": samples, "options": {"models": ["logistic"],
-                                                                             "monte_carlo_draws": 50}}).json()
+    job = client.post("/api/jobs/analyze", json={"samples": samples, "options": {"models": ["logistic"], "monte_carlo_draws": 50}})
+    result = wait_for(job.json())["result"]
     body = {"estimates": result["estimates"], "group_by": ["site"], "bayes": "one_stage", "results": result["results"]}
     bayes = client.post("/api/aggregate", json=body).json()["tests"]["bayes"]
     assert bayes["method"] == "one-stage" and len(bayes["specimens"]) == 4 and bayes["rhat_max"] < 1.1

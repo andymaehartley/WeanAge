@@ -42,9 +42,9 @@ def estimates_for(path):
     """Read a CSV or Excel file, print any problems, and return one row per specimen and model."""
     from .analysis import analyze, estimate_rows
     from .config import default_options
-    from .ingest import ingest_csv
+    from .ingest import ingest_file
 
-    report = ingest_csv(path)  # also reads .xlsx
+    report = ingest_file(path)  # also reads .xlsx
     for problem in report["issues"]:
         where = f"row {problem['row']}: " if problem["row"] else ""
         print(f"[{problem['severity']}] {where}{problem['message']}")

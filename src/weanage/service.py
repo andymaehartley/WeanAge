@@ -9,6 +9,7 @@ Bad requests raise ValueError; each front door turns that into an error message.
 
 from typing import Any, Literal
 
+import pandas as pd
 from pydantic import BaseModel, Field
 
 from . import __version__, config
@@ -18,14 +19,14 @@ from .bone import analyze_bones, ingest_bone_dataframe
 from .bone_planner import BoneScenario, BoneSweepParam, run_bone_plan
 from .calibrate import CalibrationPoint, Method, calibrate_growth_table
 from .inference import compare_groups
-from .ingest import ingest_csv, ingest_file, ingest_records, is_excel
+from .ingest import ingest_file, ingest_records, read_table
 from .models import MODEL_CATALOG
 from .qc import FLAG_DESCRIPTIONS
-from .schema import MODEL_NAMES, AnalysisOptions, BoneOptions, BoneSample, GrowthTable, IsotopeSample
+from .schema import AnalysisOptions, BoneOptions, BoneSample, GrowthTable, IsotopeSample, ModelName
 from .simulate import SimulationScenario, SweepParam, run_simulation, sweep
 
 
-# ───────────── the shape of each request (checked by pydantic) ─────────────
+# The shape of each request (checked by pydantic)
 class AnalyzeIn(BaseModel):
     samples: list[IsotopeSample] = Field(min_length=1)
     options: AnalysisOptions | None = None
@@ -45,9 +46,9 @@ class SimulateBoneIn(BaseModel):
 
 class AggregateIn(BaseModel):
     estimates: list[dict[str, Any]]
-    group_by: list[str] = ["site", "species"]
-    milestone: str = "midpoint"
-    model: str | None = None
+    group_by: list[Literal["site", "species", "period"]] = Field(default=["site", "species"], min_length=1)
+    milestone: Literal["onset", "midpoint", "completion"] = "midpoint"
+    model: ModelName | Literal["average"] | None = None
     bayes: bool | Literal["two_stage", "one_stage"] = True
     results: list[dict[str, Any]] | None = None  # needed by the one-stage model
     transition_threshold: float = Field(default=0.05, gt=0, lt=0.5)
@@ -69,7 +70,7 @@ class SimulateIn(BaseModel):
     sweep_values: list[float] = Field(default=[], max_length=12)
 
 
-# ───────────── settings and data ─────────────
+# Settings and data
 def get_config():
     saved = config.saved_growth_tables()
     return {
@@ -95,7 +96,7 @@ def report_json(report):
 
 def read_upload(filename, content):
     try:
-        return report_json(ingest_file(filename or "upload.csv", content))
+        return report_json(ingest_file(content, filename))
     except Exception as err:
         raise ValueError(f"Could not read file: {err}") from err
 
@@ -121,14 +122,10 @@ EXAMPLES = {
 def example_dataset(name="synthetic"):
     if name not in EXAMPLES:
         raise ValueError(f"unknown example {name!r}")
-    return {**report_json(ingest_csv(config.DATA_DIR / "examples" / EXAMPLES[name][0])), "message": EXAMPLES[name][2]}
+    return {**report_json(ingest_file(config.DATA_DIR / "examples" / EXAMPLES[name][0])), "message": EXAMPLES[name][2]}
 
 
-def template_path():
-    return config.DATA_DIR / "templates" / "isotope_template.csv"
-
-
-# ───────────── bone data: many animals that died at different ages ─────────────
+# Bone data: many animals that died at different ages
 BONE_EXAMPLES = {
     "synthetic_bone": ("synthetic_bone_example.csv", "Synthetic cattle bones (simulated)",
                        "Loaded SYNTHETIC bone data (simulated, not real measurements): Site A weans at "
@@ -145,46 +142,24 @@ BONE_EXAMPLES = {
 }
 
 
-def bone_report(report):
-    return {**report, "samples": [s.model_dump() for s in report["samples"]]}
-
-
-def read_bone_table(source, filename=""):
-    import io
-
-    import pandas as pd
-
-    if isinstance(source, bytes):
-        if is_excel(filename):
-            return pd.read_excel(io.BytesIO(source))
-        source = io.StringIO(source.decode("utf-8-sig"))
-    return pd.read_csv(source, sep=None, engine="python")
-
-
 def read_bone_upload(filename, content):
     try:
-        return bone_report(ingest_bone_dataframe(read_bone_table(content, filename or "upload.csv")))
+        return report_json(ingest_bone_dataframe(read_table(content, filename)))
     except Exception as err:
         raise ValueError(f"Could not read file: {err}") from err
 
 
 def check_bone_records(rows):
-    import pandas as pd
-
     if not rows:
-        return {"samples": [], "issues": [], "groups": [], "unrecognised_columns": []}
-    return bone_report(ingest_bone_dataframe(pd.DataFrame(rows)))
+        return {"samples": [], "issues": [], "groups": []}
+    return report_json(ingest_bone_dataframe(pd.DataFrame(rows)))
 
 
 def bone_example(name="synthetic_bone"):
     if name not in BONE_EXAMPLES:
         raise ValueError(f"unknown bone example {name!r}")
-    table = read_bone_table(config.DATA_DIR / "examples" / BONE_EXAMPLES[name][0])
-    return {**bone_report(ingest_bone_dataframe(table)), "message": BONE_EXAMPLES[name][2]}
-
-
-def bone_template_path():
-    return config.DATA_DIR / "templates" / "bone_template.csv"
+    table = read_table(config.DATA_DIR / "examples" / BONE_EXAMPLES[name][0])
+    return {**report_json(ingest_bone_dataframe(table)), "message": BONE_EXAMPLES[name][2]}
 
 
 def run_bone_analysis(body: BoneAnalyzeIn, progress=None):
@@ -208,7 +183,7 @@ def calibrate(body: CalibrateIn):
     return calibrate_growth_table(body.species, body.tooth, body.points, body.method, body.n_knots, body.source)
 
 
-# ───────────── analysis, simulation, comparison ─────────────
+# Analysis, simulation, comparison
 # `progress(done, total)` is called as work finishes, for the progress bar.
 def run_analysis(body: AnalyzeIn, progress=None, workers=None):
     results = analyze(body.samples, body.options or config.default_options(), progress=progress, workers=workers)
@@ -224,12 +199,6 @@ def run_planner(body: SimulateIn, progress=None):
 
 
 def compare(body: AggregateIn):
-    if not body.group_by or not set(body.group_by) <= {"site", "species", "period"}:
-        raise ValueError("group_by must be a non-empty subset of ['period', 'site', 'species']")
-    if body.milestone not in {"onset", "midpoint", "completion"}:
-        raise ValueError("milestone must be onset, midpoint or completion")
-    if body.model is not None and body.model not in MODEL_NAMES + ["average"]:
-        raise ValueError(f"unknown model {body.model!r}")
     return {
         "summary": records(aggregate(body.estimates, body.group_by, body.milestone, body.model)),
         "disagreement": records(model_disagreement(body.estimates, body.milestone)),

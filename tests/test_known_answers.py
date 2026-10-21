@@ -9,7 +9,7 @@ import pytest
 
 from weanage.analysis import analyze
 from weanage.config import DATA_DIR, default_options
-from weanage.ingest import ingest_csv
+from weanage.ingest import ingest_file
 
 EXPECTED = {
     "SYN-C01": ("logistic", 9.31, 2.84),
@@ -29,7 +29,7 @@ EXPECTED = {
 @pytest.fixture(scope="module")
 def results():
     options = default_options().model_copy(update={"monte_carlo_draws": 200})
-    samples = ingest_csv(DATA_DIR / "examples" / "synthetic_example.csv")["samples"]
+    samples = ingest_file(DATA_DIR / "examples" / "synthetic_example.csv")["samples"]
     return {r["specimen_id"]: r for r in analyze(samples, options, workers=1)}
 
 

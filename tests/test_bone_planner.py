@@ -24,3 +24,11 @@ def test_more_young_animals_give_narrower_intervals():
     assert many["ci_width"] < few["ci_width"]
     assert many["signal_found"] == 1 and many["mae"] < 3
     assert out["turnover_placeholder"] and out["sweep_param"] == "n_young"
+
+
+def test_sweep_values_are_checked():
+    import pydantic
+    import pytest
+
+    with pytest.raises(pydantic.ValidationError):
+        run_bone_plan(BoneScenario(replicates=2), QUICK, "age_error_months", [-1])

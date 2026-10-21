@@ -26,7 +26,7 @@ export function esc(value) {
 export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export const num = (v, d = 2) => (v == null || !isFinite(v) ? "—" : Number(v).toFixed(d));
 
-// ───────────── ages in months or years ─────────────
+// Ages in months or years
 // The analysis always works in months; results can be shown in years instead (humans and other
 // long-lived species). Inputs such as growth tables stay in months and say so.
 let ageUnit = "months";

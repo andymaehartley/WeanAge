@@ -12,30 +12,20 @@ ModelName = Literal["logistic", "piecewise", "exponential", "two_phase", "elbow"
 MODEL_NAMES: list[ModelName] = ["logistic", "piecewise", "exponential", "two_phase", "elbow"]
 
 
-class IsotopeSample(BaseModel):
-    """One slice of dentine measured in the lab."""
+class CollagenSample(BaseModel):
+    """What every collagen measurement has, from a tooth slice or a bone."""
 
-    specimen_id: str = Field(min_length=1)  # one tooth
-    individual_id: str | None = None  # teeth with the same animal ID are joined
+    specimen_id: str = Field(min_length=1)
     site: str = Field(min_length=1)
     species: str = Field(min_length=1)
-    tooth: str = Field(min_length=1)
-    position_mm: float = Field(ge=0, le=200)
-    position_reference: Literal["apex", "cervix"] | None = "apex"
-    crown_height_mm: float | None = Field(default=None, gt=0, le=200)
-    position_measured_mm: float | None = None  # original value if we converted it
     d15N: float = Field(ge=-10, le=30)
     d13C: float | None = Field(default=None, ge=-45, le=5)
     pct_C: float | None = Field(default=None, ge=0, le=100)
     pct_N: float | None = Field(default=None, ge=0, le=100)
     cn_ratio: float | None = Field(default=None, gt=0, le=50)
     collagen_yield_pct: float | None = Field(default=None, ge=0, le=100)
-    increment_width_mm: float | None = Field(default=None, gt=0, le=20)
-    sample_index: int | None = Field(default=None, ge=0)
     period: str | None = None
     notes: str | None = None
-    known_weaning_age_months: float | None = Field(default=None, ge=0)
-    published_weaning_age_months: float | None = Field(default=None, ge=0)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -46,12 +36,36 @@ class IsotopeSample(BaseModel):
             return value or None
         return value
 
-    @field_validator("species", "position_reference", mode="before")
+    @field_validator("species", mode="before")
     @classmethod
     def lower_case(cls, value):
-        if isinstance(value, str):
-            return value.strip().lower() or None
-        return value
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def atomic_cn(self):
+        if self.cn_ratio is None and self.pct_C and self.pct_N:
+            self.cn_ratio = round(self.pct_C / self.pct_N * 14.007 / 12.011, 3)
+        return self
+
+
+class IsotopeSample(CollagenSample):
+    """One slice of dentine measured in the lab. specimen_id is one tooth."""
+
+    individual_id: str | None = None  # teeth with the same animal ID are joined
+    tooth: str = Field(min_length=1)
+    position_mm: float = Field(ge=0, le=200)
+    position_reference: Literal["apex", "cervix"] | None = "apex"
+    crown_height_mm: float | None = Field(default=None, gt=0, le=200)
+    position_measured_mm: float | None = None  # original value if we converted it
+    increment_width_mm: float | None = Field(default=None, gt=0, le=20)
+    sample_index: int | None = Field(default=None, ge=0)
+    known_weaning_age_months: float | None = Field(default=None, ge=0)
+    published_weaning_age_months: float | None = Field(default=None, ge=0)
+
+    @field_validator("position_reference", mode="before")
+    @classmethod
+    def lower_reference(cls, value):
+        return value.strip().lower() or None if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def tidy(self):
@@ -66,9 +80,6 @@ class IsotopeSample(BaseModel):
             self.position_mm = round(self.crown_height_mm - self.position_mm, 4)
             self.position_reference = "apex"
             self.notes = (self.notes + "; " if self.notes else "") + "position converted from cervix"
-        # Work out the atomic C:N ratio from %C and %N if it was not given.
-        if self.cn_ratio is None and self.pct_C and self.pct_N:
-            self.cn_ratio = round(self.pct_C / self.pct_N * 14.007 / 12.011, 3)
         return self
 
 
@@ -99,6 +110,11 @@ class GrowthTable(BaseModel):
     source: str = ""
     placeholder: bool = False
     tbd_note: str | None = None
+
+    @field_validator("species")
+    @classmethod
+    def lower_case(cls, value):
+        return value.strip().lower()
 
     @model_validator(mode="after")
     def check_order(self):
@@ -165,40 +181,16 @@ class AnalysisOptions(BaseModel):
         return lower.get(f"{site}:{species}".lower()) or lower.get(species.lower())
 
 
-# ───────────── bone: many animals that died at different ages ─────────────
-class BoneSample(BaseModel):
+# Bone: many animals that died at different ages
+class BoneSample(CollagenSample):
     """Bone collagen from one animal. Young animals need an age at death; adults only need age_class."""
 
-    specimen_id: str = Field(min_length=1)
-    site: str = Field(min_length=1)
-    species: str = Field(min_length=1)
     element: str | None = None  # e.g. rib, mandible
     age_class: Literal["adult", "non-adult"] | None = None  # blank = non-adult
     sex: Literal["f", "m"] | None = None
     age_months: float | None = Field(default=None, ge=0, le=600)  # best estimate of age at death
     age_min_months: float | None = Field(default=None, ge=0, le=600)  # range, e.g. from tooth wear or fusion
     age_max_months: float | None = Field(default=None, ge=0, le=600)
-    d15N: float = Field(ge=-10, le=30)
-    d13C: float | None = Field(default=None, ge=-45, le=5)
-    pct_C: float | None = Field(default=None, ge=0, le=100)
-    pct_N: float | None = Field(default=None, ge=0, le=100)
-    cn_ratio: float | None = Field(default=None, gt=0, le=50)
-    collagen_yield_pct: float | None = Field(default=None, ge=0, le=100)
-    period: str | None = None
-    notes: str | None = None
-
-    @field_validator("*", mode="before")
-    @classmethod
-    def blank_is_missing(cls, value):
-        if isinstance(value, str):
-            value = value.strip()
-            return value or None
-        return value
-
-    @field_validator("species", mode="before")
-    @classmethod
-    def lower_case(cls, value):
-        return value.strip().lower() if isinstance(value, str) else value
 
     @field_validator("age_class", mode="before")
     @classmethod
@@ -231,8 +223,6 @@ class BoneSample(BaseModel):
                 raise ValueError("age_min_months is larger than age_max_months")
         if self.age_class != "adult" and self.age_months is None:
             raise ValueError("a non-adult needs age_months, or age_min_months and age_max_months")
-        if self.cn_ratio is None and self.pct_C and self.pct_N:
-            self.cn_ratio = round(self.pct_C / self.pct_N * 14.007 / 12.011, 3)
         return self
 
     @property

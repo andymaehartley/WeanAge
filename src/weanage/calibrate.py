@@ -60,7 +60,7 @@ def calibrate_growth_table(species, tooth, points, method="linear", n_knots=6, s
         warnings.append(f"Only {len(points)} reference points: treat the uncertainty estimate with caution")
 
     table = GrowthTable(
-        species=species.lower(), tooth=tooth,
+        species=species, tooth=tooth,
         label=f"{species.capitalize()} - {tooth} (calibrated, {method})",
         knots=[{"position_mm": round(float(p), 3), "age_months": round(float(a), 3)} for p, a in zip(knot_pos, knot_age)],
         age_uncertainty_months=round(residual_sd, 3),

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from weanage import config
 from weanage.calibrate import CalibrationPoint, calibrate_growth_table
 from weanage.growth import position_to_age
-from weanage.ingest import canonical_column, ingest_csv, ingest_file, ingest_records
+from weanage.ingest import canonical_column, ingest_file, ingest_records
 from weanage.qc import passes_qc, qc_flags
 from weanage.schema import GrowthTable, IsotopeSample, LinearGrowthOverride, QCThresholds
 
@@ -43,19 +43,19 @@ def test_column_names(header, expected):
 
 
 def test_csv_with_errors_and_unknown_columns():
-    report = ingest_csv(b"Specimen ID,Site,Taxon,Tooth,Position (mm),d15N,C:N,extra\n"
+    report = ingest_file(b"Specimen ID,Site,Taxon,Tooth,Position (mm),d15N,C:N,extra\n"
                         b"A1,S,cattle,M2,0.5,8.1,3.2,x\nA1,S,cattle,M2,1.5,oops,3.2,x\n")
     assert len(report["samples"]) == 1
     assert any(i["row"] == 2 and i["field"] == "d15N" for i in report["issues"])
-    assert report["unrecognised_columns"] == ["extra"]
-    assert "Missing required column" in ingest_csv(b"specimen_id,site\nA,B\n")["issues"][0]["message"]
+    assert any("unrecognised column(s): extra" in i["message"] for i in report["issues"])
+    assert "Missing required column" in ingest_file(b"specimen_id,site\nA,B\n")["issues"][0]["message"]
 
 
 def test_excel_upload():
     buf = io.BytesIO()
     pd.DataFrame({"Specimen ID": ["A"] * 3, "Site": "S", "Species": "cattle", "Tooth": "M2",
                   "Position (mm)": [0.5, 1.5, 2.5], "δ15N (‰)": [8.0, 7.5, 7.0]}).to_excel(buf, index=False)
-    assert len(ingest_file("data.xlsx", buf.getvalue())["samples"]) == 3
+    assert len(ingest_file(buf.getvalue(), "data.xlsx")["samples"]) == 3
 
 
 def test_dataset_checks():
@@ -67,7 +67,7 @@ def test_dataset_checks():
 
 
 def test_bundled_example_is_valid():
-    report = ingest_csv(config.DATA_DIR / "examples" / "synthetic_example.csv")
+    report = ingest_file(config.DATA_DIR / "examples" / "synthetic_example.csv")
     assert not [i for i in report["issues"] if i["severity"] == "error"] and len(report["specimens"]) >= 10
 
 
@@ -111,3 +111,5 @@ def test_saved_tables_and_placeholders(tmp_path, monkeypatch):
     assert config.find_growth_table("cattle", "M2").label == "lab"
     assert "growth:cattle:M2" not in {i["id"] for i in config.tbd_items()}
     assert config.delete_saved_growth_table("cattle:M2") and config.find_growth_table("cattle", "M2").placeholder
+    upper = edited.model_copy(update={"species": "Cattle"})
+    assert type(upper).model_validate(upper.model_dump()).key == "cattle:M2"  # one key, whatever the case

@@ -16,6 +16,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 
 from . import config
+from .aggregate import error_metrics, interval_coverage
 from .bone import STEP, analyze_bones, bone_curve, priors_for, renewal
 from .schema import BoneOptions, BoneSample
 
@@ -71,25 +72,21 @@ def simulate_site(scenario, rng, table, name="Simulated"):
 def score(cases):
     """Accuracy of the end-of-suckling estimates over the simulated sites."""
     fitted = [c for c in cases if c["estimate"] is not None]
-    errors = np.array([c["estimate"] - c["truth"] for c in fitted])
-    if not len(fitted):
+    if not fitted:
         return {"mae": None, "bias": None, "rmse": None, "ci_coverage": None, "ci_width": None,
                 "signal_found": None, "success_rate": 0.0}
+    column = lambda key: [c[key] for c in fitted]  # noqa: E731
+    errors = error_metrics(column("estimate"), column("truth"))
     return {
-        "mae": float(np.mean(np.abs(errors))),
-        "bias": float(np.mean(errors)),
-        "rmse": float(np.sqrt(np.mean(errors ** 2))),
-        "ci_coverage": float(np.mean([c["ci_low"] <= c["truth"] <= c["ci_high"] for c in fitted])),
-        "ci_width": float(np.median([c["ci_high"] - c["ci_low"] for c in fitted])),
+        "mae": float(errors["mae"]), "bias": float(errors["bias"]), "rmse": float(errors["rmse"]),
+        "ci_coverage": interval_coverage(column("ci_low"), column("ci_high"), column("truth")),
+        "ci_width": float(np.nanmedian(np.array(column("ci_high"), float) - np.array(column("ci_low"), float))),
         "signal_found": float(np.mean([c["signal"] for c in cases])),
         "success_rate": len(fitted) / len(cases),
     }
 
 
-def run_scenario(scenario: BoneScenario, options: BoneOptions, progress=None, done=0, total=None):
-    table = config.find_turnover_table(scenario.species, options.turnover_tables)
-    if table is None:
-        raise ValueError(f"No bone turnover table for {scenario.species}")
+def run_scenario(scenario: BoneScenario, options: BoneOptions, table, progress=None, done=0, total=None):
     rng = np.random.default_rng(scenario.seed)
     cases = []
     for r in range(scenario.replicates):
@@ -115,14 +112,17 @@ def run_bone_plan(scenario: BoneScenario, options: BoneOptions | None = None, sw
                   values=(), progress=None):
     """Score one design, or the same design with one setting changed to each of `values`."""
     options = plan_options(scenario, options)
+    table = config.find_turnover_table(scenario.species, options.turnover_tables)
+    if table is None:
+        raise ValueError(f"No bone turnover table for {scenario.species}")
+    # Re-validated, so a value typed into the sweep box gets the same limits as the form.
     settings = [(None, scenario)] if not sweep_param or not values else [
-        (v, scenario.model_copy(update={sweep_param: int(v) if sweep_param.startswith("n_") else float(v)})) for v in values]
+        (v, BoneScenario.model_validate({**scenario.model_dump(), sweep_param: v})) for v in values]
     total = len(settings) * scenario.replicates
     runs = []
     for i, (value, s) in enumerate(settings):
-        run = run_scenario(s, options, progress, i * scenario.replicates, total)
+        run = run_scenario(s, options, table, progress, i * scenario.replicates, total)
         runs.append({"x": value, **run})
     filled, _ = priors_for(scenario.species, options)
     return {"sweep_param": sweep_param, "runs": runs, "species": scenario.species,
-            "max_weaning_age_months": filled.max_weaning_age_months,
-            "turnover_placeholder": bool(config.find_turnover_table(scenario.species).placeholder)}
+            "max_weaning_age_months": filled.max_weaning_age_months, "turnover_placeholder": table.placeholder}

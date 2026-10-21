@@ -22,7 +22,7 @@ from .schema import AnalysisOptions
 MILESTONES = ["onset", "midpoint", "completion"]
 
 
-# ───────────── curve shapes (t = age in months) ─────────────
+# Curve shapes (t = age in months)
 def falling_step(t, middle, width):
     """Goes smoothly from 1 down to 0 around `middle`."""
     z = np.clip((np.asarray(t, dtype=float) - middle) / width, -60, 60)
@@ -50,7 +50,7 @@ def two_phase(t, post, drop, first_fraction, t1, gap, scale):
     return post + drop * (first + second)
 
 
-# ───────────── weaning ages from the fitted parameters ─────────────
+# Weaning ages from the fitted parameters
 # `p` is one set of parameters, or a table with one row per random draw, so
 # p[..., 2] means "the third parameter" in both cases. q is the threshold (5 %).
 def logistic_ages(p, q):
@@ -364,7 +364,7 @@ def least_squares(predict, t, y, sigma, guess, bounds):
     return p, cov, float(np.sum((y - predict(t, *p)) ** 2))
 
 
-# ───────────── the WEAN-style elbow method ─────────────
+# The WEAN-style elbow method
 ELBOW_MAX_CI_SHARE = 0.8  # no age is reported when the 95% interval spans more of the series than this
 
 
@@ -462,7 +462,7 @@ def fit_elbow(t, y, options, age_sd, degree=4):
     return result
 
 
-# ───────────── comparing and averaging models ─────────────
+# Comparing and averaging models
 def compare_fits(fits):
     """Add ΔAICc and Akaike weights (shares of support that add up to 1); return the best model."""
     scored = [f for f in fits if f["converged"] and f["aicc"] is not None]

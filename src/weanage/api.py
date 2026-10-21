@@ -28,7 +28,7 @@ def checked(work, *args):
         raise HTTPException(400, str(err)) from err
 
 
-# ───────────── background jobs (so long runs can show a progress bar) ─────────────
+# Background jobs (so long runs can show a progress bar)
 JOBS: dict = {}
 WORKERS = ThreadPoolExecutor(max_workers=2)
 
@@ -66,14 +66,13 @@ def job_status(job_id: str):
     return job
 
 
-# ───────────── settings and data ─────────────
+# Settings and data
 @app.get("/api/config")
 def get_config():
     return service.get_config()
 
 
 @app.post("/api/ingest/file")
-@app.post("/api/ingest/csv")  # older name, kept so existing scripts still work
 async def upload_file(file: UploadFile = File(...)):
     return checked(service.read_upload, file.filename, await file.read())
 
@@ -90,7 +89,7 @@ def example_dataset(name: str = "synthetic"):
 
 @app.get("/api/template.csv")
 def template_csv():
-    return FileResponse(service.template_path(), media_type="text/csv", filename="weanage_template.csv")
+    return FileResponse(config.DATA_DIR / "templates" / "isotope_template.csv", media_type="text/csv", filename="weanage_template.csv")
 
 
 @app.post("/api/bone/ingest/file")
@@ -110,7 +109,7 @@ def bone_example(name: str = "synthetic_bone"):
 
 @app.get("/api/bone/template.csv")
 def bone_template_csv():
-    return FileResponse(service.bone_template_path(), media_type="text/csv", filename="weanage_bone_template.csv")
+    return FileResponse(config.DATA_DIR / "templates" / "bone_template.csv", media_type="text/csv", filename="weanage_bone_template.csv")
 
 
 @app.post("/api/growth-tables")
@@ -128,12 +127,7 @@ def calibrate(body: CalibrateIn):
     return checked(service.calibrate, body)
 
 
-# ───────────── analysis, simulation, comparison ─────────────
-@app.post("/api/analyze")
-def analyze_now(body: AnalyzeIn):
-    return service.run_analysis(body)
-
-
+# Analysis, simulation, comparison
 @app.post("/api/jobs/analyze")
 def analyze_in_background(body: AnalyzeIn):
     return start_job("analyze", lambda progress: service.run_analysis(body, progress))

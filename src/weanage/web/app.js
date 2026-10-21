@@ -28,7 +28,7 @@ const state = {
 };
 const capital = (s) => s[0].toUpperCase() + s.slice(1);
 
-// ───────────── switching views ─────────────
+// Switching views
 // The bone calculation has its own Settings and Results pages.
 function show(view) {
   for (const b of $$(".step")) {
@@ -100,7 +100,7 @@ async function refreshConfig() {
   renderTbd();
 }
 
-// ───────────── 1. data ─────────────
+// 1. data
 function setReport(report, keepResults = false) {
   state.report = report;
   state.samples = report.samples;
@@ -200,7 +200,7 @@ async function addSampleByHand(event) {
   }
 }
 
-// ───────────── 2. settings ─────────────
+// 2. settings
 // Which form control holds each setting, and what kind of value it holds.
 const FIELDS = {
   reported_milestone: ["#opt-milestone", "text"],
@@ -327,7 +327,7 @@ async function runAnalysis() {
   }
 }
 
-// ───────────── 3. results ─────────────
+// 3. results
 const isNote = (w) => /PLACEHOLDER|^Time averaging on|teeth .* combined/.test(w); // information, not a problem
 const warningCount = (r) => r.warnings.filter((w) => !isNote(w)).length + r.fits.reduce((n, f) => n + f.warnings.length, 0);
 
@@ -429,7 +429,7 @@ function chooseSpecimen(id) {
   $(`[data-specimen="${CSS.escape(id)}"]`)?.focus();
 }
 
-// ───────────── 4. compare ─────────────
+// 4. compare
 function compareRequest() {
   const group_by = $$('input[name="group"]:checked').map((box) => box.value);
   const body = { estimates: state.estimates, group_by, milestone: $("#cmp-milestone").value, model: $("#cmp-model").value || null,
@@ -554,7 +554,7 @@ function renderValidation(rows) {
   ], rows);
 }
 
-// ───────────── saving, opening and the report ─────────────
+// Saving, opening and the report
 function project() {
   return {
     format: "weanage-project", format_version: 1, app_version: state.config.version, saved_at: new Date().toISOString(),
@@ -634,7 +634,7 @@ async function makeReport() {
   }
 }
 
-// ───────────── buttons and inputs ─────────────
+// Buttons and inputs
 function bind() {
   const on = (selector, event, handler) => $(selector).addEventListener(event, handler);
   for (const b of $$(".step")) b.addEventListener("click", () => show(b.dataset.view));
@@ -727,7 +727,7 @@ function bind() {
   on("#btn-units", "click", () => setUnits(getAgeUnit() === "years" ? "months" : "years"));
 }
 
-// ───────────── dark/light colours and text size ─────────────
+// Dark/light colours and text size
 // `key` is "theme" (dark/light) or "text" (normal/large). The choice is remembered.
 function setLook(key, value) {
   document.documentElement.dataset[key] = value;
@@ -770,7 +770,7 @@ function showLook() {
   $("#btn-text").setAttribute("aria-pressed", String(large));
 }
 
-// ───────────── start ─────────────
+// Start
 async function init() {
   try {
     // The browser version downloads its Python engine first; show what is happening.

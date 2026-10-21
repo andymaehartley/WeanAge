@@ -163,7 +163,7 @@ export function tourSeen() {
   }
 }
 
-// ───────────── the Help menu: the tour, and the PDF user guide ─────────────
+// The Help menu: the tour, and the PDF user guide
 const GUIDE_PDF = "guide/WeanAge_user_guide.pdf";
 
 export function initHelpMenu(show) {

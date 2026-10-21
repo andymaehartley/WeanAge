@@ -10,9 +10,10 @@ import math
 from typing import Literal
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel, Field
 
-from .aggregate import error_metrics, interval_coverage, plain, to_frame
+from .aggregate import error_metrics, interval_coverage, plain
 from .analysis import analyze, estimate_rows, slice_positions, slice_weights
 from .config import find_growth_table
 from .growth import position_to_age
@@ -31,7 +32,6 @@ class SimulationScenario(BaseModel):
     n_specimens: int = Field(default=30, ge=2, le=500)
     sampling_interval_mm: float = Field(default=1.0, gt=0, le=10)
     increment_width_mm: float = Field(default=1.0, gt=0, le=10)
-    sampled_length_mm: float | None = Field(default=None, gt=0)  # default: the whole growth table
     noise_sd: float = Field(default=0.15, ge=0, le=3)
     missing_fraction: float = Field(default=0.0, ge=0, lt=0.9)
     growth_layer_offset_mm: float = Field(default=0.0, ge=0, le=50)
@@ -69,7 +69,7 @@ def simulate_samples(sc, threshold=0.05, inner_dentine_weight=1.0):
     table = None if sc.growth_override else find_growth_table(sc.species, sc.tooth)
     if table is None and sc.growth_override is None:
         raise ValueError(f"no growth table for {sc.species} {sc.tooth}; give a growth_override")
-    length = sc.sampled_length_mm or (table.knots[-1].position_mm if table else 40.0)
+    length = table.knots[-1].position_mm if table else 40.0
     rng = np.random.default_rng(sc.seed)
     samples, truth = [], {}
     for i in range(sc.n_specimens):
@@ -109,7 +109,7 @@ def run_simulation(sc, options=None, progress=None):
         options.increment_width_mm = sc.increment_width_mm
         options.growth_layer_offset_mm = sc.growth_layer_offset_mm
     samples, _ = simulate_samples(sc, options.transition_threshold, options.inner_dentine_weight)
-    df = to_frame(estimate_rows(analyze(samples, options, progress=progress)))
+    df = pd.DataFrame(estimate_rows(analyze(samples, options, progress=progress)))
     scores = []
     for model in options.models + ["average"]:
         sub = df[df["model"] == model] if not df.empty else df
@@ -136,5 +136,6 @@ def sweep(sc, param, values, options=None, progress=None):
             if progress:  # count progress over all the runs together
                 progress(done_before + done, len(values) * sc.n_specimens)
 
-        runs.append(run_simulation(sc.model_copy(update=change), options, report))
+        # Re-validated, so a value typed into the sweep box gets the same limits as the form.
+        runs.append(run_simulation(SimulationScenario.model_validate({**sc.model_dump(), **change}), options, report))
     return runs

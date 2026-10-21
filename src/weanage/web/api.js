@@ -77,7 +77,7 @@ const server = {
   boneTemplateUrl: "/api/bone/template.csv",
 };
 
-// ───────────── browser version ─────────────
+// Browser version
 // Python runs in background "engines" (web workers, see pyworker.js). Engine 0 does
 // everything; big analyses are shared out to extra engines, one per spare processor core.
 const engines = []; // promises of { worker, waiting }

@@ -40,7 +40,7 @@
 @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2212; }
 @font-face { font-family: "IBM Plex Mono"; font-weight: 500; src: url("fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2212; }
 
-/* ── basics ── */
+/* Basics */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; font: 0.95rem/1.55 var(--sans); background: var(--bg); color: var(--text); padding-bottom: 2.2rem; }
@@ -59,7 +59,7 @@ small, .small { font-size: .82rem; }
 .sig { font-weight: 700; color: var(--ok); }
 a { color: var(--accent); }
 
-/* ── page layout ── */
+/* Page layout */
 .topbar {
   display: flex; align-items: stretch; gap: 1.5rem; flex-wrap: wrap;
   padding: 0 1.25rem; background: var(--card); border-bottom: 1px solid var(--rule); position: sticky; top: 0; z-index: 10;
@@ -88,7 +88,7 @@ main { max-width: 1240px; margin: 0 auto; padding: var(--s4) var(--s5) 2.6rem; }
 .run-bar { display: flex; justify-content: flex-end; align-items: center; gap: 1rem; padding-top: .25rem; }
 .export, .growth-actions { margin-top: .6rem; }
 
-/* ── workflow tabs: an underlined tab strip ── */
+/* Workflow tabs: an underlined tab strip */
 .step { background: transparent; color: var(--muted); border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: .85rem .8rem .75rem; }
 .step span { font: .78rem var(--mono); margin-right: .35rem; color: var(--muted); }
 .step:hover:not(:disabled) { color: var(--text); }
@@ -96,7 +96,7 @@ main { max-width: 1240px; margin: 0 auto; padding: var(--s4) var(--s5) 2.6rem; }
 .step:disabled { color: var(--muted); opacity: .75; cursor: not-allowed; }
 .step.aside { margin-left: .8rem; border-left: 1px solid var(--rule); padding-left: 1.2rem; }
 
-/* ── buttons and form fields ── */
+/* Buttons and form fields */
 button, .button { font: inherit; cursor: pointer; border-radius: var(--radius); padding: .42rem .9rem; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); text-decoration: none; display: inline-block; line-height: 1.4; }
 .secondary { background: var(--card); color: var(--accent); }
 .secondary:hover { background: var(--tint); }
@@ -144,7 +144,7 @@ fieldset.inline legend { float: left; margin-right: .5rem; font-size: .84rem; co
 .inline-msg.error { color: var(--error); }
 .inline-msg.ok { color: var(--ok); }
 
-/* ── tables ── */
+/* Tables */
 .table-wrap { overflow-x: auto; }
 .table-wrap.tall { max-height: 420px; overflow-y: auto; }
 table { border-collapse: collapse; width: 100%; font-size: .87rem; }
@@ -158,7 +158,7 @@ tr.avg-row td { font-style: italic; border-top: 1px solid var(--border); }
 summary { cursor: pointer; }
 .samples-details { margin-top: .8rem; }
 
-/* ── messages: a plain list with a word that says what kind of message it is ── */
+/* Messages: a plain list with a word that says what kind of message it is */
 .issues { list-style: none; padding: 0; margin: .5rem 0 0; border-top: 1px solid var(--rule); }
 .issues li { padding: .4rem 0 .4rem 6.2rem; border-bottom: 1px solid var(--rule); font-size: .87rem; position: relative; }
 .issues li::before { position: absolute; left: 0; top: .45rem; font: 700 .7rem/1.4 var(--mono); text-transform: uppercase; letter-spacing: .04em; }
@@ -176,12 +176,12 @@ summary { cursor: pointer; }
 .toast.ok { border-left-color: var(--ok); }
 .info-banner { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; padding: .5rem 1.25rem; font-size: .88rem; background: var(--raised); border-bottom: 1px solid var(--rule); }
 
-/* ── status line at the bottom of the window ── */
+/* Status line at the bottom of the window */
 .statusbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; display: flex; gap: 1.5rem; flex-wrap: wrap; padding: .35rem 1.25rem; background: var(--card); border-top: 1px solid var(--rule); font: .76rem var(--mono); color: var(--muted); }
 .statusbar .tbd-count { color: var(--tbd-ink); }
 .statusbar span:last-child { margin-left: auto; }
 
-/* ── placeholders still waiting on lab work (TBD-LAB) ── */
+/* Placeholders still waiting on lab work (TBD-LAB) */
 .engine-status { margin: 1rem auto 0; max-width: 1200px; padding: .7rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
 .tbd-banner { background: var(--tbd-bg); color: var(--tbd-ink); border-bottom: 1px solid var(--tbd-border); padding: .45rem 1.25rem; font-size: .86rem; }
 .tbd-banner ul { margin: .5rem 0 .3rem; padding-left: 1.2rem; }
@@ -193,7 +193,7 @@ label.tbd { padding: .3rem .4rem; border-radius: var(--radius); color: var(--tbd
 .tbd-inline { background: var(--tbd-bg); color: var(--tbd-ink); padding: 0 .3rem; border-radius: 2px; }
 .tbd-block { padding: .8rem 1rem; border-radius: var(--radius); color: var(--tbd-ink); }
 
-/* ── settings: growth tables and baselines ── */
+/* Settings: growth tables and baselines */
 .growth-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
 .growth-item { border: 1px solid var(--rule); border-radius: var(--radius); padding: .8rem; background: var(--bg); }
 .growth-item h3 { margin-top: 0; color: var(--text); }
@@ -208,7 +208,7 @@ label.tbd { padding: .3rem .4rem; border-radius: var(--radius); color: var(--tbd
 .progress-fill { height: 100%; background: var(--accent); transition: width .2s; }
 .progress-text { font: .78rem var(--mono); color: var(--muted); white-space: nowrap; }
 
-/* ── results ── */
+/* Results */
 .results-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 @media (max-width: 860px) { .results-layout { grid-template-columns: 1fr; } }
 .specimen-list ul { list-style: none; margin: 0; padding: 0; max-height: 72vh; overflow-y: auto; border-top: 1px solid var(--rule); }
@@ -242,7 +242,7 @@ label.tbd { padding: .3rem .4rem; border-radius: var(--radius); color: var(--tbd
 .steps-list { padding-left: 1.2rem; }
 .steps-list li { margin-bottom: .4rem; }
 
-/* ── charts ── */
+/* Charts */
 .chart-box { position: relative; width: 100%; }
 svg.chart { width: 100%; height: auto; display: block; }
 svg.chart text { font-size: 12.5px; fill: var(--muted); font-family: var(--sans); }
@@ -265,7 +265,7 @@ svg.chart .c13, svg.chart .c13-pt { fill: var(--carbon); }
 svg.chart .c13-line { fill: none; stroke: var(--carbon); stroke-width: 1.2; stroke-dasharray: 2 3; opacity: .8; }
 .chart-tip { position: absolute; pointer-events: none; background: var(--raised); color: var(--text); border: 1px solid var(--border); padding: .3rem .5rem; border-radius: var(--radius); font: .78rem var(--mono); white-space: nowrap; z-index: 5; }
 
-/* ── dialogs: About and the tooth guide ── */
+/* Dialogs: About and the tooth guide */
 .dialog { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--text); width: min(680px, 94vw); max-height: 90vh; padding: 0 1.25rem 1.25rem; box-shadow: 0 10px 40px rgb(0 0 0 / .35); }
 .dialog.wide { width: min(1040px, 96vw); }
 .dialog::backdrop { background: rgb(0 0 0 / .55); }
@@ -291,7 +291,7 @@ dl.terms dt { font-weight: 700; margin-top: .6rem; }
 dl.terms dt:first-child { margin-top: 0; }
 dl.terms dd { margin: .1rem 0 0; font-size: .9rem; }
 
-/* ── help, guided tour and accessibility ── */
+/* Help, guided tour and accessibility */
 .help-btn { display: inline-grid; place-items: center; width: 1.05rem; height: 1.05rem; padding: 0; border-radius: 50%; font: 700 .66rem/1 var(--sans); background: transparent; color: var(--muted); border: 1px solid var(--border); vertical-align: middle; margin-left: .2rem; }
 .help-btn:hover { color: var(--accent); border-color: var(--accent); }
 .help-pop, .tour-card { background: var(--raised); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem .9rem; box-shadow: 0 6px 20px rgb(0 0 0 / .25); }
@@ -316,7 +316,7 @@ main:focus { outline: none; }
   .view { display: block !important; }
 }
 
-/* ── Advanced settings: folded away until wanted, so each page fits on one screen ── */
+/* Advanced settings: folded away until wanted, so each page fits on one screen */
 .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: var(--s4); align-items: start; }
 .grid-3 .card, .compare-layout .card, .plan-layout .card { margin-bottom: 1rem; }
 details.advanced { margin-top: .6rem; }
@@ -362,7 +362,7 @@ details:not([open]) > :not(summary) { display: none; }
 .card h2 small { font-weight: 400; font-size: .8rem; margin-left: .4rem; }
 .baseline-block.tbd { padding: .5rem .7rem; border-radius: var(--radius); }
 
-/* ── Reading and numbers ── */
+/* Reading and numbers */
 p, li, dd, .summary { text-wrap: pretty; }
 td.num, th.num, .age, .readout, .pill { font-variant-numeric: tabular-nums; }
 /* The one figure each result page is about, stated first and large; the sentence below explains it. */

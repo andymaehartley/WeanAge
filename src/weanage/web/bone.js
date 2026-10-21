@@ -53,7 +53,7 @@ export function initBone(appState, appHooks) {
   });
 }
 
-// ───────────── data ─────────────
+// Data
 export async function loadBoneFile(file) {
   try {
     setBoneReport(await api.boneUpload(file));
@@ -162,7 +162,7 @@ function turnoverLabel(species) {
   return t ? `${esc(t.label)} ${t.placeholder ? tbdBadge : ""}` : '<span class="warn-text">none for this species</span>';
 }
 
-// ───────────── settings ─────────────
+// Settings
 export function applyBoneSettings(o) {
   for (const key of [...FIELDS, "weaning_form"]) if (key in o) $(`#bone-${key}`).value = o[key] ?? "";
 }
@@ -221,7 +221,7 @@ async function runBone() {
   }
 }
 
-// ───────────── results ─────────────
+// Results
 const currentResult = () => state.bone.results?.find((r) => r.group === state.bone.current) || state.bone.results?.[0];
 const isNote = (w) => /PLACEHOLDER|stand in|taken from Settings/.test(w);
 const isTbd = (w) => /PLACEHOLDER/.test(w);

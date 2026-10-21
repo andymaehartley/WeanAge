@@ -5,10 +5,6 @@ import pandas as pd
 from scipy import stats
 
 
-def to_frame(rows):
-    return pd.DataFrame(list(rows))
-
-
 def describe(values):
     """n, mean, SD, median, range and the 95 % confidence interval of the mean."""
     v = values.dropna().to_numpy(dtype=float)
@@ -30,7 +26,7 @@ def pick(df, model):
 
 
 def aggregate(rows, group_by=("site", "species"), milestone="midpoint", model=None):
-    df = to_frame(rows)
+    df = pd.DataFrame(list(rows))
     group_by = list(group_by)
     if df.empty or pick(df, model).empty:
         return pd.DataFrame(columns=[*group_by, "model", "n", "mean", "sd"])
@@ -45,7 +41,7 @@ def aggregate(rows, group_by=("site", "species"), milestone="midpoint", model=No
 
 def model_disagreement(rows, milestone="midpoint"):
     """How far apart the models' estimates are for each specimen (thesis question 1)."""
-    df = to_frame(rows)
+    df = pd.DataFrame(list(rows))
     if df.empty or (df["model"] != "average").sum() == 0:
         return pd.DataFrame(columns=["specimen_id", "site", "species", "n_models", "range"])
     df = df[df["model"] != "average"]
@@ -85,7 +81,7 @@ REFERENCES = {"known_weaning_age_months": "known age", "published_weaning_age_mo
 
 def validate(rows, milestone="completion"):
     """Accuracy of each model against known ages and/or published estimates."""
-    df = to_frame(rows)
+    df = pd.DataFrame(list(rows))
     table = []
     for column, label in REFERENCES.items():
         if df.empty or column not in df or df[column].isna().all():

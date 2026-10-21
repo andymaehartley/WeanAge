@@ -41,7 +41,7 @@ from scipy import stats
 
 from . import config
 from .inference import middle95, split_rhat
-from .ingest import is_blank, issue, squash
+from .ingest import check_rows, column_lookup, issue, match_columns
 from .qc import passes_qc, qc_flags
 from .schema import BoneOptions, BoneSample
 
@@ -50,64 +50,27 @@ MIN_YOUNG = 10  # fewer non-adults than this rarely pin down a weaning age
 PARAMS = ["t1", "t2", "enrichment", "weaning_food", "female_mean", "log_sigma", "newborn_offset"]
 
 
-# ───────────── reading bone data ─────────────
+# Reading bone data
 ALIASES = {
     "specimen_id": ["specimen", "specimenid", "sampleid", "individual", "individualid", "animal", "animalid"],
-    "site": ["sitename"],
-    "species": ["taxon"],
     "element": ["bone", "skeletalelement"],
     "age_class": ["ageclass", "agegroup", "adult", "agecategory"],
     "sex": ["sexestimate"],
     "age_months": ["age", "ageatdeath", "ageatdeathmonths", "agemo", "ageestimatemonths"],
     "age_min_months": ["agemin", "minage", "minagemonths", "ageminmonths"],
     "age_max_months": ["agemax", "maxage", "maxagemonths", "agemaxmonths"],
-    "d15N": ["δ15n", "delta15n", "d15nair"],
-    "d13C": ["δ13c", "delta13c", "d13cvpdb"],
-    "pct_N": ["n", "percentn"],
-    "pct_C": ["c", "percentc"],
-    "cn_ratio": ["cn", "atomiccn"],
-    "collagen_yield_pct": ["collagenyield", "yield", "yieldpct"],
-    "period": ["phase"],
-    "notes": ["comment"],
 }
-LOOKUP = {squash(field): field for field in BoneSample.model_fields}
-for field, spellings in ALIASES.items():
-    for spelling in spellings:
-        LOOKUP[squash(spelling)] = field
+LOOKUP = column_lookup(BoneSample, ALIASES)
 
 
 def ingest_bone_dataframe(df):
     """Check a table of bone samples; returns samples, problems and a summary per group."""
-    from pydantic import ValidationError
-
-    renames, unknown = {}, []
-    for column in df.columns:
-        field = LOOKUP.get(squash(column))
-        if field and field not in renames.values():
-            renames[column] = field
-        else:
-            unknown.append(str(column))
-    df = df.rename(columns=renames)[list(renames.values())]
-    missing = [f for f in ["specimen_id", "site", "species", "d15N"] if f not in df]
-    if missing:
-        return {"samples": [], "issues": [issue(f"Missing required column(s): {', '.join(missing)}")],
-                "groups": [], "unrecognised_columns": unknown}
-    for column in ["specimen_id", "site", "species", "element", "period", "notes", "sex", "age_class"]:
-        if column in df:  # IDs like 001 must stay text
-            df[column] = df[column].map(lambda v: None if is_blank(v) else str(v))
-    samples, issues = [], []
-    for row_number, raw in enumerate(df.to_dict(orient="records"), start=1):
-        row = {key: (None if is_blank(value) else value) for key, value in raw.items()}
-        try:
-            samples.append(BoneSample(**row))
-        except ValidationError as err:
-            for e in err.errors():
-                issues.append(issue(e["msg"].removeprefix("Value error, "), row_number,
-                                    ".".join(str(p) for p in e["loc"]) or None))
-    if unknown:
-        issues.append(issue(f"Ignored unrecognised column(s): {', '.join(unknown)}", severity="warning"))
-    issues += bone_checks(samples)
-    return {"samples": samples, "issues": issues, "groups": summarise(samples), "unrecognised_columns": unknown}
+    df, issues = match_columns(df, LOOKUP, BoneSample)
+    if df is None:
+        return {"samples": [], "issues": issues, "groups": []}
+    samples, row_issues = check_rows(BoneSample, df.to_dict(orient="records"))
+    issues = row_issues + issues + bone_checks(samples)
+    return {"samples": samples, "issues": issues, "groups": summarise(samples)}
 
 
 def group_key(s):
@@ -150,7 +113,7 @@ def bone_checks(samples):
     return issues
 
 
-# ───────────── the model ─────────────
+# The model
 def milk_share(t, t1, t2, form="parabolic"):
     """Share of the diet that is still milk: 1 before weaning starts, 0 after it ends (WARN Eq. 8)."""
     x = np.clip((t - t1) / np.maximum(t2 - t1, 1e-6), 0, 1)  # how far through weaning
@@ -199,10 +162,6 @@ class BoneFit:
         self.grid = np.arange(0, end + STEP, STEP)
         self.renewed = renewal(table, self.grid)
 
-    def curves(self, p):
-        """Bone δ15N on the grid for each row (chain) of parameters."""
-        return curves_for(self, p)[0]
-
     def log_prior(self, p):
         """One value per chain; -inf where a parameter is outside its allowed range."""
         t1, t2, e, w, f, log_sigma, b = p.T
@@ -244,7 +203,7 @@ def run_chains(fit, rng, chains, warmup, keep):
     uncertain = fit.high > fit.low
     scale = np.array([top / 10, top / 10, 0.3, 0.3, max(fit.f_se, 0.05), 0.2, 0.3, top / 20])  # last: the joint shift
     accepted = np.zeros(len(scale))
-    bone = fit.curves(p)
+    bone = curves_for(fit, p)[0]
     where = fit.places(ages)
     current = fit.log_prior(p) + fit.pointwise(p, bone, where).sum(1)
     halves = [np.arange(chains)[: chains // 2], np.arange(chains)[chains // 2:]]
@@ -258,7 +217,7 @@ def run_chains(fit, rng, chains, warmup, keep):
                 proposal[:, :2] += rng.normal(0, scale[i], (chains, 1))
             prior = fit.log_prior(proposal)
             ok = np.isfinite(prior)
-            new_bone = fit.curves(proposal)
+            new_bone = curves_for(fit, proposal)[0]
             new = np.where(ok, prior + fit.pointwise(proposal, new_bone, where).sum(1), -np.inf)
             move = np.log(rng.uniform(size=chains)) < new - current
             p[move], bone[move], current[move] = proposal[move], new_bone[move], new[move]
@@ -271,7 +230,7 @@ def run_chains(fit, rng, chains, warmup, keep):
             proposal = p.copy()
             proposal[mine] += size * (p[a] - p[b]) + rng.normal(0, 1e-3, (len(mine), len(PARAMS)))
             prior = fit.log_prior(proposal[mine])
-            new_bone = fit.curves(proposal[mine])
+            new_bone = curves_for(fit, proposal[mine])[0]
             mine_where = (where[0][mine], where[1][mine])
             new = np.where(np.isfinite(prior), prior + fit.pointwise(proposal[mine], new_bone, mine_where).sum(1), -np.inf)
             move = np.log(rng.uniform(size=len(mine))) < new - current[mine]
@@ -360,7 +319,7 @@ def priors_for(species, options):
     return options.model_copy(update=filled), entry
 
 
-def nursing_check(young, mothers_values, options):
+def nursing_check(young, mothers_values):
     """Are the youngest animals clearly above their mothers?
 
     Bone collagen δ15N of the very young is usually raised above the adult mean, but whether a
@@ -378,14 +337,12 @@ def nursing_check(young, mothers_values, options):
 
 
 def mothers_for(rows, options):
-    """Mean δ15N of the mothers and its uncertainty, with a note on where it came from."""
-    females = [s.d15N for s in rows if s.is_adult and s.sex == "f"]
+    """Mean δ15N of the mothers and its standard error, with a note on where it came from."""
     adults = [s.d15N for s in rows if s.is_adult]
-    if len(females) >= 2:
-        return (float(np.mean(females)), max(float(np.std(females, ddof=1)), 0.1) / math.sqrt(len(females))), None
-    if len(adults) >= 2:
-        return ((float(np.mean(adults)), max(float(np.std(adults, ddof=1)), 0.1) / math.sqrt(len(adults))),
-                f"No adult females: all {len(adults)} adults stand in for the mothers")
+    females = [s.d15N for s in rows if s.is_adult and s.sex == "f"]
+    for values, note in [(females, None), (adults, f"No adult females: all {len(adults)} adults stand in for the mothers")]:
+        if len(values) >= 2:
+            return (float(np.mean(values)), max(float(np.std(values, ddof=1)), 0.1) / math.sqrt(len(values))), note
     if options.female_mean is not None:
         return (options.female_mean, options.female_sd), "Mothers' δ15N taken from Settings"
     return None, None
@@ -416,13 +373,13 @@ def analyze_bones(samples: list[BoneSample], options: BoneOptions | None = None,
         used_rows = [s for s, p in zip(rows, points) if p["used_in_fit"]]
         mothers, note = mothers_for(used_rows, group_options)
         females = [s.d15N for s in used_rows if s.is_adult and s.sex == "f"]
-        check = nursing_check(young, females or [s.d15N for s in used_rows if s.is_adult], group_options)
+        check = nursing_check(young, females or [s.d15N for s in used_rows if s.is_adult])
         result = {"group": group_name(key), "site": site, "species": species, "period": period,
                   "points": points, "n_young": len(young), "turnover": table.label if table else None,
                   "turnover_placeholder": bool(table and table.placeholder), "estimates": None, "rhat": None,
                   "curve": None, "warnings": [], "message": "", "nursing_check": check,
                   "priors": {field: getattr(group_options, field) for field in config.PRIOR_FIELDS},
-                  "priors_source": prior_entry.get("source", ""), "priors_placeholder": prior_entry.get("placeholder", False)}
+                  "priors_placeholder": prior_entry.get("placeholder", False)}
         excluded = sum(not p["used_in_fit"] for p in points)
         if excluded:
             result["warnings"].append(f"{excluded} sample{'s' if excluded > 1 else ''} failed collagen QC and "
@@ -435,8 +392,7 @@ def analyze_bones(samples: list[BoneSample], options: BoneOptions | None = None,
             result["message"] = f"Only {len(young)} usable non-adults; at least 3 are needed to fit anything"
         else:
             estimates, rhat, curve = fit_group(young, mothers, table, group_options, rng)
-            result.update(estimates=estimates, rhat=rhat, curve=curve,
-                          female_mean_data=mothers[0])
+            result.update(estimates=estimates, rhat=rhat, curve=curve)
             result["warnings"] += group_warnings(estimates, rhat, young, group_options, table, note, check,
                                                  prior_entry)
         results.append(result)
