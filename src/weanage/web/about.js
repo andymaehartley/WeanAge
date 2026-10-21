@@ -9,7 +9,7 @@ const MANIFEST = "figures/tooth.json";
 const RELEASE_YEAR = 2026;
 
 export const citation = (version) =>
-  `Hartley, A. (${RELEASE_YEAR}). WeanAge: weaning-age estimation from incremental dentine δ15N ` +
+  `Hartley, A. (${RELEASE_YEAR}). WeanAge: weaning-age estimation from tooth dentine and bone collagen δ15N ` +
   `(version ${version}) [Computer software]. https://github.com/andymaehartley/repotest`;
 
 export function initAbout(config) {

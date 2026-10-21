@@ -7,3 +7,5 @@ build/
 *.egg-info/
 .DS_Store
 docs/brief/*.html
+.mypy_cache/
+.ruff_cache/

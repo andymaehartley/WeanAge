@@ -1,7 +1,7 @@
 [project]
 name = "weanage"
 version = "0.2.0"
-description = "Open-source weaning-age estimation from sequentially sampled dentine δ15N for zooarchaeology."
+description = "Open-source weaning-age estimation from tooth dentine and bone collagen δ15N, for zooarchaeology and bioarchaeology."
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Annabelle Hartley" }]
@@ -26,7 +26,11 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://andymaehartley.github.io/repotest/"
 Repository = "https://github.com/andymaehartley/repotest"
+Documentation = "https://github.com/andymaehartley/repotest/tree/main/docs"
+Issues = "https://github.com/andymaehartley/repotest/issues"
+Changelog = "https://github.com/andymaehartley/repotest/blob/main/CHANGELOG.md"
 
 [project.scripts]
 weanage = "weanage.cli:main"

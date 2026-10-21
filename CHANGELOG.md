@@ -72,6 +72,10 @@
   buttons, and the version number moved out of the header into About.
 
 ### Project
+* **Repository set up for collaboration**: a `main` branch, `CONTRIBUTING.md`, a code of conduct, issue
+  and pull-request templates, Dependabot for the workflows, README badges and a browser-version link,
+  data-licence notes, and `docs/REPO_SETUP.md` for the settings only the owner can change.
+* **WeanAge is the final name**; descriptions now cover both tooth and bone, and people as well as livestock.
 * Known-answer tests pin the results on the synthetic example.
 * `docs/USER_GUIDE.md` (step-by-step guide with screenshots) and a printable methods
   brief in `docs/brief/`.

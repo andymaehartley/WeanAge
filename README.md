@@ -1,10 +1,18 @@
 # <img src="src/weanage/web/logo.svg" width="36" alt=""> WeanAge
 
-An open-source tool for estimating **age at weaning** in livestock (cattle, pigs, horses)
-from sequentially sampled **incremental dentine δ¹⁵N**. You give it isotope values
-measured along a tooth. It returns modelled weaning curves and weaning ages with
-uncertainty, compares curve models, sites and species, and helps plan sampling before
-any tooth is cut.
+[![tests](https://github.com/andymaehartley/repotest/actions/workflows/tests.yml/badge.svg)](https://github.com/andymaehartley/repotest/actions/workflows/tests.yml)
+[![browser version](https://github.com/andymaehartley/repotest/actions/workflows/pages.yml/badge.svg)](https://andymaehartley.github.io/repotest/)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
+An open-source tool for estimating **age at weaning** from **δ¹⁵N** in archaeological
+animals (cattle, sheep, goats, pigs, horses) and people. It works from isotope values
+measured along a **tooth** (incremental dentine), or from the **bone** collagen of many
+young individuals who died at different ages (after WARN). It returns weaning ages with
+honest uncertainty, compares methods, sites and species, and helps plan sampling before
+any tooth is cut or bone sampled.
+
+**Use it in your browser, nothing to install:** <https://andymaehartley.github.io/repotest/>
+(after GitHub Pages is switched on: see [`docs/REPO_SETUP.md`](docs/REPO_SETUP.md)).
 
 The aim is one documented, validated method that any zooarchaeology lab can use
 without writing its own statistical model, so that weaning ages are comparable across
@@ -184,4 +192,11 @@ See [`CITATION.cff`](CITATION.cff). Archiving a release on Zenodo (metadata in
 
 ## Licence
 
-MIT
+The code is MIT-licensed ([`LICENSE`](LICENSE)). The bundled example data keep their own
+licences (IsoArcH: CC BY 4.0; CIMA: CC BY-SA); see
+[`src/weanage/data/examples/README.md`](src/weanage/data/examples/README.md).
+
+## Contributing
+
+Questions, bug reports, reference data and code are all welcome: see
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).

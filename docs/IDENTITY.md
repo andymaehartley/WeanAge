@@ -1,12 +1,13 @@
-# WeanAge identity (draft)
+# WeanAge identity
 
 <img src="../src/weanage/web/logo.svg" width="64" alt="WeanAge logo: five bars falling like a weaning curve">
 
 ## What WeanAge is
 
-**WeanAge: weaning ages from tooth dentine.**
-Open software that turns δ¹⁵N measured along a tooth into a weaning age with an honest
-uncertainty, so results from different labs, sites and species can be compared.
+**WeanAge: weaning ages from teeth and bones.**
+Open software that turns δ¹⁵N measured along a tooth, or in the bones of many young
+individuals, into a weaning age with an honest uncertainty, so results from different labs,
+sites and species can be compared. *WeanAge* is the final name.
 
 ## Character
 
