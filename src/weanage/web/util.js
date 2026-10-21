@@ -55,7 +55,7 @@ export function toCsv(rows) {
 
 /** Render a table; columns: [{label, key?, render?, cls?, title?}] */
 export function table(el, columns, rows, rowClass = () => "") {
-  const head = columns.map((c) => `<th scope="col" title="${esc(c.title || "")}">${c.label}</th>`).join("");
+  const head = columns.map((c) => `<th scope="col" class="${c.cls || ""}" title="${esc(c.title || "")}">${c.label}</th>`).join("");
   const body = rows
     .map((r, i) => `<tr class="${rowClass(r)}">${columns.map((c) => `<td class="${c.cls || ""}">${c.render ? c.render(r, i) : esc(r[c.key])}</td>`).join("")}</tr>`)
     .join("");

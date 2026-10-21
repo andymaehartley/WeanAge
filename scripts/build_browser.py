@@ -39,7 +39,8 @@ def build():
     # 4. The blank data template, as a plain download.
     shutil.copy(PACKAGE / "data" / "templates" / "isotope_template.csv", OUT / "weanage_template.csv")
     # 5. Tell the offline helper (sw.js) which of the app's files to keep copies of.
-    files = ["./"] + sorted(p.name for p in OUT.iterdir() if p.is_file() and p.name != "sw.js")
+    files = ["./"] + sorted(p.relative_to(OUT).as_posix() for p in OUT.rglob("*")
+                            if p.is_file() and p.name not in ("sw.js", ".nojekyll") and p.suffix != ".txt")
     worker = OUT / "sw.js"
     worker.write_text(worker.read_text(encoding="utf-8").replace(
         "const APP_FILES = [];", f"const APP_FILES = {json.dumps(files)};"), encoding="utf-8")

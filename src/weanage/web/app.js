@@ -1,5 +1,5 @@
 // The main page: holds the app's state and draws each of the five views.
-import { api, onEngineStatus } from "./api.js";
+import { api, inBrowser, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, startTour, tourSeen } from "./help.js";
@@ -51,6 +51,7 @@ function renderTbd() {
   const ids = new Set(items.map((i) => i.id));
   $("#tbd-banner").hidden = !items.length;
   $("#tbd-count").textContent = items.length;
+  $("#sb-tbd").textContent = items.length ? `${items.length} placeholder values (TBD-LAB)` : "";
   $("#tbd-list").innerHTML = items.map((i) => `<li><strong>${esc(i.area)}:</strong> ${esc(i.label)} — ${esc(i.note)} <code>${esc(i.file)}</code></li>`).join("");
   for (const node of $$("[data-tbd]")) {
     const on = ids.has(node.dataset.tbd);
@@ -97,6 +98,8 @@ function renderData() {
     .join("");
   $("#specimens-card").hidden = !state.samples.length;
   $("#sample-count").textContent = `· ${state.samples.length} samples`;
+  const specimens = new Set(state.samples.map((s) => s.individual_id || s.specimen_id)).size;
+  $("#sb-data").textContent = state.samples.length ? `${state.samples.length} samples · ${specimens} specimens` : "No data loaded";
   table($("#specimen-table"), [
     { label: "Specimen", key: "specimen_id" },
     { label: "Animal", render: (s) => esc(s.individual_id || "—") },
@@ -298,7 +301,7 @@ function renderResults() {
       const chosen = r.specimen_id === state.current;
       return `<li><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-specimen="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
         <span><strong>${esc(r.specimen_id)}</strong><small>${esc(r.site)} · ${esc(r.species)} ${esc(r.tooth)}</small></span>
-        <span class="pill">${best ? `${num(best.estimate, 1)} mo` : "—"}${warningCount(r) ? ` <span class="warn-dot" aria-label="${warningCount(r)} warning(s)">!</span>` : ""}</span>
+        <span><span class="age">${best ? `${num(best.estimate, 1)} mo` : "—"}</span>${warningCount(r) ? `<span class="warn-dot" title="${warningCount(r)} warning(s)" aria-label="${warningCount(r)} warning(s)">${warningCount(r)}</span>` : ""}</span>
       </button></li>`;
     })
     .join("");
@@ -681,6 +684,8 @@ async function init() {
   } catch (e) {
     return toast(`Could not start WeanAge: ${e.message}`);
   }
+  $("#app-version").textContent = `v${state.config.version}`;
+  $("#sb-mode").textContent = inBrowser ? "Running in this browser" : "Local app";
   initSettings();
   initExamples();
   initPlanner(state);

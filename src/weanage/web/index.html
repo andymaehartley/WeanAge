@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WeanAge</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%230072B2%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Georgia%27%3E%CE%B4%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M4 9h24M4 16h17M4 23h10%27 stroke=%27%23094b5d%27 stroke-width=%274%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
   <script>
     // Apply the saved theme and text size before the page draws, so it never flashes.
@@ -19,25 +19,25 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
     <div class="brand">
-      <span class="logo" aria-hidden="true">δ</span>
-      <div>
-        <h1>WeanAge</h1>
-        <p class="subtitle">Weaning-age estimation from incremental dentine δ<sup>15</sup>N</p>
-      </div>
+      <h1>WeanAge</h1>
+      <span class="version" id="app-version"></span>
+      <span class="subtitle sr-only">Weaning-age estimation from incremental dentine δ15N</span>
     </div>
     <nav class="steps" aria-label="Workflow steps">
       <button class="step active" data-view="data" aria-current="page"><span aria-hidden="true">1</span> Data</button>
       <button class="step" data-view="settings"><span aria-hidden="true">2</span> Settings</button>
       <button class="step" data-view="results" disabled><span aria-hidden="true">3</span> Results</button>
       <button class="step" data-view="compare" disabled><span aria-hidden="true">4</span> Compare</button>
-      <button class="step" data-view="plan"><span aria-hidden="true">✦</span> Plan sampling</button>
+      <button class="step aside" data-view="plan">Plan sampling</button>
     </nav>
     <div class="actions">
       <label class="button ghost" title="Open a saved project file">Open<input id="project-input" type="file" accept=".json,.weanage" hidden></label>
       <button id="btn-save" class="ghost" title="Save data, settings and results to a file">Save</button>
       <button id="btn-report" class="ghost" disabled title="Download a reproducible HTML report">Report</button>
+      <span class="divider" aria-hidden="true"></span>
       <button id="btn-theme" class="ghost" aria-pressed="false" title="Switch between dark and light colours">Light mode</button>
       <button id="btn-text" class="ghost" aria-pressed="false" title="Make all text larger">Larger text</button>
+      <span class="divider" aria-hidden="true"></span>
       <button id="btn-help" class="ghost" aria-label="Help: start the guided tour">Help</button>
     </div>
   </header>
@@ -420,6 +420,11 @@
     </section>
   </main>
 
+  <footer class="statusbar" aria-label="Status">
+    <span id="sb-data">No data loaded</span>
+    <span id="sb-tbd" class="tbd-count"></span>
+    <span id="sb-mode"></span>
+  </footer>
   <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
 </body>
 </html>

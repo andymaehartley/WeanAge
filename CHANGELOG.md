@@ -17,6 +17,8 @@
 
 ### App
 * High-contrast **dark theme by default**, light mode and larger text (WCAG AAA text contrast).
+* **Interface redesign**: own colour palette, bundled Atkinson Hyperlegible and IBM Plex Mono fonts,
+  an underlined tab strip, plain-text actions, flatter sections, labelled message lists, and a status line.
 * **Browser version** (Pyodide): runs entirely in the web page, shares large analyses between
   several engines, and works offline after the first visit. Published to GitHub Pages.
 * `weanage validate` command and `docs/VALIDATION.md`.
