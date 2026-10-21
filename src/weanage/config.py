@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from .schema import AnalysisOptions, GrowthTable, QCThresholds
+from .schema import AnalysisOptions, GrowthTable, QCThresholds, TurnoverTable
 
 # Inside the single-file app (PyInstaller) files are unpacked to sys._MEIPASS.
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent.parent)) / "weanage"
@@ -71,6 +71,18 @@ def find_growth_table(species, tooth, extra_tables=()):
     return None
 
 
+def turnover_tables():
+    """Bone collagen turnover by species, for the bone model."""
+    return [TurnoverTable(**t) for t in read_json(DATA_DIR / "bone_turnover.json")["tables"]]
+
+
+def find_turnover_table(species, extra_tables=()):
+    for table in list(extra_tables) + turnover_tables():
+        if table.species.lower() == species.lower():
+            return table
+    return None
+
+
 def qc_config():
     return read_json(DATA_DIR / "qc_thresholds.json")
 
@@ -97,6 +109,10 @@ def tbd_items():
         if table.placeholder:
             items.append({"id": f"growth:{table.key}", "area": "Tooth growth table", "label": table.label,
                           "note": table.tbd_note or "", "file": "src/weanage/data/growth_tables.json"})
+    for table in turnover_tables():
+        if table.placeholder:
+            items.append({"id": f"turnover:{table.species}", "area": "Bone collagen turnover", "label": table.label,
+                          "note": table.tbd_note or "", "file": "src/weanage/data/bone_turnover.json"})
     qc = qc_config()
     if qc.get("placeholder"):
         items.append({"id": "qc:thresholds", "area": "Collagen QC", "label": "Quality-control thresholds",

@@ -163,3 +163,118 @@ class AnalysisOptions(BaseModel):
     def baseline_for(self, site, species):
         lower = {k.lower(): v for k, v in self.adult_baselines.items()}
         return lower.get(f"{site}:{species}".lower()) or lower.get(species.lower())
+
+
+# ───────────── bone: many animals that died at different ages ─────────────
+class BoneSample(BaseModel):
+    """Bone collagen from one animal. Young animals need an age at death; adults only need age_class."""
+
+    specimen_id: str = Field(min_length=1)
+    site: str = Field(min_length=1)
+    species: str = Field(min_length=1)
+    element: str | None = None  # e.g. rib, mandible
+    age_class: Literal["adult", "non-adult"] | None = None  # blank = non-adult
+    sex: Literal["f", "m"] | None = None
+    age_months: float | None = Field(default=None, ge=0, le=600)  # best estimate of age at death
+    age_min_months: float | None = Field(default=None, ge=0, le=600)  # range, e.g. from tooth wear or fusion
+    age_max_months: float | None = Field(default=None, ge=0, le=600)
+    d15N: float = Field(ge=-10, le=30)
+    d13C: float | None = Field(default=None, ge=-45, le=5)
+    pct_C: float | None = Field(default=None, ge=0, le=100)
+    pct_N: float | None = Field(default=None, ge=0, le=100)
+    cn_ratio: float | None = Field(default=None, gt=0, le=50)
+    collagen_yield_pct: float | None = Field(default=None, ge=0, le=100)
+    period: str | None = None
+    notes: str | None = None
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def blank_is_missing(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return value
+
+    @field_validator("species", mode="before")
+    @classmethod
+    def lower_case(cls, value):
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("age_class", mode="before")
+    @classmethod
+    def read_age_class(cls, value):
+        if isinstance(value, str):
+            word = value.strip().lower().replace("_", "-").replace(" ", "-")
+            if word in {"adult", "a", "mature"}:
+                return "adult"
+            if word in {"non-adult", "nonadult", "juvenile", "subadult", "infant", "neonate", "young", "j"}:
+                return "non-adult"
+        return value
+
+    @field_validator("sex", mode="before")
+    @classmethod
+    def read_sex(cls, value):
+        if isinstance(value, str):
+            word = value.strip().lower().rstrip("?")  # "F?" (probable female) counts as female
+            return {"f": "f", "female": "f", "m": "m", "male": "m"}.get(word)  # anything else: unknown
+        return value
+
+    @model_validator(mode="after")
+    def tidy(self):
+        if self.age_months is not None:
+            self.age_min_months = self.age_months if self.age_min_months is None else self.age_min_months
+            self.age_max_months = self.age_months if self.age_max_months is None else self.age_max_months
+        elif self.age_min_months is not None and self.age_max_months is not None:
+            self.age_months = round((self.age_min_months + self.age_max_months) / 2, 4)
+        if self.age_min_months is not None and self.age_max_months is not None:
+            if self.age_min_months > self.age_max_months:
+                raise ValueError("age_min_months is larger than age_max_months")
+        if self.age_class != "adult" and self.age_months is None:
+            raise ValueError("a non-adult needs age_months, or age_min_months and age_max_months")
+        if self.cn_ratio is None and self.pct_C and self.pct_N:
+            self.cn_ratio = round(self.pct_C / self.pct_N * 14.007 / 12.011, 3)
+        return self
+
+    @property
+    def is_adult(self):
+        return self.age_class == "adult"
+
+
+class TurnoverTable(BaseModel):
+    """Share of bone collagen newly made per month, at each age (straight lines between the points)."""
+
+    species: str
+    label: str
+    ages_months: list[float] = Field(min_length=2)
+    renewed_per_month: list[float] = Field(min_length=2)
+    source: str = ""
+    placeholder: bool = False
+    tbd_note: str | None = None
+
+    @model_validator(mode="after")
+    def check(self):
+        if len(self.ages_months) != len(self.renewed_per_month):
+            raise ValueError("ages_months and renewed_per_month must be the same length")
+        if any(b <= a for a, b in zip(self.ages_months, self.ages_months[1:])):
+            raise ValueError("turnover ages must increase")
+        if not all(0 < r < 1 for r in self.renewed_per_month):
+            raise ValueError("renewed_per_month must be between 0 and 1")
+        return self
+
+
+class BoneOptions(BaseModel):
+    """Settings of the bone model. Priors are what is believed before seeing the data."""
+
+    weaning_form: Literal["parabolic", "linear", "reverse"] = "parabolic"  # how milk gives way to food (WARN)
+    max_weaning_age_months: float = Field(default=24.0, gt=0, le=120)  # weaning ends no later than this
+    enrichment_prior_mean: float = Field(default=1.9, ge=0, le=10)  # ‰ nursing young above mothers (WARN default)
+    enrichment_prior_sd: float = Field(default=0.9, gt=0, le=5)
+    weaning_food_prior_sd: float = Field(default=3.0, gt=0, le=10)  # ‰ around the adult-female mean (WARN default)
+    female_mean: float | None = Field(default=None, ge=-10, le=30)  # used when there are no adult females
+    female_sd: float = Field(default=0.5, gt=0)
+    qc: QCThresholds = QCThresholds()
+    turnover_tables: list[TurnoverTable] = []  # edited tables sent with this analysis
+    chains: int = Field(default=12, ge=4, le=24)  # run side by side, so more chains cost little
+    warmup: int = Field(default=3000, ge=500, le=50000)
+    keep: int = Field(default=4000, ge=500, le=50000)
+    random_seed: int | None = 42

@@ -36,8 +36,9 @@ def build():
             relative = path.relative_to(PACKAGE)
             if path.is_file() and relative.parts[0] != "web" and "__pycache__" not in relative.parts:
                 zf.write(path, Path("weanage") / relative)
-    # 4. The blank data template, as a plain download.
+    # 4. The blank data templates, as plain downloads.
     shutil.copy(PACKAGE / "data" / "templates" / "isotope_template.csv", OUT / "weanage_template.csv")
+    shutil.copy(PACKAGE / "data" / "templates" / "bone_template.csv", OUT / "weanage_bone_template.csv")
     # 5. Tell the offline helper (sw.js) which of the app's files to keep copies of.
     files = ["./"] + sorted(p.relative_to(OUT).as_posix() for p in OUT.rglob("*")
                             if p.is_file() and p.name not in ("sw.js", ".nojekyll") and p.suffix != ".txt")

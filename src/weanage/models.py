@@ -483,6 +483,30 @@ def model_average(fits, seed=42, n_draws=4000):
     return average
 
 
+def extrapolated_average(fits, average, first_age, last_age):
+    """Mark averaged weaning ages that lie outside the sampled ages, and say why.
+
+    An average can look reasonable while resting on models that each extrapolate beyond the teeth,
+    so it is flagged when it falls outside the samples or most of its support comes from models
+    that do.
+    """
+    warnings = []
+    for key, value in average.items():
+        members = [f for f in fits if f["akaike_weight"] is not None and f.get(key)]
+        weight = sum(f["akaike_weight"] for f in members) or 1
+        after = sum(f["akaike_weight"] for f in members if f[key]["estimate"] > last_age) / weight
+        before = sum(f["akaike_weight"] for f in members if f[key]["estimate"] < first_age) / weight
+        share = after + before
+        if share < 0.5 and first_age <= value["estimate"] <= last_age:
+            continue
+        value["extrapolated"] = True
+        side = "after the last" if after >= before else "before the first"
+        warnings.append(f"Model average {key} ({value['estimate']:.1f} months) is an extrapolation beyond the "
+                        f"sampled teeth: models with {share:.0%} of the support put it {side} sample "
+                        f"(samples cover {first_age:.1f} to {last_age:.1f} months)")
+    return warnings
+
+
 def seasonal_test(t, values, period=12.0, detrend=1, shape=None):
     """Is there a yearly up-and-down cycle in `values`? Returns (size of the cycle, p-value).
 

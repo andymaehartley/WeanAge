@@ -68,3 +68,22 @@ def test_simulation_job_and_calibration():
 def test_frontend_is_served():
     page = client.get("/app/")
     assert page.status_code == 200 and "WeanAge" in page.text
+
+
+def test_bone_requests():
+    body = client.get("/api/config").json()
+    assert body["bone_examples"][0]["name"] == "synthetic_bone" and body["bone_defaults"]["max_weaning_age_months"] == 24
+    assert any(item["id"] == "turnover:cattle" for item in body["tbd"])
+    example = client.get("/api/bone/example").json()
+    assert len(example["samples"]) > 100 and "SYNTHETIC" in example["message"]
+    assert client.get("/api/bone/template.csv").text.startswith("specimen_id,site,species")
+    upload = client.post("/api/bone/ingest/file", files={"file": ("b.csv", b"specimen_id,site,species,age_months,d15N\na,S,cattle,2,8\n")})
+    assert upload.json()["samples"][0]["age_months"] == 2
+    samples = [s for s in example["samples"] if s["site"] == "Site B"]
+    job = client.post("/api/jobs/bone", json={"samples": samples, "options": {"warmup": 500, "keep": 500}}).json()
+    state = wait_for(job)
+    for _ in range(10):
+        if state["status"] == "done":
+            break
+        state = wait_for(job)
+    assert state["status"] == "done" and state["result"]["results"][0]["estimates"]["completion"]["estimate"] > 0

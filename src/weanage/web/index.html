@@ -72,7 +72,21 @@
       <div class="grid-2">
         <article class="card">
           <h2>Load isotope data</h2>
-          <p class="hint">One row per dentine increment, as CSV or Excel. Required columns:
+          <fieldset class="calc-choice">
+            <legend>Calculation</legend>
+            <label class="calc-option"><input type="radio" name="calc" value="tooth" checked>
+              <span><strong>Tooth calculation</strong>
+                <small>Slices along a tooth: one animal's own weaning curve.</small></span></label>
+            <label class="calc-option"><input type="radio" name="calc" value="bone">
+              <span><strong>Bone calculation</strong>
+                <small>Bone from many young animals that died at different ages, after WARN.</small></span></label>
+          </fieldset>
+          <p class="hint" data-mode="bone" hidden>One row per animal, as CSV or Excel. Required columns:
+            <code>specimen_id, site, species, d15N</code>. Young animals also need an age at death in months:
+            <code>age_months</code>, or a range as <code>age_min_months</code> + <code>age_max_months</code>
+            <span data-helpslot="bone_age"></span>. Mark adults with <code>age_class</code> = adult and
+            <code>sex</code> = F for the mothers.</p>
+          <p class="hint" data-mode="tooth">One row per dentine increment, as CSV or Excel. Required columns:
             <code>specimen_id, site, species, tooth, position_mm, d15N</code>
             <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
             <code>position_reference</code> + <code>crown_height_mm</code> (if measured from the cervix).
@@ -89,7 +103,23 @@
           </div>
         </article>
 
-        <article class="card">
+        <article class="card" data-mode="bone" hidden>
+          <h2>How the bone calculation works <span data-helpslot="bone_model"></span></h2>
+          <p>Bone collagen is renewed slowly, so a young animal's bone δ¹⁵N mixes everything it ate up to death.
+            A single bone cannot show when that animal was weaned. Many animals that died at different ages can:
+            together they trace how δ¹⁵N rises while suckling and falls after weaning.</p>
+          <ol class="steps-list">
+            <li><strong>Diet.</strong> Milk until weaning starts; then other food takes over, slowly at first, until weaning ends.</li>
+            <li><strong>Bone.</strong> Born with the mother's value; each month part of the bone is rebuilt from the current
+              diet, faster while the skeleton grows.</li>
+            <li><strong>Fit.</strong> The weaning ages, the nursing enrichment and the weaning-food δ¹⁵N are estimated
+              together from all the animals at a site (Bayesian sampler).</li>
+          </ol>
+          <p class="hint">After WARN (Tsutaya &amp; Yoneda 2013), which was built for human skeletons. Bone turnover rates for
+            livestock are placeholders (TBD-LAB) until they are measured.</p>
+        </article>
+
+        <article class="card" data-mode="tooth">
           <h2>Add samples by hand</h2>
           <p class="hint">Specimen details are kept between entries, and position steps forward by the sampling interval.</p>
           <form id="manual-form" class="form-grid" novalidate>
@@ -121,6 +151,19 @@
       <article class="card" id="issues-card" hidden>
         <h2>Checks</h2>
         <ul id="issues" class="issues"></ul>
+      </article>
+
+      <article class="card" id="bone-groups-card" data-mode="bone" hidden>
+        <div class="row between">
+          <h2>Groups <span id="bone-count" class="muted"></span></h2>
+          <button id="btn-bone-to-settings">Next: settings →</button>
+        </div>
+        <p class="hint">Each site and species (and period, if given) is fitted on its own.</p>
+        <div class="table-wrap"><table id="bone-group-table"></table></div>
+        <details class="samples-details">
+          <summary>Show all animals</summary>
+          <div class="table-wrap tall"><table id="bone-sample-table"></table></div>
+        </details>
       </article>
 
       <article class="card" id="specimens-card" hidden>
@@ -185,7 +228,8 @@
           </div>
         </article>
 
-        <article class="card" data-tbd="qc:thresholds">
+        <div id="qc-home" class="contents">
+        <article class="card" id="qc-card" data-tbd="qc:thresholds">
           <h2>Collagen quality control <span data-helpslot="qc"></span></h2>
           <p class="hint">Samples outside these limits are flagged (and by default left out of the fit).</p>
           <label>Start from a published set of limits
@@ -200,6 +244,7 @@
             <label class="check"><input id="qc-exclude_failed" type="checkbox"> Exclude failed samples from fitting</label>
           </div>
         </article>
+        </div>
       </div>
 
       <div class="grid-2">
@@ -256,6 +301,60 @@
       </div>
     </section>
 
+    <!-- ───────────── 2. SETTINGS (bone calculation) ───────────── -->
+    <section id="view-bone-settings" class="view" aria-labelledby="h-bone-settings">
+      <h2 id="h-bone-settings" class="sr-only">Bone settings</h2>
+      <div class="grid-2">
+        <article class="card">
+          <h2>Bone model <span data-helpslot="bone_model"></span></h2>
+          <p class="hint">Priors: what is believed before seeing the data. With few animals they matter, so check
+            that the results do not simply repeat them.</p>
+          <div class="form-grid">
+            <label>Shape of weaning <span data-helpslot="weaning_form"></span>
+              <select id="bone-weaning_form">
+                <option value="parabolic">Parabolic (WARN default)</option>
+                <option value="linear">Linear</option>
+                <option value="reverse">Reverse parabolic</option>
+              </select>
+            </label>
+            <label>Latest possible end of weaning (months)
+              <input id="bone-max_weaning_age_months" type="number" min="1" max="120" step="1"></label>
+            <label>Nursing enrichment, expected (‰) <span data-helpslot="bone_enrichment"></span>
+              <input id="bone-enrichment_prior_mean" type="number" min="0" max="10" step="0.1"></label>
+            <label>Nursing enrichment, uncertainty (SD ‰)
+              <input id="bone-enrichment_prior_sd" type="number" min="0.1" max="5" step="0.1"></label>
+            <label>Weaning food δ¹⁵N, uncertainty around mothers (SD ‰)
+              <input id="bone-weaning_food_prior_sd" type="number" min="0.1" max="10" step="0.1"></label>
+          </div>
+          <h3>Mothers' δ¹⁵N when no adults were sampled</h3>
+          <p class="hint">Normally the adult females in the data are used (or all adults if no sex is known).</p>
+          <div class="form-grid">
+            <label>Mean (‰)<input id="bone-female_mean" type="number" step="0.01" placeholder="from the data"></label>
+            <label>SD (‰)<input id="bone-female_sd" type="number" min="0.01" step="0.01"></label>
+          </div>
+          <details>
+            <summary>Sampler settings</summary>
+            <div class="form-grid">
+              <label>Chains<input id="bone-chains" type="number" min="4" max="24" step="1"></label>
+              <label>Warm-up steps<input id="bone-warmup" type="number" min="500" max="50000" step="500"></label>
+              <label>Kept steps<input id="bone-keep" type="number" min="500" max="50000" step="500"></label>
+            </div>
+          </details>
+        </article>
+        <div id="qc-bone-home" class="contents"></div>
+      </div>
+      <article class="card" data-tbd="turnover:cattle">
+        <h2>Bone collagen turnover <span data-helpslot="turnover"></span></h2>
+        <p class="hint">Share of the bone collagen newly made each month, at each age. Edit
+          <code>src/weanage/data/bone_turnover.json</code> to change these values.</p>
+        <div id="turnover-list" class="table-wrap"></div>
+      </article>
+      <div class="run-bar">
+        <div id="bone-progress" class="progress-wrap" hidden></div>
+        <button id="btn-bone-run" class="primary">Run bone analysis</button>
+      </div>
+    </section>
+
     <!-- ───────────── 3. RESULTS ───────────── -->
     <section id="view-results" class="view" aria-labelledby="h-results">
       <h2 id="h-results" class="sr-only">Results</h2>
@@ -299,6 +398,44 @@
               <button id="btn-export-csv" class="secondary">Export all estimates (CSV)</button>
               <button id="btn-export-json" class="secondary">Export full results (JSON)</button>
               <button id="btn-export-svg" class="secondary">Save chart (SVG)</button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────── 3. RESULTS (bone calculation) ───────────── -->
+    <section id="view-bone-results" class="view" aria-labelledby="h-bone-results">
+      <h2 id="h-bone-results" class="sr-only">Bone results</h2>
+      <div class="results-layout">
+        <aside class="card specimen-list" aria-label="Groups">
+          <h2>Groups</h2>
+          <ul id="bone-result-list" role="listbox" aria-label="Choose a group"></ul>
+        </aside>
+        <div class="results-main">
+          <article class="card">
+            <h2 id="bone-res-title"></h2>
+            <p id="bone-res-meta" class="muted"></p>
+            <p id="bone-res-summary" class="summary" aria-live="polite"></p>
+            <div id="bone-res-chart" class="chart-box"></div>
+            <div class="legend">
+              <span><i class="dot"></i> young animal (line: age range)</span>
+              <span><i class="dot excluded"></i> failed QC (not fitted)</span>
+              <span><i class="line solid"></i> bone δ¹⁵N, fitted ± 95%</span>
+              <span><i class="line dotted"></i> diet</span>
+              <span><i class="line dashed"></i> mothers' mean</span>
+              <span><i class="dash"></i> weaning start and end ± 95%</span>
+            </div>
+            <ul id="bone-res-warnings" class="issues"></ul>
+          </article>
+          <article class="card">
+            <h2>Estimates</h2>
+            <p class="hint">Medians of the posterior with 95% credible intervals. R̂ close to 1 means the sampler's chains agree.</p>
+            <div class="table-wrap"><table id="bone-fit-table"></table></div>
+            <div class="row gap export">
+              <button id="btn-bone-csv" class="secondary">Export estimates (CSV)</button>
+              <button id="btn-bone-json" class="secondary">Export full results (JSON)</button>
+              <button id="btn-bone-svg" class="secondary">Save chart (SVG)</button>
             </div>
           </article>
         </div>

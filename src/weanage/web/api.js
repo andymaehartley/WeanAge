@@ -58,6 +58,19 @@ const server = {
     request(`/api/growth-tables/${encodeURIComponent(species)}/${encodeURIComponent(tooth)}`, { method: "DELETE" }),
   calibrate: (body) => request("/api/growth-tables/calibrate", json(body)),
   templateUrl: "/api/template.csv",
+  // Bone calculation
+  boneExample: (name = "synthetic_bone") => request(`/api/bone/example?name=${encodeURIComponent(name)}`),
+  boneUpload(file) {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/api/bone/ingest/file", { method: "POST", body: form });
+  },
+  async boneAnalyze(samples, options, onProgress) {
+    const job = await request("/api/jobs/bone", json({ samples, options }));
+    return waitForJob(job, onProgress);
+  },
+  boneRecords: (records) => request("/api/bone/ingest/records", json({ records })),
+  boneTemplateUrl: "/api/bone/template.csv",
 };
 
 // ───────────── browser version ─────────────
@@ -148,6 +161,11 @@ const browser = {
   deleteTable: (species, tooth) => python("delete_table", { species, tooth }),
   calibrate: (body) => python("calibrate", body),
   templateUrl: "weanage_template.csv",
+  boneExample: (name = "synthetic_bone") => python("bone_example", { name }),
+  boneUpload: async (file) => python("bone_upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
+  boneAnalyze: (samples, options, onProgress) => python("bone_analyze", { samples, options }, onProgress),
+  boneRecords: (records) => python("bone_records", { records }),
+  boneTemplateUrl: "weanage_bone_template.csv",
 };
 
 export const api = IN_BROWSER ? browser : server;

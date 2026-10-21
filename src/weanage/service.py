@@ -14,12 +14,13 @@ from pydantic import BaseModel, Field
 from . import __version__, config
 from .aggregate import aggregate, model_disagreement, records, validate
 from .analysis import analyze, estimate_rows
+from .bone import analyze_bones, ingest_bone_dataframe
 from .calibrate import CalibrationPoint, Method, calibrate_growth_table
 from .inference import compare_groups
-from .ingest import ingest_csv, ingest_file, ingest_records
+from .ingest import ingest_csv, ingest_file, ingest_records, is_excel
 from .models import MODEL_CATALOG
 from .qc import FLAG_DESCRIPTIONS
-from .schema import MODEL_NAMES, AnalysisOptions, GrowthTable, IsotopeSample
+from .schema import MODEL_NAMES, AnalysisOptions, BoneOptions, BoneSample, GrowthTable, IsotopeSample
 from .simulate import SimulationScenario, SweepParam, run_simulation, sweep
 
 
@@ -27,6 +28,11 @@ from .simulate import SimulationScenario, SweepParam, run_simulation, sweep
 class AnalyzeIn(BaseModel):
     samples: list[IsotopeSample] = Field(min_length=1)
     options: AnalysisOptions | None = None
+
+
+class BoneAnalyzeIn(BaseModel):
+    samples: list[BoneSample] = Field(min_length=1)
+    options: BoneOptions | None = None
 
 
 class AggregateIn(BaseModel):
@@ -68,6 +74,9 @@ def get_config():
         "qc_presets": config.qc_config().get("presets", {}),
         "examples": [{"name": key, "label": label} for key, (_, label, _) in EXAMPLES.items()],
         "tbd": config.tbd_items(),
+        "bone_defaults": BoneOptions().model_dump(),
+        "bone_examples": [{"name": key, "label": label} for key, (_, label, _) in BONE_EXAMPLES.items()],
+        "turnover_tables": [t.model_dump() for t in config.turnover_tables()],
     }
 
 
@@ -104,6 +113,60 @@ def example_dataset(name="synthetic"):
 
 def template_path():
     return config.DATA_DIR / "templates" / "isotope_template.csv"
+
+
+# ───────────── bone data: many animals that died at different ages ─────────────
+BONE_EXAMPLES = {
+    "synthetic_bone": ("synthetic_bone_example.csv", "Synthetic cattle bones (simulated)",
+                       "Loaded SYNTHETIC bone data (simulated, not real measurements): Site A weans at "
+                       "3–9 months, Site B at 1–4 months."),
+}
+
+
+def bone_report(report):
+    return {**report, "samples": [s.model_dump() for s in report["samples"]]}
+
+
+def read_bone_table(source, filename=""):
+    import io
+
+    import pandas as pd
+
+    if isinstance(source, bytes):
+        if is_excel(filename):
+            return pd.read_excel(io.BytesIO(source))
+        source = io.StringIO(source.decode("utf-8-sig"))
+    return pd.read_csv(source, sep=None, engine="python")
+
+
+def read_bone_upload(filename, content):
+    try:
+        return bone_report(ingest_bone_dataframe(read_bone_table(content, filename or "upload.csv")))
+    except Exception as err:
+        raise ValueError(f"Could not read file: {err}") from err
+
+
+def check_bone_records(rows):
+    import pandas as pd
+
+    if not rows:
+        return {"samples": [], "issues": [], "groups": [], "unrecognised_columns": []}
+    return bone_report(ingest_bone_dataframe(pd.DataFrame(rows)))
+
+
+def bone_example(name="synthetic_bone"):
+    if name not in BONE_EXAMPLES:
+        raise ValueError(f"unknown bone example {name!r}")
+    table = read_bone_table(config.DATA_DIR / "examples" / BONE_EXAMPLES[name][0])
+    return {**bone_report(ingest_bone_dataframe(table)), "message": BONE_EXAMPLES[name][2]}
+
+
+def bone_template_path():
+    return config.DATA_DIR / "templates" / "bone_template.csv"
+
+
+def run_bone_analysis(body: BoneAnalyzeIn, progress=None):
+    return {"results": analyze_bones(body.samples, body.options or BoneOptions(), progress)}
 
 
 def save_table(table: GrowthTable):

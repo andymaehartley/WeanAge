@@ -4,6 +4,13 @@
 
 Simulated teeth made by `scripts/make_synthetic_example.py`. **Not real measurements.**
 
+## `synthetic_bone_example.csv`
+
+Simulated bone collagen δ¹⁵N for young and adult cattle at two invented sites, made by
+`scripts/make_bone_example.py` with the bone model itself. Site A weans at 3–9 months and
+Site B at 1–4 months; ages at death are ranges, as tooth wear gives them. **Not real
+measurements.**
+
 ## `isoarch_cattle_khami_bornais.csv`
 
 Real sequential dentine-collagen δ¹⁵N and δ¹³C values from 11 archaeological cattle,

@@ -109,7 +109,8 @@ export function curveChart(box, o) {
   const allX = [...o.points.flatMap((p) => [p.x, p.xMin ?? p.x, p.xMax ?? p.x]), ...o.curves.flatMap((c) => c.xs)];
   let [xMin, xMax] = o.xRange || [Math.min(...allX), Math.max(...allX)];
   const inView = (x) => x >= xMin && x <= xMax;
-  const allY = [...o.points.filter((p) => inView(p.x)).map((p) => p.y), ...o.curves.flatMap((c) => c.ys.filter((_, i) => inView(c.xs[i])))];
+  const allY = [...o.points.filter((p) => inView(p.x)).map((p) => p.y), ...o.curves.flatMap((c) => c.ys.filter((_, i) => inView(c.xs[i]))),
+    ...(o.bands || []).flatMap((b) => [...b.lo, ...b.hi].filter((_, i) => inView(b.xs[i % b.xs.length])))];
   const pad = (Math.max(...allY) - Math.min(...allY)) * 0.08 || 0.5;
   const xTicks = niceTicks(xMin, xMax);
   const yTicks = niceTicks(Math.min(...allY) - pad, Math.max(...allY) + pad, 5);
@@ -142,7 +143,11 @@ export function curveChart(box, o) {
     for (const p of carbon) marker("diamond", xs(p.x), cs(p.d13C), 3, { class: "c13-pt" }, plot);
   }
 
-  for (const c of o.curves) el("path", { d: path(c.xs.map((x, i) => [x, c.ys[i]]), xs, ys), fill: "none", stroke: c.color, "stroke-width": 3.5, "stroke-dasharray": c.dash }, plot);
+  for (const b of o.bands || []) { // shaded intervals around a curve
+    const outline = [...b.xs.map((x, i) => [x, b.hi[i]]), ...b.xs.map((x, i) => [x, b.lo[i]]).reverse()];
+    el("path", { d: `${path(outline, xs, ys)}Z`, fill: b.color, opacity: 0.18 }, plot);
+  }
+  for (const c of o.curves) el("path", { d: path(c.xs.map((x, i) => [x, c.ys[i]]), xs, ys), fill: "none", stroke: c.color, "stroke-width": c.width || 3.5, "stroke-dasharray": c.dash }, plot);
   for (const p of o.points) if (p.xMin != null) el("line", { x1: xs(p.xMin), x2: xs(p.xMax), y1: ys(p.y), y2: ys(p.y), class: "win" }, plot);
   const groups = [...new Set(o.points.map((p) => p.group ?? ""))]; // one marker shape per tooth
   for (const p of o.points) {

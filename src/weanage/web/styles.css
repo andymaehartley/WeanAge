@@ -166,6 +166,7 @@ summary { cursor: pointer; }
 .issues .tbd-li::before { left: .5rem; }
 .issues .tbd-li { padding-left: 6.7rem; }
 .pill { font: .8rem var(--mono); white-space: nowrap; color: var(--text); }
+.pill.warn { font: 700 .68rem var(--sans); text-transform: uppercase; letter-spacing: .05em; color: var(--warn); margin-left: .25rem; }
 .pill.best { font: 700 .68rem var(--sans); text-transform: uppercase; letter-spacing: .05em; color: var(--accent); margin-left: .35rem; }
 .toast { position: fixed; bottom: 2.6rem; right: 1.25rem; max-width: min(92vw, 560px); padding: .6rem .9rem .6rem .9rem; border-radius: var(--radius); color: var(--text); background: var(--raised); border: 1px solid var(--border); border-left: 3px solid var(--error); z-index: 70; box-shadow: 0 4px 16px rgb(0 0 0 / .25); }
 .toast.ok { border-left-color: var(--ok); }
@@ -222,6 +223,20 @@ label.tbd { padding: .3rem .4rem; border-radius: var(--radius); color: var(--tbd
 .legend .dot.excluded { background: transparent; border: 1.5px solid var(--error); }
 .legend .dash, .legend .bar { display: inline-block; width: 18px; border-top: 2px dashed var(--muted); vertical-align: middle; }
 .legend .bar { border-top-style: solid; opacity: .6; }
+.legend .line { display: inline-block; width: 18px; border-top: 3px solid var(--text); vertical-align: middle; }
+.legend .line.dotted { border-top-style: dotted; }
+.legend .line.dashed { border-top: 2px dashed var(--text); }
+.contents { display: contents; }
+.calc-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .6rem; border: 0; padding: 0; margin: 0 0 1rem; }
+.calc-choice legend { font-weight: 700; margin-bottom: .4rem; padding: 0; }
+.calc-option { display: flex; flex-direction: row; gap: .6rem; align-items: flex-start; padding: .7rem .8rem; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.calc-option input { width: auto; flex: none; margin-top: .25rem; accent-color: var(--accent); }
+.calc-option strong { color: var(--text); font-size: .95rem; }
+.calc-option small { display: block; color: var(--muted); }
+.calc-option:has(input:checked) { border-color: var(--accent); background: var(--tint); }
+.calc-option:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+.steps-list { padding-left: 1.2rem; }
+.steps-list li { margin-bottom: .4rem; }
 
 /* ── charts ── */
 .chart-box { position: relative; width: 100%; }

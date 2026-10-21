@@ -138,3 +138,15 @@ def test_accuracy_on_simulated_animals():
         truth.append(t_mid + scale * math.log(19))
     m = error_metrics(estimates, truth)
     assert m["mae"] < 1 and abs(m["bias"]) < 0.6 and m["pearson_r"] > 0.9
+
+
+def test_average_beyond_the_samples_is_flagged():
+    from weanage.models import extrapolated_average
+
+    fits = [{"akaike_weight": 0.7, "completion": {"estimate": 15.0}}, {"akaike_weight": 0.3, "completion": {"estimate": 9.0}}]
+    average = {"completion": {"estimate": 13.2}}
+    warnings = extrapolated_average(fits, average, 0.0, 12.0)
+    assert average["completion"]["extrapolated"] and "after the last sample" in warnings[0]
+    inside = {"completion": {"estimate": 9.5}}
+    fits[0]["completion"]["estimate"] = 10.0
+    assert extrapolated_average(fits, inside, 0.0, 12.0) == [] and "extrapolated" not in inside["completion"]

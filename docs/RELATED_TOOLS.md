@@ -45,9 +45,15 @@
 * Bayesian inference is used at the group level: a hierarchical model pools specimen
   estimates within sites and species (two-stage), or fits every specimen's raw δ¹⁵N
   values together with the group means (one-stage), and gives direct probabilities
-  such as P(pigs weaned earlier than cattle). WARN's Approximate Bayesian Computation of
-  raw values, and its bone-collagen turnover model, are not adopted; turnover does not
-  apply to dentine, which does not remodel after it forms.
+  such as P(pigs weaned earlier than cattle). For teeth, WARN's bone-collagen turnover
+  model does not apply: dentine does not remodel after it forms.
+* The **bone calculation** (`bone.py`) is WARN's own method, adapted for animals: the same
+  diet model (Eq. 7–8, parabolic by default, also linear and reverse), the same bone
+  turnover model (Eq. 9–10) and WARN's default priors for E, W and σ. It differs in fitting
+  the likelihood with an MCMC sampler instead of ABC-SMC, in estimating the mothers' mean
+  rather than fixing it, in flat t1/t2 priors up to a user-set limit, and in taking
+  turnover from a per-species table (WARN's human rib values are included as `human`;
+  livestock values are placeholders). WARN's sigmoid form is not included.
 
 ## Licensing note
 

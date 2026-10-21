@@ -82,6 +82,18 @@ are joined into one timeline.
 
 ![The loaded specimens](guide/04_specimens.png)
 
+### Bone instead of teeth
+
+Choose **Bone calculation** at the top of *Load isotope data* when you have bone collagen from
+many young animals of known (or estimated) age at death, rather than slices of teeth. One row
+per animal: `specimen_id`, `site`, `species`, `d15N`, and for young animals the age at death
+in months (`age_months`, or better `age_min_months` + `age_max_months`). Mark adults with
+`age_class` = adult and the mothers with `sex` = F. Settings then shows the bone model's
+priors and turnover rates, and Results plots δ¹⁵N against age at death with the fitted bone
+curve, the diet it implies and the estimated start and end of weaning. The method follows
+WARN (Tsutaya & Yoneda 2013); see section 10 of [METHODS.md](METHODS.md). Livestock bone
+turnover rates are still placeholders, so the ages are illustrative.
+
 ## 4. Choose the curve models
 
 All five weaning-curve shapes are fitted, so you can see how much the choice of method

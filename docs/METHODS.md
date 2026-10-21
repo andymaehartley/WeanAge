@@ -208,9 +208,72 @@ It runs the full analysis and scores each model's completion age against the tru
 (MAE, bias, RMSE, coverage, share fitted). Sweeping one setting with the same random
 seed shows how accuracy depends on the protocol.
 
+## 10. Bone calculation (`bone.py`), after WARN
+
+Teeth record one animal's childhood; bone does not, because its collagen is renewed
+throughout life. The bone calculation instead uses many young animals from one site that
+died at different ages, as WARN does for human skeletons (Tsutaya & Yoneda 2013). Each
+site × species (× period) group is fitted on its own.
+
+**Model** (equation numbers from Tsutaya & Yoneda 2013):
+
+* *Diet* (Eq. 7–8, after Millard 2000). Collagen made now has
+  δ¹⁵N_new(t) = (1 − p(t))(F + E) + p(t)·W, where F is the mothers' mean (adult females),
+  E the nursing enrichment and W the δ¹⁵N of collagen made only from weaning food. The
+  non-milk share p(t) is 0 before weaning starts (t1), 1 after it ends (t2), and in between
+  ((t − t1)/(t2 − t1))² ("parabolic", WARN's default: slow, then fast). Linear and reverse
+  parabolic are offered too; WARN's sigmoid form is not, because its formula is not given in
+  the paper or manual.
+* *Bone* (Eq. 9–10). At birth bone collagen equals the mother's value (F). Every quarter
+  month a share r(t) of it is rebuilt from the current diet:
+  bone(t + Δ) = (1 − r)·bone(t) + r·δ¹⁵N_new(t). The shares come from
+  `data/bone_turnover.json`. WARN gives turnover as a rate per year (above 1 in the first
+  years of life); WeanAge converts it to a monthly share as 1 − exp(−T/12).
+* *Fit.* t1, t2, E, W, F and the scatter between animals σ are estimated together, and each
+  animal's age at death is sampled within its range (from tooth wear, fusion etc.). Priors:
+  t1 and t2 flat with 0 ≤ t1 ≤ t2 ≤ the latest possible end of weaning (24 months by
+  default); E ~ N(1.9, 0.9) and W ~ N(F, 3), WARN's defaults (E from Waters-Rist & Katzenberg
+  2010); σ ~ |N(0, 1)|, as in WARN; F ~ N(mean of the adult females, its standard error).
+
+**How it differs from WARN.** WARN uses approximate Bayesian computation with sequential
+Monte Carlo (Sisson et al. 2007). WeanAge writes down the likelihood (normal scatter σ around
+the modelled bone value, the same individual error term as WARN's Eq. 12) and samples it with
+Metropolis steps plus differential-evolution moves between chains (ter Braak 2006), checking
+convergence with R̂. WARN treats the mothers' mean as known; WeanAge carries its uncertainty.
+WARN's t1/t2 priors are normal distributions in years, set for humans; for livestock, flat
+priors up to a user-set limit avoid importing human weaning ages.
+
+**Turnover.** WARN's human rib values (Table 1, "Collagen (QP)") are included as the
+`human` table, so results can be checked against WARN. The quartic printed as Eq. 6 does not
+reproduce Table 1 beyond about age 2, probably because its coefficients are rounded, so the
+table values are used. **No livestock turnover rates are established**: the cattle, sheep,
+goat and pig tables are placeholders (TBD-LAB). They should be derived as WARN derived the
+human ones: skeletal growth (modelling) plus remodelling, corrected for mineralisation delay.
+Like WARN, the method suits fast-turnover bone (ribs, other cancellous bone).
+
+**Checks.** Warnings are raised for fewer than 10 young animals, no young animal dying
+before or after the estimated end of weaning, a completion interval covering most of the
+allowed range (the prior is doing the work), an enrichment under 1‰, R̂ above 1.1, and
+missing adult females. As Tsutaya & Yoneda stress, the model always fits something, even
+when the data hold no weaning signal, so look at the plot first.
+
+**References.** Tsutaya T, Yoneda M (2013) *PLoS ONE* 8: e72327 (WARN; arXiv:1304.2468);
+WARN R package manual, version 1.2-5 (2025). Millard AR (2000) A model for the effect of
+weaning on nitrogen isotope ratios in humans. In Goodfriend et al. (eds), *Perspectives in
+Amino Acid and Protein Geochemistry*, Oxford University Press. Waters-Rist AL, Katzenberg MA
+(2010) *Int. J. Osteoarchaeol.* 20: 172–191. Sisson SA, Fan Y, Tanaka MM (2007) *PNAS* 104:
+1760–1765. ter Braak CJF (2006) *Statistics and Computing* 16: 239–249.
+
+**Test.** `scripts/make_bone_example.py` simulates two cattle sites with the model itself
+(true weaning 3–9 and 1–4 months; ages as ranges). The tests check that both are recovered
+within their 95% intervals.
+
 ## Limitations / future work
 
 * The slice geometry assumes straight growth layers and a circular cross-section. Real
   layers curve, and the livestock values must still be measured (`TBD-LAB`).
 * The one-stage model uses the logistic curve only and no time averaging or seasonal
   term; it is a check on, not a replacement for, the per-specimen model comparison.
+* The bone calculation needs livestock bone collagen turnover rates, which have not been
+  established; until then its ages are illustrative. Its results are not yet part of the
+  Compare page or the downloadable report.

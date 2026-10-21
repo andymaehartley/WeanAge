@@ -1,0 +1,138 @@
+{
+  "_README": "Bone collagen turnover for the bone (cross-sectional) weaning model: the share of a young animal's bone collagen that is newly made each month, at each age. Values are monthly shares; a yearly turnover rate T (as in WARN) converts as 1 - exp(-T/12). In growing animals most new collagen comes from skeletal growth, so the share is high at birth and falls with age. WARN (Tsutaya & Yoneda 2013) estimated these values for human rib bone from tissue-level bone data (included below as 'human', for checking against WARN); no equivalent values are established for livestock. Every livestock table here is a PLACEHOLDER (TBD-LAB): replace it with values from bone growth and remodelling data for the species (e.g. skeletal mass gain with age plus remodelling rate), then set placeholder to false.",
+  "tables": [
+    {
+      "species": "cattle",
+      "label": "Cattle bone collagen turnover (placeholder)",
+      "ages_months": [
+        0,
+        3,
+        6,
+        12,
+        24,
+        48,
+        120
+      ],
+      "renewed_per_month": [
+        0.2,
+        0.12,
+        0.08,
+        0.05,
+        0.03,
+        0.015,
+        0.008
+      ],
+      "source": "",
+      "placeholder": true,
+      "tbd_note": "Monthly share of bone collagen newly made at each age in calves and young cattle. Needed from skeletal growth curves (bone mass gain) plus remodelling rates."
+    },
+    {
+      "species": "sheep",
+      "label": "Sheep bone collagen turnover (placeholder)",
+      "ages_months": [
+        0,
+        3,
+        6,
+        12,
+        24,
+        48,
+        120
+      ],
+      "renewed_per_month": [
+        0.24,
+        0.14,
+        0.09,
+        0.05,
+        0.03,
+        0.015,
+        0.008
+      ],
+      "source": "",
+      "placeholder": true,
+      "tbd_note": "Monthly share of bone collagen newly made at each age in lambs and young sheep."
+    },
+    {
+      "species": "goat",
+      "label": "Goat bone collagen turnover (placeholder)",
+      "ages_months": [
+        0,
+        3,
+        6,
+        12,
+        24,
+        48,
+        120
+      ],
+      "renewed_per_month": [
+        0.24,
+        0.14,
+        0.09,
+        0.05,
+        0.03,
+        0.015,
+        0.008
+      ],
+      "source": "",
+      "placeholder": true,
+      "tbd_note": "Monthly share of bone collagen newly made at each age in kids and young goats."
+    },
+    {
+      "species": "pig",
+      "label": "Pig bone collagen turnover (placeholder)",
+      "ages_months": [
+        0,
+        2,
+        4,
+        8,
+        12,
+        24,
+        60
+      ],
+      "renewed_per_month": [
+        0.3,
+        0.18,
+        0.12,
+        0.07,
+        0.05,
+        0.025,
+        0.01
+      ],
+      "source": "",
+      "placeholder": true,
+      "tbd_note": "Monthly share of bone collagen newly made at each age in piglets and young pigs."
+    },
+    {
+      "species": "human",
+      "label": "Human rib collagen (WARN; Tsutaya & Yoneda 2013, Table 1)",
+      "ages_months": [
+        0,
+        6,
+        18,
+        30,
+        42,
+        54,
+        66,
+        78,
+        90,
+        102,
+        114
+      ],
+      "renewed_per_month": [
+        0.1111,
+        0.1111,
+        0.0902,
+        0.0741,
+        0.0622,
+        0.0538,
+        0.048,
+        0.044,
+        0.0414,
+        0.0395,
+        0.0378
+      ],
+      "source": "Tsutaya T, Yoneda M (2013) PLoS ONE 8: e72327, Table 1, 'Collagen (QP)' turnover per year for each year of age 0-10. Converted to a monthly share as 1 - exp(-T/12) and placed at the middle of each year; the first year's value is also used at birth. (The quartic printed as Eq. 6 does not reproduce Table 1 beyond about age 2, probably because its coefficients are rounded, so the table is used.)",
+      "placeholder": false,
+      "tbd_note": null
+    }
+  ]
+}

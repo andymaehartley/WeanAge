@@ -30,7 +30,7 @@ section{break-inside:avoid}svg{width:100%;height:auto}@media print{body{margin:0
 // headers: list of column titles; rows: list of lists of cell HTML.
 const htmlTable = (headers, rows) =>
   `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c ?? "—"}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-const withCI = (v) => (v ? `${num(v.estimate, 1)}${v.ci_low != null ? ` <span class="muted">(${num(v.ci_low, 1)}–${num(v.ci_high, 1)})</span>` : ""}` : "—");
+const withCI = (v) => (v ? `${num(v.estimate, 1)}${v.ci_low != null ? ` <span class="muted">(${num(v.ci_low, 1)}–${num(v.ci_high, 1)})</span>` : ""}${v.extrapolated ? " <i>beyond the sampled teeth</i>" : ""}` : "—");
 
 // Draw a chart off-screen and return its SVG text.
 export function offscreen(draw) {

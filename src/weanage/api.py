@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__, config, service
 from .schema import GrowthTable
-from .service import AggregateIn, AnalyzeIn, CalibrateIn, SimulateIn
+from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, SimulateIn
 
 app = FastAPI(title="WeanAge", version=__version__)
 
@@ -93,6 +93,26 @@ def template_csv():
     return FileResponse(service.template_path(), media_type="text/csv", filename="weanage_template.csv")
 
 
+@app.post("/api/bone/ingest/file")
+async def upload_bone_file(file: UploadFile = File(...)):
+    return checked(service.read_bone_upload, file.filename, await file.read())
+
+
+@app.post("/api/bone/ingest/records")
+def check_bone_records(body: dict):
+    return checked(service.check_bone_records, body.get("records", []))
+
+
+@app.get("/api/bone/example")
+def bone_example(name: str = "synthetic_bone"):
+    return checked(service.bone_example, name)
+
+
+@app.get("/api/bone/template.csv")
+def bone_template_csv():
+    return FileResponse(service.bone_template_path(), media_type="text/csv", filename="weanage_bone_template.csv")
+
+
 @app.post("/api/growth-tables")
 def save_table(table: GrowthTable):
     return service.save_table(table)
@@ -117,6 +137,11 @@ def analyze_now(body: AnalyzeIn):
 @app.post("/api/jobs/analyze")
 def analyze_in_background(body: AnalyzeIn):
     return start_job("analyze", lambda progress: service.run_analysis(body, progress))
+
+
+@app.post("/api/jobs/bone")
+def bone_in_background(body: BoneAnalyzeIn):
+    return start_job("bone", lambda progress: service.run_bone_analysis(body, progress))
 
 
 @app.post("/api/jobs/simulate")

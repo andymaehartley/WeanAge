@@ -12,7 +12,7 @@ from scipy import stats
 
 from .config import find_growth_table
 from .growth import position_to_age
-from .models import compare_fits, fit_model, model_average, seasonal_test
+from .models import compare_fits, extrapolated_average, fit_model, model_average, seasonal_test
 from .qc import passes_qc, qc_flags
 
 SLICE_STEPS = 8  # points across a slice's height, and again across its depth (8 x 8 = 64 points)
@@ -216,6 +216,7 @@ def analyze_specimen(samples, options):
     result["best_model"] = compare_fits(fits)
     if sum(f["akaike_weight"] is not None for f in fits) > 1:
         result["model_average"] = model_average(fits, options.random_seed)
+        warnings += extrapolated_average(fits, result["model_average"], float(t.min()), float(t.max()))
 
     # 4. Check for seasonal cycles, using what the best curve leaves unexplained.
     best = next((f for f in fits if f["model"] == result["best_model"]), None)

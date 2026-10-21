@@ -18,7 +18,16 @@
   lies before birth, or its interval spans most of the series, instead of an arbitrary point
   on noise. The model average then uses the other models.
 
+* **Bone calculation** (`bone.py`): weaning ages from the bone collagen δ¹⁵N of many young
+  animals that died at different ages, after WARN (Tsutaya & Yoneda 2013): WARN's diet forms
+  and priors, age-dependent collagen turnover (WARN's human rib values included; livestock
+  values are TBD-LAB placeholders), ages at death as ranges, and a Bayesian sampler.
+* The **model average is flagged** "beyond the sampled teeth" when most of its support comes
+  from models that put the weaning age outside the samples.
+
 ### App
+* The Data page offers **Tooth calculation** or **Bone calculation**; the bone calculation has
+  its own settings and results pages, a synthetic example and a blank template.
 * High-contrast **dark theme by default**, light mode and larger text (WCAG AAA text contrast).
 * **Interface redesign**: own colour palette, bundled Atkinson Hyperlegible and IBM Plex Mono fonts,
   an underlined tab strip, plain-text actions, flatter sections, labelled message lists, and a status line.

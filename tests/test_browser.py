@@ -80,6 +80,26 @@ def test_whole_workflow(page):
         click(page, "#btn-report")
     assert download.value.path().read_text().count("<svg") > 5
 
+    # The bone calculation: its own data, settings and results; the tooth results are kept.
+    click(page, '.step[data-view="data"]')
+    page.click("text=Bone calculation")
+    assert page.is_visible("#bone-groups-card") is False and page.is_hidden("#manual-form")
+    click(page, "#btn-example")
+    page.wait_for_selector("#bone-groups-card:not([hidden])")
+    assert "Site A" in page.text_content("#bone-group-table")
+    click(page, "#btn-bone-to-settings")
+    assert page.evaluate("document.querySelector('#qc-card').closest('section').id") == "view-bone-settings"
+    page.click("text=Sampler settings")
+    page.fill("#bone-warmup", "500")
+    page.fill("#bone-keep", "500")
+    click(page, "#btn-bone-run")
+    page.wait_for_selector("#view-bone-results.active", timeout=120000)
+    assert "Weaning ran from" in page.text_content("#bone-res-summary")
+    assert page.is_disabled('.step[data-view="compare"]')
+    click(page, '.step[data-view="data"]')
+    page.click("text=Tooth calculation")
+    assert not page.is_disabled('.step[data-view="compare"]') and page.is_visible("#specimens-card")
+
 
 @pytest.mark.skipif(not os.environ.get("WEANAGE_TEST_PYODIDE"), reason="needs internet: set WEANAGE_TEST_PYODIDE=1")
 def test_browser_version():

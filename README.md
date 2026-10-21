@@ -108,6 +108,12 @@ file / form ─► check the data (pydantic) ─► collagen QC (C:N, %C, %N, yi
             ─► validation against known-age animals
 ```
 
+**Bone calculation.** For bone collagen from many young animals that died at different ages,
+the Data page offers a second calculation after WARN (Tsutaya & Yoneda 2013): a diet model
+(milk giving way to weaning food between ages t1 and t2) and age-dependent bone turnover are
+fitted to δ¹⁵N against age at death, giving t1, t2, the nursing enrichment and the weaning-food
+δ¹⁵N with credible intervals. Livestock turnover rates are still placeholders (TBD-LAB).
+
 [`docs/METHODS.md`](docs/METHODS.md) gives the equations.
 [`docs/RELATED_TOOLS.md`](docs/RELATED_TOOLS.md) compares WeanAge with WARN, MDSS and WEAN.
 [`docs/VALIDATION.md`](docs/VALIDATION.md) explains how to test it on known-age animals.
@@ -142,13 +148,14 @@ src/weanage/
   analysis.py    the step-by-step analysis of each specimen (runs in parallel)
   aggregate.py   group summaries, model disagreement, validation metrics
   inference.py   group tests and the hierarchical Bayesian model
+  bone.py        the bone calculation (after WARN): many animals, δ15N against age at death
   simulate.py    the sampling planner
   calibrate.py   growth tables from known-age reference points
   service.py     everything the app can ask for, as plain functions
   api.py         the local web server (and background jobs with progress)
   browser.py     the same requests for the browser version (Python inside the page)
   cli.py         the `weanage` command
-  data/          growth tables, QC limits, lab parameters, template, synthetic example
+  data/          growth and bone-turnover tables, QC limits, lab parameters, templates, examples
   web/           the app: HTML, CSS and plain JavaScript (pyworker.js runs Python in the browser version)
 tests/           pytest suite, including a browser test (needs Playwright)
 packaging/       single-file app (PyInstaller)

@@ -1,5 +1,6 @@
 // The main page: holds the app's state and draws each of the five views.
 import { initAbout } from "./about.js";
+import { applyBoneSettings, boneSettings, initBone, loadBoneExample, loadBoneFile, renderBoneData, renderBoneResults, renderTurnover, setBoneReport } from "./bone.js";
 import { api, inBrowser, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
@@ -10,6 +11,7 @@ import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, p
 
 const state = {
   config: null, // settings and lists sent by the server
+  mode: "tooth", // which calculation: "tooth" or "bone" (its data and results are in state.bone)
   samples: [],
   report: null, // the server's check of the samples (issues, specimen list)
   overrides: {}, // "species:tooth" -> simple linear age model
@@ -26,6 +28,7 @@ const state = {
 const capital = (s) => s[0].toUpperCase() + s.slice(1);
 
 // ───────────── switching views ─────────────
+// The bone calculation has its own Settings and Results pages.
 function show(view) {
   for (const b of $$(".step")) {
     const isThis = b.dataset.view === view;
@@ -33,8 +36,12 @@ function show(view) {
     if (isThis) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   }
-  for (const v of $$(".view")) v.classList.toggle("active", v.id === `view-${view}`);
+  const bone = state.mode === "bone" && ["settings", "results"].includes(view);
+  for (const v of $$(".view")) v.classList.toggle("active", v.id === `view-${bone ? `bone-${view}` : view}`);
   if (view === "settings") {
+    // The collagen QC limits are shared, so their card moves to whichever settings page is open.
+    $(bone ? "#qc-bone-home" : "#qc-home").append($("#qc-card"));
+    if (bone) renderTurnover();
     renderGrowthList(state);
     renderBaselines();
   }
@@ -42,8 +49,27 @@ function show(view) {
   window.scrollTo({ top: 0 });
 }
 
-function enableResults(on) {
-  for (const b of $$('.step[data-view="results"], .step[data-view="compare"], #btn-report')) b.disabled = !on;
+function enableResults() {
+  const bone = state.mode === "bone";
+  $('.step[data-view="results"]').disabled = !(bone ? state.bone.results : state.results);
+  for (const b of $$('.step[data-view="compare"], #btn-report')) {
+    b.disabled = bone || !state.results;
+    b.title = bone ? "Tooth calculation only, for now" : "";
+  }
+}
+
+/** Switch between the tooth and bone calculations; each keeps its own data and results. */
+function setMode(mode, save = true) {
+  state.mode = mode;
+  for (const radio of $$('input[name="calc"]')) radio.checked = radio.value === mode;
+  for (const node of $$("[data-mode]")) node.hidden = node.dataset.mode !== mode;
+  const examples = mode === "bone" ? state.config.bone_examples : state.config.examples;
+  $("#example-choice").innerHTML = examples.map((e) => `<option value="${esc(e.name)}">${esc(e.label)}</option>`).join("");
+  $("#btn-template").href = mode === "bone" ? api.boneTemplateUrl : api.templateUrl;
+  if (mode === "bone") renderBoneData();
+  else renderData();
+  enableResults();
+  if (save) autosave(); // not on start-up, which would overwrite the session waiting to be restored
 }
 
 // Highlight every setting that is still a placeholder (TBD-LAB).
@@ -74,7 +100,7 @@ function setReport(report, keepResults = false) {
   state.samples = report.samples;
   if (!keepResults) {
     state.results = state.estimates = null;
-    enableResults(false);
+    enableResults();
   }
   renderData();
   autosave();
@@ -92,12 +118,13 @@ function ageModelLabel(species, tooth) {
 }
 
 function renderData() {
+  if (state.mode === "bone") return renderBoneData(); // the Data page is showing the bone calculation
   const issues = state.report ? state.report.issues : [];
   $("#issues-card").hidden = !issues.length;
   $("#issues").innerHTML = issues
     .map((i) => `<li class="${i.severity}">${i.row ? `<b>Row ${i.row}</b>${i.field ? ` (${esc(i.field)})` : ""}: ` : ""}${esc(i.message)}</li>`)
     .join("");
-  $("#specimens-card").hidden = !state.samples.length;
+  $("#specimens-card").hidden = !state.samples.length || state.mode === "bone";
   $("#sample-count").textContent = `· ${state.samples.length} samples`;
   const specimens = new Set(state.samples.map((s) => s.individual_id || s.specimen_id)).size;
   $("#sb-data").textContent = state.samples.length ? `${state.samples.length} samples · ${specimens} specimens` : "No data loaded";
@@ -127,6 +154,7 @@ function renderData() {
 }
 
 async function loadFile(file) {
+  if (state.mode === "bone") return loadBoneFile(file);
   try {
     setReport(await api.uploadFile(file));
     toast(`Loaded ${state.samples.length} samples from ${file.name}`, "ok");
@@ -188,11 +216,6 @@ const FIELDS = {
   elbow_normalise: ["#opt-elbownorm", "tick"],
   constrain_adult_plateau: ["#opt-constrain", "tick"],
 };
-
-function initExamples() {
-  $("#example-choice").innerHTML = (state.config.examples || [])
-    .map((e) => `<option value="${esc(e.name)}">${esc(e.label)}</option>`).join("");
-}
 
 function initSettings() {
   $("#model-options").innerHTML = state.config.models
@@ -278,7 +301,7 @@ async function runAnalysis() {
     const out = await api.analyze(state.samples, opts, (done, total) => progressBar($("#run-progress"), done, total, "Fitting specimens"));
     Object.assign(state, { results: out.results, estimates: out.estimates, options: opts, current: out.results[0]?.specimen_id, zoom: null });
     state.visible = new Set([...opts.models, "average"]);
-    enableResults(true);
+    enableResults();
     renderResults();
     show("results");
     autosave();
@@ -341,7 +364,7 @@ function renderResults() {
   const averageRow = hasAverage ? [{ model: "average", label: "Model average", converged: true, isAverage: true, ...res.model_average }] : [];
   table($("#fit-table"), [
     { label: "Model", render: (f) => `${swatch(f.model)}${esc(f.label)}${f.model === res.best_model ? ' <span class="pill best">best</span>' : ""}` },
-    ...MILESTONES.map((k) => ({ label: capital(k), cls: "num", render: (f) => (f[k] ? `${num(f[k].estimate, 1)}<br><small>${ci(f[k])}</small>` : "—") })),
+    ...MILESTONES.map((k) => ({ label: capital(k), cls: "num", render: (f) => (f[k] ? `${num(f[k].estimate, 1)}${f[k].extrapolated ? "*" : ""}<br><small>${ci(f[k])}</small>` : "—") })),
     { label: "Nursing δ¹⁵N", cls: "num", render: (f) => num(f.nursing_d15N) },
     { label: "Adult δ¹⁵N", cls: "num", render: (f) => num(f.adult_d15N) },
     { label: "Drop (‰)", cls: "num", render: (f) => num(f.drop_permil) },
@@ -358,18 +381,24 @@ function summaryText(res, milestone) {
   const age = best?.[milestone];
   const avg = res.model_average[milestone];
   if (!best) return "No model could be fitted to this specimen.";
-  if (!age) return `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${num(avg.estimate, 1)} months</strong>` : ""}.`;
+  if (!age) return `Best-supported model: <strong>${esc(best.label)}</strong>, which does not report a ${milestone}${avg ? `; the model average is <strong>${num(avg.estimate, 1)} months</strong>${beyond(avg)}` : ""}.`;
   const staged = best.model === "two_phase"
     ? ` Staged weaning: an intermediate plateau at ${num(best.extra.intermediate_d15N, 1)}‰ lasting about ${num(best.extra.supplementation_months, 1)} months (supplementary feeding while suckling).` : "";
   return `Best-supported model: <strong>${esc(best.label)}</strong>. Estimated weaning ${milestone}: <strong>${num(age.estimate, 1)} months</strong>${age.ci_low != null ? ` (95% interval ${ci(age)})` : ""}.
-    ${avg ? `Averaged over all models: <strong>${num(avg.estimate, 1)} months</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}.` : ""}
+    ${avg ? `Averaged over all models: <strong>${num(avg.estimate, 1)} months</strong>${avg.ci_low != null ? ` (${ci(avg)})` : ""}${beyond(avg)}.` : ""}
     Nursing δ¹⁵N ≈ ${num(best.nursing_d15N, 1)}‰, adult ≈ ${num(best.adult_d15N, 1)}‰ (drop ${num(best.drop_permil, 1)}‰)${best.enrichment_permil != null ? `; ${num(best.enrichment_permil, 1)}‰ above adult females` : ""}.${staged}
     ${res.growth_placeholder ? '<span class="tbd-inline">Illustrative only: placeholder age model.</span>' : ""}`;
 }
 
+/** Shown after an averaged age that rests mostly on models extrapolating past the samples. */
+const beyond = (value) => (value?.extrapolated ? ' <span class="pill warn">beyond the sampled teeth</span>' : "");
+
 function fitNotes(f) {
-  if (f.isAverage) return '<small class="muted">weighted by Akaike weight</small>';
-  if (!f.converged) return `<span class="warn-text">${esc(f.message)}</span>`;
+  if (f.isAverage) {
+    const out = MILESTONES.filter((k) => f[k]?.extrapolated);
+    return `<small class="muted">weighted by Akaike weight</small>${out.length ? `<br><span class="warn-text">* ${out.join(", ")}: beyond the sampled teeth</span>` : ""}`;
+  }
+  if (!f.converged || f.message) return `<span class="warn-text">${esc(f.message)}</span>`;
   const notes = [];
   if (f.extra.intermediate_d15N != null) notes.push(`intermediate ${num(f.extra.intermediate_d15N, 1)}‰ for ${num(f.extra.supplementation_months, 1)} mo`);
   if (f.extra.seasonal_amplitude_permil != null) notes.push(`seasonal ±${num(f.extra.seasonal_amplitude_permil)}‰`);
@@ -509,7 +538,9 @@ function project() {
   return {
     format: "weanage-project", format_version: 1, app_version: state.config.version, saved_at: new Date().toISOString(),
     samples: state.samples, settings: settings(), results: state.results, estimates: state.estimates,
-    analysis_options: state.options, current: state.current, plan: state.plan,
+    analysis_options: state.options, current: state.current, plan: state.plan, mode: state.mode,
+    bone: { samples: state.bone.samples, settings: boneSettings(settings().qc), results: state.bone.results,
+      options: state.bone.options, current: state.bone.current },
   };
 }
 
@@ -521,7 +552,11 @@ function autosave() {
     try {
       localStorage.setItem("weanage-autosave", JSON.stringify(project()));
     } catch {
-      try { localStorage.setItem("weanage-autosave", JSON.stringify({ ...project(), results: null, estimates: null })); } catch {}
+      try {
+        const small = project();
+        small.bone.results = null;
+        localStorage.setItem("weanage-autosave", JSON.stringify({ ...small, results: null, estimates: null }));
+      } catch {}
     }
   }, 600);
 }
@@ -529,12 +564,21 @@ function autosave() {
 function openProject(p) {
   if (p.format !== "weanage-project" || !Array.isArray(p.samples)) throw new Error("This file is not a WeanAge project.");
   applySettings(p.settings || {});
+  if (p.bone) {
+    applyBoneSettings(p.bone.settings || {});
+    Object.assign(state.bone, { results: p.bone.results, options: p.bone.options, current: p.bone.current });
+    api.boneRecords(p.bone.samples || []).then((report) => {
+      setBoneReport(report, true);
+      if (state.bone.results) renderBoneResults();
+    }).catch((e) => toast(e.message));
+  }
+  setMode(p.mode || "tooth");
   Object.assign(state, { samples: p.samples, options: p.analysis_options, plan: p.plan || null });
   state.visible = new Set([...(state.options?.models || []), "average"]);
   recheck(true).then(() => {
     if (p.results && p.analysis_options) {
       Object.assign(state, { results: p.results, estimates: p.estimates, current: p.current || p.results[0]?.specimen_id });
-      enableResults(true);
+      enableResults();
       renderResults();
     }
     if (state.plan) renderPlan(state);
@@ -544,8 +588,10 @@ function openProject(p) {
 function offerRestore() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem("weanage-autosave")); } catch {}
-  if (!saved?.samples?.length) return;
-  $("#restore-when").textContent = `${saved.samples.length} samples, ${new Date(saved.saved_at).toLocaleString()}`;
+  const animals = saved?.bone?.samples?.length || 0;
+  if (!saved?.samples?.length && !animals) return;
+  const what = [saved.samples.length && `${saved.samples.length} tooth samples`, animals && `${animals} bone samples`].filter(Boolean).join(", ");
+  $("#restore-when").textContent = `${what}, ${new Date(saved.saved_at).toLocaleString()}`;
   $("#restore-banner").hidden = false;
   $("#btn-restore").onclick = () => { openProject(saved); $("#restore-banner").hidden = true; };
   $("#btn-discard").onclick = () => { localStorage.removeItem("weanage-autosave"); $("#restore-banner").hidden = true; };
@@ -580,7 +626,9 @@ function bind() {
   zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("over"); e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]); });
   zone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#csv-input").click(); } });
   $("#btn-template").href = api.templateUrl;
+  for (const radio of $$('input[name="calc"]')) radio.addEventListener("change", () => setMode(radio.value));
   on("#btn-example", "click", async () => {
+    if (state.mode === "bone") return loadBoneExample($("#example-choice").value);
     try {
       const report = await api.example($("#example-choice").value || "synthetic");
       setReport(report);
@@ -590,7 +638,9 @@ function bind() {
     }
   });
   on("#btn-clear", "click", () => {
-    if (!state.samples.length || confirm("Remove all loaded samples?")) setReport({ samples: [], issues: [], specimens: [] });
+    if (state.mode === "bone") {
+      if (!state.bone.samples.length || confirm("Remove all loaded animals?")) setBoneReport({ samples: [], issues: [], groups: [] });
+    } else if (!state.samples.length || confirm("Remove all loaded samples?")) setReport({ samples: [], issues: [], specimens: [] });
   });
   on("#manual-form", "submit", addSampleByHand);
   on("#sample-table", "click", (e) => {
@@ -688,7 +738,8 @@ async function init() {
   $("#app-version").textContent = `v${state.config.version}`;
   $("#sb-mode").textContent = inBrowser ? "Running in this browser" : "Local app";
   initSettings();
-  initExamples();
+  initBone(state, { show, autosave, refreshNav: enableResults, qc: () => settings().qc });
+  setMode("tooth", false);
   initAbout(state.config);
   initPlanner(state);
   renderTbd();
