@@ -58,7 +58,12 @@ to the adult level. Every parametric model has `post` (adult plateau) and `drop`
 * **Elbow** re-implements Ganiatsou et al. (2023). By default both axes are rescaled to
   0–1 before measuring distance, so the result does not depend on units (WEAN uses raw
   units). It warns when the curve is rising at the elbow or the polynomial overshoots
-  the data by more than 0.5‰.
+  the data by more than 0.5‰. Because an elbow is found in *any* series, even a flat,
+  noisy one (rescaling makes a 0.4‰ wobble look like a 3‰ drop), WeanAge reports **no
+  weaning age** for this model when δ¹⁵N never falls after its peak, the fall is below
+  the minimum weaning drop, the elbow lies before birth, or its 95% interval spans more
+  than 80% of the sampled ages. The fitted curve is still drawn, and the model average
+  then uses the other models only.
 
 Fitting uses `scipy.optimize.curve_fit` (bounded trust-region) from 10–20 starting
 points spread over the sampled ages, keeping the best result. A known analytical SD is

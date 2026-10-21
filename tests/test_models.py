@@ -58,6 +58,27 @@ def test_elbow():
     assert not rising["converged"] and "peaks at the end" in rising["message"]
 
 
+def test_elbow_gives_no_age_without_a_real_drop():
+    """A flat, noisy series still has an 'elbow' somewhere; it must not be reported as a weaning age."""
+    t = np.linspace(0, 12, 12)
+    flat = 6.5 + np.random.default_rng(1).normal(0, 0.2, len(t))
+    fit = fit_model("elbow", t, flat, opts())
+    assert fit["completion"] is None and fit["onset"] is None
+    assert fit["message"].startswith("No weaning age reported") and fit["curve_d15N"]
+    before_birth = fit_model("elbow", t - 8, MODELS["piecewise"]["curve"](t, 5, 3, 1, 3), opts())
+    assert before_birth["completion"] is None and "before birth" in before_birth["message"]
+
+
+def test_model_average_ignores_a_withheld_elbow():
+    t = np.linspace(0, 12, 12)
+    flat = 6.5 + np.random.default_rng(1).normal(0, 0.2, len(t))
+    fits = [fit_model(name, t, flat, opts()) for name in ("logistic", "elbow")]
+    compare_fits(fits)
+    average = model_average(fits).get("completion")
+    logistic = fits[0]["completion"]
+    assert average is None or average["estimate"] == pytest.approx(logistic["estimate"])
+
+
 def test_warnings_and_too_few_points():
     t = np.linspace(0, 15, 40)
     flat = fit_model("logistic", t, 6 + np.random.default_rng(3).normal(0, 0.1, len(t)), opts(monte_carlo_draws=0))

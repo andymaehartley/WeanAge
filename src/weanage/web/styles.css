@@ -101,6 +101,12 @@ button, .button { font: inherit; cursor: pointer; border-radius: var(--radius); 
 .actions button, .actions .button { border: 0; background: transparent; color: var(--muted); padding: .85rem .6rem; font-size: .88rem; }
 .actions button:hover:not(:disabled), .actions .button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 .actions button[aria-pressed="true"] { color: var(--text); }
+.menu-wrap { position: relative; display: flex; }
+.menu { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 15rem; margin: 0; padding: .3rem 0; list-style: none; background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 16px rgb(0 0 0 / .25); }
+.menu button, .menu a { display: block; width: 100%; padding: .55rem .9rem; text-align: left; font-size: .88rem; color: var(--text); background: transparent; border: 0; text-decoration: none; }
+.actions .menu button { color: var(--text); padding: .55rem .9rem; }
+.menu button:hover, .menu a[href]:hover { background: var(--tint); text-decoration: none; }
+.menu a[aria-disabled="true"] { color: var(--muted); cursor: default; }
 .tiny { padding: .05rem .45rem; font-size: .8rem; }
 .primary { font-weight: 700; padding: .55rem 1.4rem; }
 button:disabled { opacity: .7; cursor: not-allowed; }

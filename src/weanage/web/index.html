@@ -39,7 +39,13 @@
       <button id="btn-theme" class="ghost" aria-pressed="false" title="Switch between dark and light colours">Light mode</button>
       <button id="btn-text" class="ghost" aria-pressed="false" title="Make all text larger">Larger text</button>
       <span class="divider" aria-hidden="true"></span>
-      <button id="btn-help" class="ghost" aria-label="Help: start the guided tour">Help</button>
+      <div class="menu-wrap">
+        <button id="btn-help" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="help-menu">Help <span aria-hidden="true">▾</span></button>
+        <ul id="help-menu" class="menu" hidden>
+          <li><button type="button" id="menu-tour">Take the guided tour</button></li>
+          <li><a id="menu-guide" href="guide/WeanAge_user_guide.pdf" target="_blank" rel="noopener">User guide (PDF)</a></li>
+        </ul>
+      </div>
       <button id="btn-about" class="ghost">About</button>
     </div>
   </header>

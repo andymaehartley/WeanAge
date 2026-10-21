@@ -14,6 +14,9 @@
   random mix of curves, so the logistic model is no longer favoured by construction.
 * **δ¹³C across weaning** and literature-based **QC presets** (Guiry & Szpak 2020).
 * Cattle M1/M2 growth tables use the crown start and end ages of Brown et al. (1960).
+* The **elbow (WEAN-style) model reports no age** when there is no real δ¹⁵N fall, the elbow
+  lies before birth, or its interval spans most of the series, instead of an arbitrary point
+  on noise. The model average then uses the other models.
 
 ### App
 * High-contrast **dark theme by default**, light mode and larger text (WCAG AAA text contrast).
@@ -23,6 +26,8 @@
   About panel (citation, licences, acknowledgements) and a tooth guide explaining the terms the app uses.
 * **Browser version** (Pyodide): runs entirely in the web page, shares large analyses between
   several engines, and works offline after the first visit. Published to GitHub Pages.
+* The **Help** button opens a menu: the guided tour, or the PDF user guide (shown as
+  "coming soon" until `src/weanage/web/guide/WeanAge_user_guide.pdf` is added).
 * `weanage validate` command and `docs/VALIDATION.md`.
 * `weanage isoarch` converts sequential dentine series from IsoArcH exports, and a real-data
   example (Khami and Bornais cattle, CC BY 4.0) can be loaded in the app.

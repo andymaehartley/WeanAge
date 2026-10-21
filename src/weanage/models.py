@@ -112,7 +112,8 @@ MODELS: dict[str, dict] = {
 }
 ELBOW_ABOUT = ("Re-implementation of WEAN (Ganiatsou et al. 2023): a 4th-degree polynomial is fitted and "
                "weaning completion is the 'elbow', the point farthest below the line from the δ15N peak "
-               "to the last sample. Reports completion only.")
+               "to the last sample. Reports completion only, and no age at all when there is no clear "
+               "δ15N fall, the elbow is before birth, or its interval spans most of the series.")
 MODEL_CATALOG = [{"name": n, "label": m["label"], "description": m["about"], "params": list(m["params"])}
                  for n, m in MODELS.items()]
 MODEL_CATALOG.append({"name": "elbow", "label": "Elbow on polynomial (WEAN-style)",
@@ -342,6 +343,9 @@ def least_squares(predict, t, y, sigma, guess, bounds):
 
 
 # ───────────── the WEAN-style elbow method ─────────────
+ELBOW_MAX_CI_SHARE = 0.8  # no age is reported when the 95% interval spans more of the series than this
+
+
 def find_elbow(grid, curve, normalise):
     """Index of the curve's peak, and of the point farthest below the line from the peak to the end."""
     peak = int(np.argmax(curve))
@@ -354,6 +358,25 @@ def find_elbow(grid, curve, normalise):
     dx, dy = x[-1] - x[0], y[-1] - y[0]
     distance_below_line = dy * (x - x[0]) - dx * (y - y[0])
     return peak, peak + int(np.argmax(distance_below_line))
+
+
+def elbow_doubt(result, grid, peak, elbow, options):
+    """Why the elbow should not be read as a weaning age, or None if it can be.
+
+    The elbow is wherever the curve sags furthest below the line from its peak, so it is found even
+    in a flat, noisy series (after rescaling, a 0.4‰ wobble looks like a 3‰ drop).
+    """
+    if elbow == peak:
+        return "δ15N never falls after its peak"
+    if result["drop_permil"] < options.min_weaning_drop_permil:
+        return (f"the fall of {result['drop_permil']:.2f}‰ is below the {options.min_weaning_drop_permil:.2f}‰ "
+                "minimum, so the elbow is noise")
+    if grid[elbow] < 0:
+        return "the elbow falls before birth"
+    ci = result["completion"]
+    if ci["ci_low"] is not None and ci["ci_high"] - ci["ci_low"] >= ELBOW_MAX_CI_SHARE * (grid[-1] - grid[0]):
+        return "its 95% interval covers most of the series"
+    return None
 
 
 def fit_elbow(t, y, options, age_sd, degree=4):
@@ -402,6 +425,15 @@ def fit_elbow(t, y, options, age_sd, degree=4):
         draws = {"completion": [grid[e[1]] for e in elbows if e is not None]}
     add_milestones(result, {"completion": grid[elbow]}, draws, age_sd, rng)
     result["onset"] = {"estimate": float(grid[peak]), "ci_low": None, "ci_high": None}
+    result["curve_age"] = [round(float(v), 4) for v in grid]
+    result["curve_d15N"] = [round(float(v), 4) for v in curve]
+    reason = elbow_doubt(result, grid, peak, elbow, options)
+    if reason:  # the elbow always lands somewhere, even on noise: report no age rather than a false one
+        result["onset"] = result["completion"] = None
+        result["_draws"] = {}
+        result["message"] = f"No weaning age reported: {reason}"
+        result["warnings"].append(result["message"])
+        return result
 
     slope = float(np.polyval(np.polyder(coef), grid[elbow] - centre))
     if slope > 0:
@@ -411,8 +443,6 @@ def fit_elbow(t, y, options, age_sd, degree=4):
         result["warnings"].append("Elbow falls at the last sample: weaning may not be complete within the series")
     if curve.max() > y.max() + 0.5 or curve.min() < y.min() - 0.5:
         result["warnings"].append("Polynomial overshoots the observed δ15N range (>0.5‰); check the curve visually")
-    result["curve_age"] = [round(float(v), 4) for v in grid]
-    result["curve_d15N"] = [round(float(v), 4) for v in curve]
     return result
 
 

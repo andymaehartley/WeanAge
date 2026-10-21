@@ -78,7 +78,7 @@ const TOUR = [
   { view: "settings", sel: "#btn-run", title: "Run the analysis", text: "A progress bar shows while curves are fitted. Larger datasets are processed in parallel." },
   { view: "plan", sel: "#plan-form", title: "Plan your sampling", text: "Before cutting teeth, simulate how accurate different sampling intervals or numbers of animals would be." },
   { view: null, sel: "#btn-save", title: "Save your work", text: "Save the whole project (data, settings and results) to a file and reopen it later. Your work is also kept in this browser automatically." },
-  { view: null, sel: "#btn-help", title: "Need a reminder?", text: "Press ? next to any term for a plain-language explanation, or reopen this tour here." },
+  { view: null, sel: "#btn-help", title: "Need a reminder?", text: "Press ? next to any term for a plain-language explanation. The Help menu reopens this tour and links to the user guide." },
 ];
 
 export function startTour(show) {
@@ -153,4 +153,54 @@ export function tourSeen() {
   } catch {
     return true;
   }
+}
+
+// ───────────── the Help menu: the tour, and the PDF user guide ─────────────
+const GUIDE_PDF = "guide/WeanAge_user_guide.pdf";
+
+export function initHelpMenu(show) {
+  const button = $("#btn-help");
+  const menu = $("#help-menu");
+  const items = () => [...menu.querySelectorAll("button, a[href]")];
+  const close = (refocus) => {
+    menu.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+    if (refocus) button.focus();
+  };
+  const open = () => {
+    menu.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    items()[0].focus();
+  };
+  button.addEventListener("click", () => (menu.hidden ? open() : close(false)));
+  $("#menu-tour").addEventListener("click", () => {
+    close(false);
+    startTour(show);
+  });
+  $("#menu-guide").addEventListener("click", () => close(false));
+  menu.addEventListener("keydown", (e) => {
+    const list = items();
+    const at = list.indexOf(document.activeElement);
+    if (e.key === "Escape") close(true);
+    if (e.key === "ArrowDown") list[(at + 1) % list.length].focus();
+    if (e.key === "ArrowUp") list[(at - 1 + list.length) % list.length].focus();
+    if (["ArrowDown", "ArrowUp"].includes(e.key)) e.preventDefault();
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !e.target.closest(".menu-wrap")) close(false);
+  });
+  markGuideIfMissing();
+}
+
+/** The PDF guide is not written yet: until it exists, show the entry as unavailable rather than a broken link. */
+async function markGuideIfMissing() {
+  let found = false;
+  try {
+    found = (await fetch(GUIDE_PDF, { method: "HEAD" })).ok;
+  } catch {}
+  if (found) return;
+  const link = $("#menu-guide");
+  link.removeAttribute("href");
+  link.setAttribute("aria-disabled", "true");
+  link.textContent = "User guide (PDF): coming soon";
 }

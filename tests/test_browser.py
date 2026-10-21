@@ -54,6 +54,13 @@ def click(page, selector):
 def test_whole_workflow(page):
     page.wait_for_selector(".tour-card")
     page.keyboard.press("Escape")  # close the first-visit tour
+    page.click("#btn-help")  # the Help menu: tour, and the PDF guide (not written yet)
+    assert page.is_visible("#help-menu") and page.get_attribute("#btn-help", "aria-expanded") == "true"
+    page.wait_for_function("document.querySelector('#menu-guide').textContent.includes('coming soon')")
+    page.click("#menu-tour")
+    page.wait_for_selector(".tour-card")
+    assert page.is_hidden("#help-menu")
+    page.keyboard.press("Escape")
     click(page, "#btn-about")
     assert "Hartley" in page.text_content("#about-citation") and page.evaluate("document.querySelector('#about-dialog').open")
     page.keyboard.press("Escape")

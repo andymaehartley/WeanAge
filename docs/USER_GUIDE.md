@@ -41,7 +41,7 @@ Both look and work the same.
 ## 1. Take the tour
 
 On the first visit an eight-step tour points out each part of the screen. Press **Next**,
-or **Skip tour**; **Help** in the top bar restarts it. The numbered tabs (Data, Settings,
+or **Skip tour**. The **Help** menu in the top bar restarts it and links to the PDF user guide. The numbered tabs (Data, Settings,
 Results, Compare, Plan sampling) follow the order you will work in.
 
 ![The opening screen with the guided tour](guide/01_tour.png)
@@ -94,6 +94,10 @@ changes the answer. Each has its own colour *and* line pattern.
 | Exponential | the drop starts abruptly and then slows |
 | Two-phase | supplementary feeding came before final weaning (e.g. dairying) |
 | Elbow (WEAN) | results comparable with WEAN (Ganiatsou et al. 2023) |
+
+The elbow model always finds *some* point, even in a flat series, so it shows **no weaning
+age** when δ¹⁵N does not clearly fall, the elbow would be before birth, or the estimate is
+too uncertain to mean anything. Its message says which.
 
 Below them choose the milestone to report (onset, midpoint or completion), how
 uncertainty is calculated, and the smallest and largest believable δ¹⁵N drop.

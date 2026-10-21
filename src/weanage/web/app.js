@@ -3,7 +3,7 @@ import { initAbout } from "./about.js";
 import { api, inBrowser, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
-import { initGlossary, startTour, tourSeen } from "./help.js";
+import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
 import { $, $$, ci, download, esc, help, MILESTONES, num, plural, progressBar, pval, swatch, table, tbdBadge, toast, toCsv } from "./util.js";
@@ -649,7 +649,7 @@ function bind() {
     }
   });
   on("#btn-report", "click", makeReport);
-  on("#btn-help", "click", () => startTour(show));
+  initHelpMenu(show);
   on("#btn-theme", "click", () => setLook("theme", document.documentElement.dataset.theme === "light" ? "dark" : "light"));
   on("#btn-text", "click", () => setLook("text", document.documentElement.dataset.text === "large" ? "normal" : "large"));
 }
