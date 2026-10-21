@@ -54,9 +54,10 @@ def click(page, selector):
 def test_whole_workflow(page):
     page.wait_for_selector(".tour-card")
     page.keyboard.press("Escape")  # close the first-visit tour
-    page.click("#btn-help")  # the Help menu: tour, and the PDF guide (not written yet)
+    page.click("#btn-help")  # the Help menu: tour, and the PDF guide
     assert page.is_visible("#help-menu") and page.get_attribute("#btn-help", "aria-expanded") == "true"
-    page.wait_for_function("document.querySelector('#menu-guide').textContent.includes('coming soon')")
+    page.wait_for_load_state("networkidle")  # the guide link is checked once the page has loaded
+    assert page.get_attribute("#menu-guide", "href") == "guide/WeanAge_user_guide.pdf"
     page.click("#menu-tour")
     page.wait_for_selector(".tour-card")
     assert page.is_hidden("#help-menu")

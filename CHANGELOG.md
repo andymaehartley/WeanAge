@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+* A PDF user guide (`docs/guide/WeanAge_user_guide.pdf`, also under Help in the app): how each
+  part of the calculation works and where it comes from, with references.
+
 ### Changed
 * Every curve model reports no weaning age when δ¹⁵N falls by less than the minimum (1‰ by
   default) or the fall is centred before birth. The fitted curve is still drawn. The model

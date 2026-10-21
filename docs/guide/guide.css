@@ -1,0 +1,43 @@
+/* Print layout for the user guide (A4). Built by scripts/build_guide.py.
+   Atkinson Hyperlegible (SIL Open Font License) is shared with the methods brief. */
+@font-face { font-family: "Atkinson Hyperlegible"; font-weight: 400; font-style: normal; src: url("../brief/fonts/atkinson-hyperlegible-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Atkinson Hyperlegible"; font-weight: 700; font-style: normal; src: url("../brief/fonts/atkinson-hyperlegible-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Atkinson Hyperlegible"; font-weight: 400; font-style: normal; src: url("../brief/fonts/atkinson-hyperlegible-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Atkinson Hyperlegible"; font-weight: 700; font-style: normal; src: url("../brief/fonts/atkinson-hyperlegible-latin-ext-700-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Atkinson Hyperlegible"; font-weight: 400; font-style: italic; src: url("../brief/fonts/atkinson-hyperlegible-latin-400-italic.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@page { size: A4; margin: 16mm 17mm 18mm 17mm; }
+:root { --ink: #14181f; --muted: #47505c; --accent: #0b5a70; --line: #c9d1d9; --tint: #eef4fb; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font: 10pt/1.45 "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif; }
+header#title-block-header { border-bottom: 2.5pt solid var(--accent); padding-bottom: 8pt; margin-bottom: 12pt; }
+h1.title { font-size: 28pt; margin: 0; color: var(--accent); display: flex; align-items: center; gap: 10pt; }
+h1.title::before { content: ""; width: 28pt; height: 28pt; background: url("../../src/weanage/web/logo.svg") center / contain no-repeat; }
+p.subtitle { font-size: 13pt; margin: 3pt 0; font-weight: 700; }
+p.author { margin: 0; color: var(--muted); font-size: 9pt; }
+nav#TOC { columns: 2; column-gap: 20pt; font-size: 9pt; border: .6pt solid var(--line); border-radius: 4pt; padding: 6pt 12pt; margin-bottom: 8pt; }
+nav#TOC ul { margin: 0; padding-left: 12pt; list-style: none; }
+nav#TOC > ul { padding-left: 0; }
+nav#TOC li { margin: 1pt 0; break-inside: avoid; }
+nav#TOC a { color: var(--ink); text-decoration: none; }
+nav#TOC > ul > li > a { font-weight: 700; }
+h1 { font-size: 15pt; color: var(--accent); margin: 16pt 0 5pt; break-after: avoid; border-bottom: .6pt solid var(--line); padding-bottom: 2pt; }
+h2 { font-size: 11.5pt; margin: 11pt 0 3pt; break-after: avoid; }
+p { margin: 0 0 6pt; text-wrap: pretty; }
+ul, ol { margin: 2pt 0 7pt; padding-left: 15pt; }
+li { margin-bottom: 2.5pt; }
+table { border-collapse: collapse; width: 100%; font-size: 8.8pt; line-height: 1.35; margin: 4pt 0 9pt; break-inside: avoid; }
+th { text-align: left; background: var(--accent); color: #fff; padding: 3pt 5pt; }
+td { padding: 3pt 5pt; border-bottom: .5pt solid var(--line); vertical-align: top; }
+col { width: auto !important; }
+td:first-child { font-weight: 700; white-space: nowrap; }
+code { font-size: 8.6pt; background: #f1f3f5; padding: 0 2pt; border-radius: 2pt; }
+figure { margin: 8pt auto 10pt; text-align: center; break-inside: avoid; }
+figure img { max-width: 100%; border: .6pt solid var(--line); border-radius: 3pt; }
+figcaption { font-size: 8.6pt; color: var(--muted); margin-top: 3pt; text-align: left; }
+p > img { border: .6pt solid var(--line); border-radius: 3pt; vertical-align: top; }
+.flow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8pt; margin: 4pt 0 8pt; font-size: 9pt; break-inside: avoid; }
+.flow > div { background: var(--tint); border-radius: 4pt; padding: 6pt 8pt; line-height: 1.5; }
+.flow b { color: var(--accent); }
+.refs { columns: 2; column-gap: 16pt; font-size: 7.9pt; line-height: 1.32; }
+.refs p { margin: 0 0 3pt; break-inside: avoid; padding-left: 9pt; text-indent: -9pt; }
+a { color: var(--accent); }
