@@ -6,6 +6,8 @@ Each is a placeholder. It is marked `TBD-LAB` in the data file, has `"placeholde
 its JSON entry, and is highlighted in yellow in the app. Results that depend on a placeholder
 are illustrative.
 
+For what to measure for each one, see the [lab work checklist](LAB_CHECKLIST.md).
+
 ## Finding them
 
 The yellow banner at the top of the app counts the placeholders in use. Click it to list

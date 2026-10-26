@@ -85,6 +85,7 @@ for cattle, sheep, goat, pig and human (the livestock values are placeholders). 
 
 * [`docs/guide/WeanAge_user_guide.pdf`](docs/guide/WeanAge_user_guide.pdf): the PDF guide to how
   each part works, with citations (also under Help in the app; rebuilt with `scripts/build_guide.py`).
+* [`docs/LAB_CHECKLIST.md`](docs/LAB_CHECKLIST.md): what still has to be measured or checked in the lab.
 * [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md): step-by-step guide with screenshots.
 * [`docs/METHODS.md`](docs/METHODS.md): methods and references.
 * [`docs/VALIDATION.md`](docs/VALIDATION.md): testing on known-age animals.
