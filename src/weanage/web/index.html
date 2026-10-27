@@ -83,12 +83,16 @@
               <label class="calc-option"><input type="radio" name="calc" value="bone">
                 <span><strong>Bone calculation</strong>
                   <small>Bone from many young animals that died at different ages, after WARN.</small></span></label>
+              <label class="calc-option"><input type="radio" name="calc" value="enamel">
+                <span><strong>Enamel: season and rumen</strong>
+                  <small>δ¹⁸O and δ¹³C along a cattle molar: season of birth and rumen development.</small></span></label>
             </fieldset>
             <label id="dropzone" class="dropzone">
               <input id="csv-input" type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls" hidden>
               <strong>Drop a CSV or Excel file here</strong> or click to choose one
               <small data-mode="tooth">One row per dentine slice.</small>
               <small data-mode="bone" hidden>One row per animal.</small>
+              <small data-mode="enamel" hidden>One row per enamel sample.</small>
             </label>
             <div class="row gap wrap">
               <label class="inline">Example <select id="example-choice"></select></label>
@@ -114,6 +118,19 @@
                 </ol>
                 <p class="hint">After WARN (Tsutaya &amp; Yoneda 2013), built for human skeletons and adapted here for animals
                   (<a href="https://github.com/andymaehartley/repotest/blob/main/docs/BONE_LITERATURE.md" target="_blank" rel="noopener">sources</a>). Livestock bone turnover rates are placeholders.</p>
+              </div>
+              <p class="hint" data-mode="enamel" hidden>Required columns: <code>specimen_id, site, species, tooth,
+                erj_distance_mm</code> <span data-helpslot="erj"></span>, and <code>d18O</code>, <code>d13C</code> or both
+                (enamel carbonate, ‰ VPDB).</p>
+              <div data-mode="enamel" hidden>
+                <h3>How the enamel calculation works</h3>
+                <ol class="steps-list">
+                  <li><strong>Season.</strong> A cosine is fitted to δ¹⁸O along the crown. The position of its maximum, as a
+                    share of one year's crown growth (x₀/X), compares the season of birth of animals with the same tooth.</li>
+                  <li><strong>Rumen.</strong> δ¹³C rises as the rumen starts to work. A rising step plus a seasonal wave is
+                    fitted, and kept only if it fits clearly better than the wave alone.</li>
+                </ol>
+                <p class="hint">After Balasse et al. (2012) and Towers et al. (2014); see the user guide for the sources.</p>
               </div>
               <p class="hint" data-mode="tooth">Required columns: <code>specimen_id, site, species, tooth, position_mm, d15N</code>
                   <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
@@ -214,6 +231,14 @@
             <details class="samples-details">
               <summary>Show all animals</summary>
               <div class="table-wrap tall"><table id="bone-sample-table"></table></div>
+            </details>
+          </article>
+          <article class="card" id="enamel-teeth-card" data-mode="enamel" hidden>
+            <h2>Teeth <span id="enamel-count" class="muted"></span></h2>
+            <div class="table-wrap"><table id="enamel-teeth-table"></table></div>
+            <details class="samples-details">
+              <summary>Show all samples</summary>
+              <div class="table-wrap tall"><table id="enamel-sample-table"></table></div>
             </details>
           </article>
           <article class="card" id="specimens-card" hidden>
@@ -420,6 +445,36 @@
       </div>
     </section>
 
+    <!-- 2. settings (enamel) -->
+    <section id="view-enamel-settings" class="view" aria-labelledby="h-enamel-settings">
+      <h2 id="h-enamel-settings" class="sr-only">Enamel settings</h2>
+      <div class="grid-3">
+        <article class="card">
+          <h2>Season of birth (δ¹⁸O) <span data-helpslot="birth_index"></span></h2>
+          <div class="form-grid">
+            <label>Crown formed in a year, at least (mm)<input id="enamel-period_min_mm" type="number" min="1" step="1"></label>
+            <label>at most (mm)<input id="enamel-period_max_mm" type="number" min="1" step="1"></label>
+            <label>Smallest δ¹⁸O cycle read as a season (‰)<input id="enamel-min_amplitude_permil" type="number" min="0" step="0.1"></label>
+          </div>
+        </article>
+        <article class="card">
+          <h2>Rumen development (δ¹³C) <span data-helpslot="rumen"></span></h2>
+          <div class="form-grid">
+            <label>Smallest δ¹³C rise read as rumen development (‰)<input id="enamel-min_rumen_rise_permil" type="number" min="0" step="0.1"></label>
+            <label>Rise above which a diet change is suspected (‰)<input id="enamel-max_rumen_rise_permil" type="number" min="0.1" step="0.1"></label>
+          </div>
+        </article>
+        <article class="card">
+          <h2>Uncertainty</h2>
+          <label>Random draws for the 95% intervals<input id="enamel-draws" type="number" min="0" max="20000" step="100"></label>
+        </article>
+      </div>
+      <div class="run-bar">
+        <div id="enamel-progress" class="progress-wrap" hidden></div>
+        <button id="btn-enamel-run" class="primary">Run enamel analysis</button>
+      </div>
+    </section>
+
     <!-- 3. results -->
     <section id="view-results" class="view" aria-labelledby="h-results">
       <h2 id="h-results" class="sr-only">Results</h2>
@@ -528,6 +583,50 @@
                 <div class="table-wrap"><table id="bone-fit-table"></table></div>
               </div>
             </details>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. results (enamel) -->
+    <section id="view-enamel-results" class="view" aria-labelledby="h-enamel-results">
+      <h2 id="h-enamel-results" class="sr-only">Enamel results</h2>
+      <div class="results-layout">
+        <section class="card specimen-list" aria-labelledby="h-enamel-list">
+          <h2 id="h-enamel-list">Teeth</h2>
+          <ul id="enamel-result-list" role="listbox" aria-label="Choose a tooth"></ul>
+        </section>
+        <div class="results-main">
+          <article class="card">
+            <h2 id="enamel-res-title"></h2>
+            <p id="enamel-res-meta" class="muted small"></p>
+            <div id="enamel-res-summary" class="summary" aria-live="polite"></div>
+            <div class="row between wrap chart-tools">
+              <span></span>
+              <span class="row gap export-links">
+                <span class="muted small">Export:</span>
+                <button id="btn-enamel-csv" class="link" type="button">estimates (CSV)</button>
+                <button id="btn-enamel-json" class="link" type="button">results (JSON)</button>
+              </span>
+            </div>
+            <div id="enamel-o-chart" class="chart-box"></div>
+            <div id="enamel-c-chart" class="chart-box"></div>
+            <div class="legend">
+              <span><i class="dot"></i> enamel sample</span>
+              <span><i class="line solid"></i> fitted curve</span>
+              <span><i class="dash"></i> δ¹⁸O maximum (top) and rumen transition (bottom); bars: 95% intervals</span>
+            </div>
+            <details class="advanced" id="enamel-warnings-box">
+              <summary id="enamel-warnings-summary">Warnings</summary>
+              <div class="advanced-body"><ul id="enamel-res-warnings" class="issues"></ul></div>
+            </details>
+          </article>
+          <article class="card">
+            <h2>Season of birth by group</h2>
+            <p class="hint">Birth index (x₀/X) of each tooth; compare only teeth of the same type. The spread × 12 is
+              roughly how many months births were spread over.</p>
+            <div id="enamel-group-chart" class="chart-box"></div>
+            <div class="table-wrap"><table id="enamel-group-table"></table></div>
           </article>
         </div>
       </div>

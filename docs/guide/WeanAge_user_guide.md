@@ -10,11 +10,12 @@ lang: en-GB
 WeanAge estimates when young mammals were weaned from the nitrogen isotope ratio (δ¹⁵N) of
 their collagen. It works with two kinds of material: thin slices along one tooth, which record
 one animal's childhood, and the bones of many young animals from one site that died at
-different ages. It runs as a local app or in a web browser.
+different ages. For cattle it also reads enamel δ¹⁸O and δ¹³C along a molar for the season of
+birth and the development of the rumen. It runs as a local app or in a web browser.
 
 This guide explains each part of the software, how the parts combine into a weaning age, and
-where each method comes from. Section 1 gives the background, sections 2–7 follow the
-calculation step by step, and section 8 lists what is still provisional. Words in
+where each method comes from. Section 1 gives the background, sections 2–8 follow the
+calculations step by step, section 9 shows the app, and section 10 lists what is still provisional. Words in
 `code font` are column names, settings or files in the software. References are listed at the end.
 
 # 1. Background
@@ -44,16 +45,17 @@ et al. 2001), and the same has been found in sheep (Díez-Canseco & Tornero 2026
 
 ![Figure 1. A logistic weaning curve and its three milestones, with the default 5% threshold.](figures/milestones.svg){width=78%}
 
-## The two routes through the software
+## The routes through the software
 
 <div class="flow">
 <div><b>Tooth calculation</b><br>slices of one tooth<br>→ position to age (§3)<br>→ quality control (§2)<br>→ curve models (§4)<br>→ uncertainty, averaging (§4)<br>→ one animal's weaning age</div>
 <div><b>Bone calculation</b><br>many young animals + adult females<br>→ quality control (§2)<br>→ diet and bone-turnover model (§5)<br>→ Bayesian fit (§5)<br>→ a site's weaning age</div>
-<div><b>Then</b><br>compare sites, species or periods (§6)<br><br><b>Before sampling</b><br>plan how many samples are needed (§7)</div>
+<div><b>Enamel (cattle)</b><br>δ¹⁸O and δ¹³C up one molar<br>→ yearly δ¹⁸O cycle (§6)<br>→ season-of-birth index<br>→ δ¹³C rise: rumen development (§6)</div>
+<div><b>Then</b><br>compare sites, species or periods (§7)<br><br><b>Before sampling</b><br>plan how many samples are needed (§8)</div>
 </div>
 
 The app has the same order: **Data → Settings → Results → Compare**, plus **Plan sampling**.
-The Data tab switches between tooth and bone calculation.
+The Data tab switches between the tooth, bone and enamel calculations.
 
 # 2. Data and quality control
 
@@ -232,7 +234,39 @@ Yoneda stress, the model always fits something, so look at the plot first.
 
 ![Figure 3. Bone results for medieval Wharram Percy (Richards et al. 2002, via CIMA). Points are children's rib collagen with their age ranges; the solid line is the modelled bone δ¹⁵N, the dotted line the diet. Suckling ends at 22.6 months (95% interval 17–31), matching the authors' estimate of about two years.](figures/bone_result.png){width=88%}
 
-# 6. Comparing groups
+# 6. Season of birth and rumen development (enamel)
+
+This section uses tooth enamel rather than collagen, and is set up for cattle (`enamel.py`).
+Enamel of a molar forms from the cusp tip down to the enamel-root junction (ERJ) over several
+months, so samples drilled up the crown are a time series. Each sample's position is its distance
+from the ERJ (`erj_distance_mm`); values are enamel carbonate δ¹⁸O and δ¹³C (‰ VPDB).
+
+**Season of birth (δ¹⁸O).** Enamel δ¹⁸O follows drinking water, which is higher in summer. Each
+tooth's δ¹⁸O series is fitted with a cosine, δ¹⁸O(x) = M + A·cos(2π(x − x₀)/X), after Balasse et al.
+(2012): X is the crown length formed in a year and x₀ the position of the δ¹⁸O maximum. The
+**birth index** x₀/X (0–1) places that summer on the tooth. Teeth of the same type start forming at
+about the same age, so differences in x₀/X between animals reflect differences in season of birth
+(cattle: Towers et al. 2014; Balasse et al. 2021). It is a relative index, not a date. For each site,
+the spread of the indices × 12 approximates how many months calving was spread over. No index is
+given when the δ¹⁸O cycle is small (default under 0.5‰) or a cosine does not fit clearly better than
+a flat line.
+
+**Rumen development (δ¹³C).** A suckling calf's rumen is not yet working. As it develops,
+fermentation enriches the carbon that reaches the enamel in ¹³C (Passey et al. 2005; Cerling &
+Harris 1999), so first molar enamel δ¹³C rises (Towers et al. 2014). Because plant δ¹³C also changes
+with the seasons, δ¹³C is fitted twice: with a yearly wave of the period found from δ¹⁸O, and with
+the same wave plus a rising step. The step is reported as rumen development only when it fits
+clearly better (AICc) and rises by at least 0.5‰; its position on the crown has a 95% interval.
+Rises above 3‰ are flagged, since rumen development alone gives about 1–2‰ and a change of diet
+(for example to C4 plants) may be involved.
+
+Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so both signals are
+smoothed: the real δ¹⁸O cycle was larger and the δ¹³C change sharper than recorded. Positions are
+not converted into ages, because enamel formation tables for cattle are not yet available.
+
+![Figure 4. Enamel results for a synthetic cattle M2 (simulated data). Top: δ¹⁸O along the crown with the fitted cosine and its maximum. Bottom: δ¹³C with the fitted wave and rumen step, and the transition with its 95% interval.](figures/enamel_result.png){width=88%}
+
+# 7. Comparing groups
 
 The Compare tab groups tooth estimates by site, species and/or period (`aggregate.py`,
 `inference.py`, `joint.py`).
@@ -255,7 +289,7 @@ The Compare tab groups tooth estimates by site, species and/or period (`aggregat
 included, the Compare tab reports each model's bias, mean absolute error, root-mean-square error,
 correlation and 95% interval coverage.
 
-# 7. Planning a study
+# 8. Planning a study
 
 Both planners answer "would this sampling design work?" before teeth are cut or bones sampled.
 
@@ -273,13 +307,13 @@ error, the width and coverage of the 95% interval, and how often the nursing sig
 Because the data are simulated with the model that is fitted, it tests the design, not the
 model; with placeholder turnover it shows relative, not absolute, precision.
 
-# 8. Using the app
+# 9. Using the app
 
 ![](figures/app_data.png){width=49%} ![](figures/app_compare.png){width=49%}
 
-*Figure 4. The Data tab with the cattle example loaded (left) and the Compare tab (right).*
+*Figure 5. The Data tab with the cattle example loaded (left) and the Compare tab (right).*
 
-1. **Data.** Choose tooth or bone calculation, then drop a file, load an example or type
+1. **Data.** Choose the tooth, bone or enamel calculation, then drop a file, load an example or type
    samples in. Problems are listed with their row numbers.
 2. **Settings.** The main choices are shown; less used ones are under *Advanced settings*. The
    defaults suit a first run.
@@ -295,7 +329,7 @@ Examples from IsoArcH (cattle teeth from Khami and Bornais) and CIMA (Cocozza et
 bone from Wharram Percy, York Fishergate and Newark Bay, and human teeth from Mikulčice) are
 included; their slice positions or tooth age models are partly assumed, as noted when they load.
 
-# 9. Limits and placeholders
+# 10. Limits and placeholders
 
 Values that still need laboratory data are marked **placeholder** in the app and listed in the
 yellow banner at the top. Until they are replaced, results are illustrative. The most important are:
@@ -317,11 +351,13 @@ the living, which affects which ages are represented.
 
 AlQahtani SJ, Hector MP, Liversidge HM (2010) *Am. J. Phys. Anthropol.* 142: 481–490.
 
+Balasse M et al. (2021) *Sci. Rep.* 11: 8185.
+
 Balasse M, Bocherens H, Mariotti A, Ambrose SH (2001) *J. Archaeol. Sci.* 28: 235–245.
 
-Balasse M, Tresset A (2002) *J. Archaeol. Sci.* 29: 853–859.
+Balasse M, Obein G, Ughetto-Monfrin J, Mainland I (2012) *Archaeometry* 54: 349–368.
 
-Balasse M et al. (2021) *Sci. Rep.* 11: 8185.
+Balasse M, Tresset A (2002) *J. Archaeol. Sci.* 29: 853–859.
 
 Beaumont J, Gledhill A, Lee-Thorp J, Montgomery J (2013) *Archaeometry* 55: 277–295.
 
@@ -330,6 +366,8 @@ Beaumont J, Montgomery J (2016) *PLoS ONE* 11: e0160065.
 Brown WAB, Christofferson PV, Massler M, Weiss MB (1960) *Am. J. Vet. Res.* 21: 7–34.
 
 Burnham KP, Anderson DR (2002) *Model Selection and Multimodel Inference*, 2nd ed. Springer.
+
+Cerling TE, Harris JM (1999) *Oecologia* 120: 347–363.
 
 Cocozza C, Cirelli E, Groß M, Teegen W-R, Fernandes R (2022) *Sci. Data* 9: 354 (CIMA).
 
@@ -363,6 +401,10 @@ Minagawa M, Wada E (1984) *Geochim. Cosmochim. Acta* 48: 1135–1140.
 
 Newsome SD, Koch PL, Etnier MA, Aurioles-Gamboa D (2006) *Mar. Mamm. Sci.* 22: 556–572.
 
+Passey BH, Cerling TE (2002) *Geochim. Cosmochim. Acta* 66: 3225–3234.
+
+Passey BH, Robinson TF, Ayliffe LK, Cerling TE, Sponheimer M, Dearing MD, Roeder BL, Ehleringer JR (2005) *J. Archaeol. Sci.* 32: 1459–1470.
+
 Reynard LM, Tuross N (2015) *J. Archaeol. Sci.* 53: 618–625.
 
 Richards MP, Mays S, Fuller BT (2002) *Am. J. Phys. Anthropol.* 119: 205–210.
@@ -370,6 +412,8 @@ Richards MP, Mays S, Fuller BT (2002) *Am. J. Phys. Anthropol.* 119: 205–210.
 Sisson SA, Fan Y, Tanaka MM (2007) *Proc. Natl. Acad. Sci. USA* 104: 1760–1765.
 
 ter Braak CJF (2006) *Stat. Comput.* 16: 239–249.
+
+Towers J, Gledhill A, Bond J, Montgomery J (2014) *Archaeometry* 56 (S1): 208–236.
 
 Tsutaya T (2020) *Am. J. Phys. Anthropol.* 173: 748–759 (MDSS).
 
@@ -380,6 +424,8 @@ van Klinken GJ (1999) *J. Archaeol. Sci.* 26: 687–695.
 Vehtari A, Gelman A, Simpson D, Carpenter B, Bürkner P-C (2021) *Bayesian Anal.* 16: 667–718.
 
 Waters-Rist AL, Katzenberg MA (2010) *Int. J. Osteoarchaeol.* 20: 172–191.
+
+Zazzo A, Balasse M, Patterson WP (2005) *Geochim. Cosmochim. Acta* 69: 3631–3642.
 
 </div>
 

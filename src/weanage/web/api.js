@@ -75,6 +75,19 @@ const server = {
     return waitForJob(job, onProgress);
   },
   boneTemplateUrl: "/api/bone/template.csv",
+  // Enamel: season of birth and rumen development
+  enamelExample: (name = "synthetic_enamel") => request(`/api/enamel/example?name=${encodeURIComponent(name)}`),
+  enamelUpload(file) {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/api/enamel/ingest/file", { method: "POST", body: form });
+  },
+  async enamelAnalyze(samples, options, onProgress) {
+    const job = await request("/api/jobs/enamel", json({ samples, options }));
+    return waitForJob(job, onProgress);
+  },
+  enamelRecords: (records) => request("/api/enamel/ingest/records", json({ records })),
+  enamelTemplateUrl: "/api/enamel/template.csv",
 };
 
 // Browser version
@@ -171,6 +184,11 @@ const browser = {
   boneRecords: (records) => python("bone_records", { records }),
   boneSimulate: (body, onProgress) => python("bone_simulate", body, onProgress),
   boneTemplateUrl: "weanage_bone_template.csv",
+  enamelExample: (name = "synthetic_enamel") => python("enamel_example", { name }),
+  enamelUpload: async (file) => python("enamel_upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
+  enamelAnalyze: (samples, options, onProgress) => python("enamel_analyze", { samples, options }, onProgress),
+  enamelRecords: (records) => python("enamel_records", { records }),
+  enamelTemplateUrl: "weanage_enamel_template.csv",
 };
 
 export const api = IN_BROWSER ? browser : server;

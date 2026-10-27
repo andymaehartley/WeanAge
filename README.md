@@ -7,7 +7,8 @@ WeanAge estimates age at weaning from δ¹⁵N in archaeological animals and peo
 from δ¹⁵N measured along a tooth (incremental dentine), or from the bone collagen of many
 young individuals who died at different ages (after WARN). It reports weaning ages with
 95% intervals, compares curve models, sites and species, and simulates sampling designs
-before teeth are cut or bones sampled.
+before teeth are cut or bones sampled. For cattle it also estimates season of birth (enamel
+δ¹⁸O) and rumen development (enamel δ¹³C) along a molar.
 
 Browser version (no installation): <https://andymaehartley.github.io/repotest/>
 
@@ -81,6 +82,11 @@ adults are marked with `age_class` and `sex`. Bone turnover tables and priors ar
 for cattle, sheep, goat, pig and human (the livestock values are placeholders). See the
 [user guide](docs/USER_GUIDE.md#bone-instead-of-teeth).
 
+Enamel data (cattle): one row per enamel sample, with `specimen_id`, `site`, `species`,
+`tooth`, `erj_distance_mm` (distance from the enamel-root junction) and `d18O` and/or `d13C`
+(enamel carbonate, ‰ VPDB). See the
+[user guide](docs/USER_GUIDE.md#season-of-birth-and-rumen-development-enamel).
+
 ## Further documentation
 
 * [`docs/guide/WeanAge_user_guide.pdf`](docs/guide/WeanAge_user_guide.pdf): the PDF guide to how
@@ -120,6 +126,7 @@ src/weanage/
   inference.py   group tests and the hierarchical Bayesian model
   joint.py       one-stage Bayesian model
   bone.py        bone calculation (after WARN)
+  enamel.py      season of birth (δ18O) and rumen development (δ13C) from enamel
   simulate.py    tooth sampling planner
   bone_planner.py  bone sampling planner
   calibrate.py   growth tables from known-age reference points

@@ -120,6 +120,20 @@ suckling, samples them as your study would and runs the bone calculation on each
 example, 20, 40 and 80 young animals to see how wide the 95% interval becomes and how often the
 nursing signal is found.
 
+### Season of birth and rumen development (enamel)
+
+Choose *Enamel: season and rumen* for sequential enamel samples from cattle molars. One row per
+sample: `specimen_id`, `site`, `species`, `tooth`, `erj_distance_mm` (distance from the
+enamel-root junction to the middle of the sample) and `d18O` and/or `d13C` (enamel carbonate,
+‰ VPDB). A synthetic example of twelve M2 from two sites is included.
+
+Results show, for each tooth, the **birth index** x₀/X: the position of the δ¹⁸O maximum as a share
+of one year's crown growth. Compare it only between teeth of the same type: different values mean
+different seasons of birth. Below it, δ¹³C is checked for a rise as the rumen develops, reported
+with its position on the crown and a 95% interval. *Season of birth by group* shows each site's
+indices and how many months births were spread over. Compare and Plan sampling are not used in
+this mode. The method is in section 12 of [METHODS.md](METHODS.md).
+
 ## 4. Choose the curve models
 
 All five weaning-curve shapes are fitted, so you can see how much the choice of model

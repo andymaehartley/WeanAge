@@ -98,7 +98,20 @@ From known-age young animals and their mothers, ideally from the same herds.
 - [ ] For the bone calculation, check against at least one site with known or independently
       estimated weaning (as Wharram Percy is for humans).
 
-## 8. Example data assumptions
+## 8. Enamel: season and rumen (cattle)
+
+- [ ] Record each sample's **distance from the enamel-root junction** (to the middle of the
+      sample) and the sample height; record crown wear.
+- [ ] **Reference materials** and normalisation for enamel carbonate δ¹⁸O and δ¹³C (VPDB),
+      pretreatment, and analytical precision.
+- [ ] **Crown length formed in a year** (X) for the cattle teeth sampled, to check the default
+      range of 25–80 mm; from modern known-age teeth if possible.
+- [ ] **Reference birth indices**: modern cattle of known birth date, sampled the same way, to
+      turn x₀/X into a season and to check the "spread × 12 months" approximation.
+- [ ] **Rumen δ¹³C rise** in known-age calves (size and timing), to check the 0.5‰ and 3‰ limits.
+- [ ] **Local drinking-water δ¹⁸O seasonality**: the method needs a clear yearly cycle.
+
+## 9. Example data assumptions
 
 The bundled real examples rely on assumptions that should be checked against the original
 publications or the authors before they are used in a thesis or paper.

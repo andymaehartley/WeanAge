@@ -338,6 +338,75 @@ several values with the same random seed. Because the data are simulated with th
 is fitted, the planner tests the design (how many animals, how well aged), not the model; with
 placeholder turnover it is a guide to relative, not absolute, precision.
 
+## 12. Season of birth and rumen development from enamel (`enamel.py`)
+
+A molar's enamel forms from the cusp tip down to the enamel-root junction (ERJ) over several
+months, so samples drilled up the crown are a time series. Each sample's position is its distance
+from the ERJ (`erj_distance_mm`): larger distances formed earlier in life. Values are enamel
+carbonate δ¹⁸O and δ¹³C (‰ VPDB). The method is set up for cattle; other species give a warning.
+
+### Season of birth (δ¹⁸O)
+
+Enamel δ¹⁸O follows the δ¹⁸O of drinking water, which is higher in summer than in winter. Each
+tooth's δ¹⁸O series is fitted with a cosine (Balasse et al. 2012):
+
+```
+δ18O(x) = M + A·cos(2π(x − x0)/X)
+```
+
+M is the mean, A the amplitude, X the crown length formed in a year (kept between
+`period_min_mm` and `period_max_mm`, default 25–80 mm) and x0 the position of the δ¹⁸O maximum,
+taken within one cycle. The **birth index** x0/X (0–1) places the summer maximum on the tooth.
+Between animals with the same tooth, which starts forming at about the same age, differences in
+x0/X reflect differences in season of birth (Balasse et al. 2012; for cattle Towers et al. 2014;
+Balasse et al. 2021). It is a relative index, not a calendar date, and it is only compared within
+one tooth type.
+
+* Fitted by least squares from 24 starting points; the 95% interval comes from 1000 draws from the
+  fit's covariance and is computed around the estimate, so it can cross the 0/1 boundary.
+* No index is reported when the amplitude is below `min_amplitude_permil` (default 0.5‰) or the
+  cosine does not fit clearly better than a flat line (ΔAICc < 2).
+* A warning appears when the samples cover less than ¾ of a year's crown growth, because X and x0
+  are then poorly fixed.
+* Group summary (site × species × tooth × period): the circular mean of the indices and their
+  spread, the shortest stretch of the cycle that holds them all. Spread × 12 approximates how many
+  months births were spread over.
+
+### Rumen development (δ¹³C)
+
+A suckling calf's rumen is not yet working. As it develops, microbial fermentation (and the methane
+it makes) enriches the carbon reaching the enamel in ¹³C: the diet-to-enamel enrichment is larger in
+animals with more fermentation (Passey et al. 2005; about 14‰ in large ruminants, Cerling & Harris
+1999). First molar enamel δ¹³C therefore rises as the rumen develops (Towers et al. 2014). Diet also
+changes with the seasons, so δ¹³C is fitted with two models and compared by AICc:
+
+```
+seasonal only:   δ13C(x) = B + b·sin(2πx/X) + c·cos(2πx/X)
+with rumen step: δ13C(x) = B + b·sin(2πx/X) + c·cos(2πx/X) + R / (1 + exp((x − xm)/w))
+```
+
+X is the period found from δ¹⁸O; the phase of the δ¹³C wave is free (δ¹³C need not peak in summer).
+Without a δ¹⁸O cycle the background is a flat line. R ≥ 0 is the rise and xm the position of the
+transition. The step is reported as **rumen development** only when it fits clearly better
+(ΔAICc ≥ 2) and R is at least `min_rumen_rise_permil` (default 0.5‰). Reported: xm with a 95%
+interval, R, and, when X is known, the crown growth time between the first sample and xm
+((highest position − xm) / X × 12 months).
+
+* A rise above `max_rumen_rise_permil` (default 3‰) is flagged: rumen development alone gives
+  about 1–2‰, so a change of diet (for example to C4 plants) is probably involved.
+* A transition at the top of the sampled crown may have begun before the first sample formed.
+* M3 forms after weaning, so no rumen transition is expected in it.
+
+### Limits
+
+Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so the recorded
+signals are smoothed: amplitudes are lower and transitions more gradual than in life. No inverse
+model of mineralisation is applied (cf. Passey & Cerling 2002). Positions are not converted into
+ages, because enamel formation tables for cattle molars are not yet available; the x0/X index and
+crown-growth times avoid needing them. The synthetic example (`scripts/make_enamel_example.py`,
+twelve M2, smoothed over 8 mm) is recovered within 0.05 of each birth index and 3 mm of each rumen
+transition in the tests.
+
 ## Limitations / future work
 
 * The slice geometry assumes straight growth layers and a circular cross-section. Real

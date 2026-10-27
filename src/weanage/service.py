@@ -18,11 +18,21 @@ from .analysis import analyze, estimate_rows
 from .bone import analyze_bones, ingest_bone_dataframe
 from .bone_planner import BoneScenario, BoneSweepParam, run_bone_plan
 from .calibrate import CalibrationPoint, Method, calibrate_growth_table
+from .enamel import analyze_enamel, ingest_enamel_dataframe
 from .inference import compare_groups
 from .ingest import ingest_file, ingest_records, read_table
 from .models import MODEL_CATALOG
 from .qc import FLAG_DESCRIPTIONS
-from .schema import AnalysisOptions, BoneOptions, BoneSample, GrowthTable, IsotopeSample, ModelName
+from .schema import (
+    AnalysisOptions,
+    BoneOptions,
+    BoneSample,
+    EnamelOptions,
+    EnamelSample,
+    GrowthTable,
+    IsotopeSample,
+    ModelName,
+)
 from .simulate import SimulationScenario, SweepParam, run_simulation, sweep
 
 
@@ -35,6 +45,11 @@ class AnalyzeIn(BaseModel):
 class BoneAnalyzeIn(BaseModel):
     samples: list[BoneSample] = Field(min_length=1)
     options: BoneOptions | None = None
+
+
+class EnamelAnalyzeIn(BaseModel):
+    samples: list[EnamelSample] = Field(min_length=1)
+    options: EnamelOptions | None = None
 
 
 class SimulateBoneIn(BaseModel):
@@ -87,6 +102,8 @@ def get_config():
         "bone_examples": [{"name": key, "label": label} for key, (_, label, _) in BONE_EXAMPLES.items()],
         "turnover_tables": [t.model_dump() for t in config.turnover_tables()],
         "bone_priors": config.bone_priors(),
+        "enamel_defaults": EnamelOptions().model_dump(),
+        "enamel_examples": [{"name": key, "label": label} for key, (_, label, _) in ENAMEL_EXAMPLES.items()],
     }
 
 
@@ -168,6 +185,38 @@ def run_bone_analysis(body: BoneAnalyzeIn, progress=None):
 
 def run_bone_planner(body: SimulateBoneIn, progress=None):
     return run_bone_plan(body.scenario, body.options, body.sweep_param, body.sweep_values, progress)
+
+
+# Enamel data: season of birth (δ18O) and rumen development (δ13C) along one molar
+ENAMEL_EXAMPLES = {
+    "synthetic_enamel": ("synthetic_enamel_example.csv", "Synthetic cattle M2 enamel (simulated)",
+                         "Loaded SYNTHETIC enamel data (simulated, not real measurements): Site A calved within about "
+                         "a month, Site B over about seven."),
+}
+
+
+def read_enamel_upload(filename, content):
+    try:
+        return report_json(ingest_enamel_dataframe(read_table(content, filename)))
+    except Exception as err:
+        raise ValueError(f"Could not read file: {err}") from err
+
+
+def check_enamel_records(rows):
+    if not rows:
+        return {"samples": [], "issues": [], "teeth": []}
+    return report_json(ingest_enamel_dataframe(pd.DataFrame(rows)))
+
+
+def enamel_example(name="synthetic_enamel"):
+    if name not in ENAMEL_EXAMPLES:
+        raise ValueError(f"unknown enamel example {name!r}")
+    table = read_table(config.DATA_DIR / "examples" / ENAMEL_EXAMPLES[name][0])
+    return {**report_json(ingest_enamel_dataframe(table)), "message": ENAMEL_EXAMPLES[name][2]}
+
+
+def run_enamel_analysis(body: EnamelAnalyzeIn, progress=None):
+    return analyze_enamel(body.samples, body.options or EnamelOptions(), progress)
 
 
 def save_table(table: GrowthTable):

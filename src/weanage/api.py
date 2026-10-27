@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__, config, service
 from .schema import GrowthTable
-from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, SimulateBoneIn, SimulateIn
+from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, EnamelAnalyzeIn, SimulateBoneIn, SimulateIn
 
 app = FastAPI(title="WeanAge", version=__version__)
 
@@ -112,6 +112,26 @@ def bone_template_csv():
     return FileResponse(config.DATA_DIR / "templates" / "bone_template.csv", media_type="text/csv", filename="weanage_bone_template.csv")
 
 
+@app.post("/api/enamel/ingest/file")
+async def upload_enamel_file(file: UploadFile = File(...)):
+    return checked(service.read_enamel_upload, file.filename, await file.read())
+
+
+@app.post("/api/enamel/ingest/records")
+def check_enamel_records(body: dict):
+    return checked(service.check_enamel_records, body.get("records", []))
+
+
+@app.get("/api/enamel/example")
+def enamel_example(name: str = "synthetic_enamel"):
+    return checked(service.enamel_example, name)
+
+
+@app.get("/api/enamel/template.csv")
+def enamel_template_csv():
+    return FileResponse(config.DATA_DIR / "templates" / "enamel_template.csv", media_type="text/csv", filename="weanage_enamel_template.csv")
+
+
 @app.post("/api/growth-tables")
 def save_table(table: GrowthTable):
     return service.save_table(table)
@@ -136,6 +156,11 @@ def analyze_in_background(body: AnalyzeIn):
 @app.post("/api/jobs/bone")
 def bone_in_background(body: BoneAnalyzeIn):
     return start_job("bone", lambda progress: service.run_bone_analysis(body, progress))
+
+
+@app.post("/api/jobs/enamel")
+def enamel_in_background(body: EnamelAnalyzeIn):
+    return start_job("enamel", lambda progress: service.run_enamel_analysis(body, progress))
 
 
 @app.post("/api/jobs/bone-simulate")

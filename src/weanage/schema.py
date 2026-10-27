@@ -12,18 +12,12 @@ ModelName = Literal["logistic", "piecewise", "exponential", "two_phase", "elbow"
 MODEL_NAMES: list[ModelName] = ["logistic", "piecewise", "exponential", "two_phase", "elbow"]
 
 
-class CollagenSample(BaseModel):
-    """What every collagen measurement has, from a tooth slice or a bone."""
+class Sample(BaseModel):
+    """What every sample has, and how spreadsheet cells are read."""
 
     specimen_id: str = Field(min_length=1)
     site: str = Field(min_length=1)
     species: str = Field(min_length=1)
-    d15N: float = Field(ge=-10, le=30)
-    d13C: float | None = Field(default=None, ge=-45, le=5)
-    pct_C: float | None = Field(default=None, ge=0, le=100)
-    pct_N: float | None = Field(default=None, ge=0, le=100)
-    cn_ratio: float | None = Field(default=None, gt=0, le=50)
-    collagen_yield_pct: float | None = Field(default=None, ge=0, le=100)
     period: str | None = None
     notes: str | None = None
 
@@ -40,6 +34,17 @@ class CollagenSample(BaseModel):
     @classmethod
     def lower_case(cls, value):
         return value.strip().lower() if isinstance(value, str) else value
+
+
+class CollagenSample(Sample):
+    """A collagen measurement, from a tooth slice or a bone."""
+
+    d15N: float = Field(ge=-10, le=30)
+    d13C: float | None = Field(default=None, ge=-45, le=5)
+    pct_C: float | None = Field(default=None, ge=0, le=100)
+    pct_N: float | None = Field(default=None, ge=0, le=100)
+    cn_ratio: float | None = Field(default=None, gt=0, le=50)
+    collagen_yield_pct: float | None = Field(default=None, ge=0, le=100)
 
     @model_validator(mode="after")
     def atomic_cn(self):
@@ -271,3 +276,43 @@ class BoneOptions(BaseModel):
     warmup: int = Field(default=3000, ge=500, le=50000)
     keep: int = Field(default=4000, ge=500, le=50000)
     random_seed: int | None = 42
+
+
+# Enamel: season of birth (δ18O) and rumen development (δ13C) along one molar
+class EnamelSample(Sample):
+    """One sample of tooth enamel carbonate. specimen_id is one tooth.
+
+    erj_distance_mm is measured from the enamel-root junction (ERJ) up the crown, so larger
+    values formed earlier in life.
+    """
+
+    tooth: str = Field(min_length=1)
+    erj_distance_mm: float = Field(ge=0, le=150)
+    d18O: float | None = Field(default=None, ge=-30, le=15)  # ‰ VPDB, enamel carbonate
+    d13C: float | None = Field(default=None, ge=-30, le=15)  # ‰ VPDB, enamel carbonate
+    sample_index: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def has_a_value(self):
+        if self.d18O is None and self.d13C is None:
+            raise ValueError("each enamel sample needs d18O, d13C or both")
+        return self
+
+
+class EnamelOptions(BaseModel):
+    """Settings of the enamel analysis."""
+
+    # Crown length formed in one year (mm): the cosine period is kept within this range.
+    period_min_mm: float = Field(default=25.0, gt=0, le=200)
+    period_max_mm: float = Field(default=80.0, gt=0, le=300)
+    min_amplitude_permil: float = Field(default=0.5, ge=0)  # smaller δ18O cycles are not read as seasons
+    min_rumen_rise_permil: float = Field(default=0.5, ge=0)  # smaller δ13C rises are not read as rumen development
+    max_rumen_rise_permil: float = Field(default=3.0, gt=0)  # larger ones suggest a diet change as well
+    draws: int = Field(default=1000, ge=0, le=20000)
+    random_seed: int | None = 42
+
+    @model_validator(mode="after")
+    def check_period(self):
+        if self.period_min_mm >= self.period_max_mm:
+            raise ValueError("period_min_mm must be smaller than period_max_mm")
+        return self

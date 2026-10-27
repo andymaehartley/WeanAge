@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+* Enamel calculation for cattle: season of birth from sequential enamel δ¹⁸O (cosine fit, birth
+  index x₀/X, after Balasse et al. 2012) and rumen development from enamel δ¹³C (a rising step
+  beyond the seasonal wave, kept only if AICc supports it), with a synthetic example, a template,
+  group summaries of calving spread, and tests.
 * A PDF user guide (`docs/guide/WeanAge_user_guide.pdf`, also under Help in the app): how each
   part of the calculation works and where it comes from, with references.
 

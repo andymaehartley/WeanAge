@@ -35,7 +35,7 @@ figure { margin: 8pt auto 10pt; text-align: center; break-inside: avoid; }
 figure img { max-width: 100%; border: .6pt solid var(--line); border-radius: 3pt; }
 figcaption { font-size: 8.6pt; color: var(--muted); margin-top: 3pt; text-align: left; }
 p > img { border: .6pt solid var(--line); border-radius: 3pt; vertical-align: top; }
-.flow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8pt; margin: 4pt 0 8pt; font-size: 9pt; break-inside: avoid; }
+.flow { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; margin: 4pt 0 8pt; font-size: 9pt; break-inside: avoid; }
 .flow > div { background: var(--tint); border-radius: 4pt; padding: 6pt 8pt; line-height: 1.5; }
 .flow b { color: var(--accent); }
 .refs { columns: 2; column-gap: 16pt; font-size: 7.9pt; line-height: 1.32; }

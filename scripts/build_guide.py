@@ -77,22 +77,26 @@ def app_screenshots():
     while not server.started:
         time.sleep(0.05)
     click = lambda page, sel: page.evaluate("s => document.querySelector(s).click()", sel)  # noqa: E731
+    shot = lambda page, sel, name: (page.evaluate("document.querySelector('#toast').hidden = true"),  # noqa: E731
+                                    page.locator(sel).screenshot(path=str(FIGURES / name)))
     with sync_playwright() as p:
         browser = launch(p)
         page = browser.new_page(viewport={"width": 1280, "height": 860}, device_scale_factor=2)
         page.add_init_script("localStorage.setItem('weanage-tour-done', '1'); localStorage.setItem('weanage-theme', 'light')")
         page.goto(f"http://127.0.0.1:{port}/app/")
         page.wait_for_selector("#model-options input", state="attached")
+        page.add_style_tag(content=".statusbar { display: none; } .topbar { position: static; }")  # not over tall figures
         page.select_option("#example-choice", "isoarch_cattle")
         click(page, "#btn-example")
         page.wait_for_selector("#specimens-card:not([hidden])")
+        page.evaluate("document.querySelector('#toast').hidden = true")
         page.screenshot(path=str(FIGURES / "app_data.png"))
         click(page, '.step[data-view="settings"]')
         click(page, "#btn-run")
         page.wait_for_selector("#view-results.active", timeout=300000)
         page.click('[data-specimen="KNPM121"]')
         page.wait_for_timeout(400)
-        page.locator("#view-results .results-layout > :last-child").screenshot(path=str(FIGURES / "tooth_result.png"))
+        shot(page, "#view-results .results-layout > :last-child", "tooth_result.png")
         click(page, '.step[data-view="compare"]')
         page.wait_for_selector("#tests-body .summary", timeout=120000)
         page.wait_for_timeout(400)
@@ -106,7 +110,16 @@ def app_screenshots():
         click(page, "#btn-bone-run")
         page.wait_for_selector("#bone-res-chart svg", timeout=300000)
         page.wait_for_timeout(400)
-        page.locator("#view-bone-results .results-layout > :last-child").screenshot(path=str(FIGURES / "bone_result.png"))
+        shot(page, "#view-bone-results .results-layout > :last-child", "bone_result.png")
+        click(page, '.step[data-view="data"]')
+        page.check('input[name="calc"][value="enamel"]')
+        click(page, "#btn-example")
+        page.wait_for_selector("#enamel-teeth-card:not([hidden])")
+        click(page, '.step[data-view="settings"]')
+        click(page, "#btn-enamel-run")
+        page.wait_for_selector("#view-enamel-results.active", timeout=300000)
+        page.wait_for_timeout(400)
+        shot(page, "#view-enamel-results .results-main > :first-child", "enamel_result.png")
         browser.close()
     server.should_exit = True
 

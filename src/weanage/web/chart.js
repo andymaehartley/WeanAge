@@ -236,6 +236,33 @@ export function forestChart(box, groups, xTitle) {
   return svg;
 }
 
+/**
+ * Enamel values along the crown: samples, the fitted curve and marked positions.
+ * The cusp (formed first) is on the left, the enamel-root junction on the right.
+ * points: [{x, y, label}]  curve: {xs, ys} | null  marks: [{x, lo, hi, label}]
+ */
+export function profileChart(box, { points, curve, marks = [], yLabel, title, palette = theme() }) {
+  const desc = `${points.length} samples of ${yLabel} against distance from the enamel-root junction.`;
+  const { svg, area } = newChart(box, 760, 300, { l: 64, r: 24, t: 30, b: 56 }, title, desc);
+  if (!points.length) return svg;
+  const xt = niceTicks(0, Math.max(...points.map((p) => p.x)));
+  const yt = niceTicks(Math.min(...points.map((p) => p.y)), Math.max(...points.map((p) => p.y)), 5);
+  const xs = scale(xt.at(-1), xt[0], area.left, area.right);
+  const ys = scale(yt[0], yt.at(-1), area.bottom, area.top);
+  const axes = el("g", { class: "axes" }, svg);
+  yAxis(axes, area, ys, yt, yLabel);
+  xAxis(axes, area, xs, xt, "Distance from the enamel-root junction (mm) · formed earlier ← → later");
+  const line = color("logistic", palette);
+  if (curve) el("path", { d: path(curve.xs.map((x, i) => [x, curve.ys[i]]), xs, ys), fill: "none", stroke: line, "stroke-width": 3 }, svg);
+  for (const p of points) hover(box, marker("circle", xs(p.x), ys(p.y), 4.5, { class: "pt" }, svg), p.label);
+  for (const m of marks) {
+    el("line", { x1: xs(m.x), x2: xs(m.x), y1: area.top, y2: area.bottom, stroke: line, "stroke-dasharray": "5 3" }, svg);
+    if (m.lo != null) el("line", { x1: xs(m.lo), x2: xs(m.hi), y1: area.bottom - 8, y2: area.bottom - 8, stroke: line, "stroke-width": 3 }, svg);
+    el("text", { x: Math.min(xs(m.x) + 4, area.right - 120), y: area.top - 8, fill: line, class: "marker-label" }, svg).textContent = m.label;
+  }
+  return svg;
+}
+
 /** Line chart for the planner. series: [{name, color, dash, points: [{x, y}]}] */
 export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   const desc = series.map((s) => `${s.name}: ${s.points.map((p) => `${label(p.x)} → ${num(p.y)}`).join(", ")}`).join("; ");
