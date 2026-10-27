@@ -22,8 +22,25 @@ def test_example_is_recovered():
         index = r["season"]["birth_index"]["estimate"]
         assert abs((index - true_index + 0.5) % 1 - 0.5) < 0.05, r["specimen_id"]
         assert r["rumen"]["detected"] and abs(r["rumen"]["transition_mm"]["estimate"] - true_transition) < 3
-    spreads = {g["site"]: g["spread_months"] for g in out["groups"]}
-    assert spreads["Site A"] < 2 < 6 < spreads["Site B"]  # calving within ~1 month vs ~7 months
+        true_share = float(notes.split("true C4 share ")[1])
+        share = r["diet"]["share_c4"]
+        assert r["diet"]["after_rumen"] and abs(share["estimate"] - true_share) < 0.05
+        assert share["ci_low"] <= true_share <= share["ci_high"]
+    groups = {g["site"]: g for g in out["groups"]}
+    assert groups["Site A"]["spread_months"] < 2 < 6 < groups["Site B"]["spread_months"]  # calving within ~1 vs ~7 months
+    assert groups["Site A"]["mean_share_c4"] < 0.1 and 0.25 < groups["Site B"]["mean_share_c4"] < 0.4
+
+
+def test_c4_share_and_its_warnings():
+    from weanage.enamel import diet_c4
+    from weanage.schema import EnamelOptions
+
+    rng = np.random.default_rng(0)
+    x = np.linspace(50, 2, 12)
+    pure_c4 = diet_c4(x, np.full(12, -11.0 + 14.1) + rng.normal(0, 0.1, 12), None, "M2", EnamelOptions(), rng)
+    assert pure_c4["category"] == "C4 diet" and pure_c4["share_c4"]["estimate"] > 0.9
+    m1 = diet_c4(x, np.full(12, -12.9), None, "M1", EnamelOptions(), rng)  # no rumen transition found in an M1
+    assert m1["category"] == "C3 diet" and "suckled" in m1["warnings"][0]
 
 
 def test_no_signal_gives_no_result():

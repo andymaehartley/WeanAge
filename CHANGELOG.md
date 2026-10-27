@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+* C3 or C4 diet from enamel δ¹³C: the share of C4 plants by mixing a C3 and a C4 end member
+  (enamel-diet spacing 14.1‰, Cerling & Harris 1999), using enamel formed after the rumen
+  transition, with a 95% interval, pre-industrial or modern plant values, and group means.
 * Enamel calculation for cattle: season of birth from sequential enamel δ¹⁸O (cosine fit, birth
   index x₀/X, after Balasse et al. 2012) and rumen development from enamel δ¹³C (a rising step
   beyond the seasonal wave, kept only if AICc supports it), with a synthetic example, a template,

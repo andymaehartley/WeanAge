@@ -110,6 +110,10 @@ From known-age young animals and their mothers, ideally from the same herds.
       turn x₀/X into a season and to check the "spread × 12 months" approximation.
 - [ ] **Rumen δ¹³C rise** in known-age calves (size and timing), to check the 0.5‰ and 3‰ limits.
 - [ ] **Local drinking-water δ¹⁸O seasonality**: the method needs a clear yearly cycle.
+- [ ] **Local plant δ¹³C**: C3 and C4 plants (or herbivores of known diet) from the region and
+      period, to replace the default end members (−27‰ and −11‰, pre-industrial); check whether
+      C4 plants (millet, maize, C4 grasses) grew there at all.
+- [ ] **Enamel-diet spacing** for the species sampled (14.1‰ is for large ruminants).
 
 ## 9. Example data assumptions
 

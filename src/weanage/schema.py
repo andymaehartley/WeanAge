@@ -308,6 +308,15 @@ class EnamelOptions(BaseModel):
     min_amplitude_permil: float = Field(default=0.5, ge=0)  # smaller δ18O cycles are not read as seasons
     min_rumen_rise_permil: float = Field(default=0.5, ge=0)  # smaller δ13C rises are not read as rumen development
     max_rumen_rise_permil: float = Field(default=3.0, gt=0)  # larger ones suggest a diet change as well
+    # C3 or C4 diet: enamel δ13C minus this spacing is the diet's δ13C (large ruminants, Cerling & Harris 1999).
+    enamel_diet_spacing_permil: float = Field(default=14.1, ge=0, le=20)
+    enamel_diet_spacing_sd: float = Field(default=0.5, ge=0, le=5)
+    # Plant end members for a pre-industrial atmosphere: modern means (C3 about -28.5, Kohn 2010; C4 about
+    # -12.5) made about 1.5 per mil less negative for the Suess effect. Set modern values for modern animals.
+    c3_plants_d13C: float = Field(default=-27.0, ge=-40, le=-15)
+    c3_plants_sd: float = Field(default=2.0, gt=0, le=5)
+    c4_plants_d13C: float = Field(default=-11.0, ge=-20, le=-5)
+    c4_plants_sd: float = Field(default=1.0, gt=0, le=5)
     draws: int = Field(default=1000, ge=0, le=20000)
     random_seed: int | None = 42
 
@@ -315,4 +324,6 @@ class EnamelOptions(BaseModel):
     def check_period(self):
         if self.period_min_mm >= self.period_max_mm:
             raise ValueError("period_min_mm must be smaller than period_max_mm")
+        if self.c3_plants_d13C >= self.c4_plants_d13C:
+            raise ValueError("c3_plants_d13C must be lower than c4_plants_d13C")
         return self

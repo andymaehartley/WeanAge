@@ -338,7 +338,7 @@ several values with the same random seed. Because the data are simulated with th
 is fitted, the planner tests the design (how many animals, how well aged), not the model; with
 placeholder turnover it is a guide to relative, not absolute, precision.
 
-## 12. Season of birth and rumen development from enamel (`enamel.py`)
+## 12. Season of birth, rumen development and C3/C4 diet from enamel (`enamel.py`)
 
 A molar's enamel forms from the cusp tip down to the enamel-root junction (ERJ) over several
 months, so samples drilled up the crown are a time series. Each sample's position is its distance
@@ -396,6 +396,33 @@ interval, R, and, when X is known, the crown growth time between the first sampl
   about 1–2‰, so a change of diet (for example to C4 plants) is probably involved.
 * A transition at the top of the sampled crown may have begun before the first sample formed.
 * M3 forms after weaning, so no rumen transition is expected in it.
+
+### C3 or C4 diet (δ¹³C)
+
+Most temperate plants use the C3 pathway; C4 plants (millet, maize, sorghum, and many tropical and
+dry-country grasses) are about 15‰ higher in δ¹³C. Enamel δ¹³C in large ruminants is about 14.1‰ above
+the diet's (ε*, Cerling & Harris 1999), so
+
+```
+diet δ13C  = enamel δ13C − spacing
+share of C4 = (diet δ13C − C3 end member) / (C4 end member − C3 end member)
+```
+
+* Only enamel formed after the rumen transition is used when one was found, because milk and an
+  undeveloped rumen lower enamel δ¹³C. In an M1 without a transition a warning says the C4 share may
+  be underestimated.
+* Defaults are for a pre-industrial atmosphere: C3 −27.0 ± 2.0‰ and C4 −11.0 ± 1.0‰, from modern means
+  (C3 about −28.5‰, Kohn 2010; C4 about −12.5‰) made about 1.5‰ less negative, because burning fossil
+  fuel has lowered atmospheric (and plant) δ¹³C since about 1850. Use modern values for modern animals.
+  The spacing is 14.1 ± 0.5‰.
+* The tooth's mean, the spacing and both end members are drawn 1000 times from their uncertainties,
+  giving a 95% interval for the share (limited to 0–100%). The share is labelled a C3 diet (under 20%),
+  a C4 diet (over 80%) or mixed. The range of the per-sample shares shows seasonal changes, such as
+  C4 fodder in one season.
+* C3 plants vary from about −20 to −37‰ with water stress, light and canopy (Kohn 2010), so intervals
+  are wide (about ±20 percentage points with the defaults). Enamel below a pure C3 diet's value is
+  flagged (closed forest, the canopy effect, or a different spacing). For modern enamel, Cerling et al.
+  (1997) treat values above −8‰ as a conservative sign of C4 plants.
 
 ### Limits
 

@@ -50,7 +50,7 @@ et al. 2001), and the same has been found in sheep (Díez-Canseco & Tornero 2026
 <div class="flow">
 <div><b>Tooth calculation</b><br>slices of one tooth<br>→ position to age (§3)<br>→ quality control (§2)<br>→ curve models (§4)<br>→ uncertainty, averaging (§4)<br>→ one animal's weaning age</div>
 <div><b>Bone calculation</b><br>many young animals + adult females<br>→ quality control (§2)<br>→ diet and bone-turnover model (§5)<br>→ Bayesian fit (§5)<br>→ a site's weaning age</div>
-<div><b>Enamel (cattle)</b><br>δ¹⁸O and δ¹³C up one molar<br>→ yearly δ¹⁸O cycle (§6)<br>→ season-of-birth index<br>→ δ¹³C rise: rumen development (§6)</div>
+<div><b>Enamel (cattle)</b><br>δ¹⁸O and δ¹³C up one molar<br>→ yearly δ¹⁸O cycle (§6)<br>→ season-of-birth index<br>→ δ¹³C rise: rumen development (§6)<br>→ share of C4 plants (§6)</div>
 <div><b>Then</b><br>compare sites, species or periods (§7)<br><br><b>Before sampling</b><br>plan how many samples are needed (§8)</div>
 </div>
 
@@ -234,7 +234,7 @@ Yoneda stress, the model always fits something, so look at the plot first.
 
 ![Figure 3. Bone results for medieval Wharram Percy (Richards et al. 2002, via CIMA). Points are children's rib collagen with their age ranges; the solid line is the modelled bone δ¹⁵N, the dotted line the diet. Suckling ends at 22.6 months (95% interval 17–31), matching the authors' estimate of about two years.](figures/bone_result.png){width=88%}
 
-# 6. Season of birth and rumen development (enamel)
+# 6. Season of birth, rumen development and C3/C4 diet (enamel)
 
 This section uses tooth enamel rather than collagen, and is set up for cattle (`enamel.py`).
 Enamel of a molar forms from the cusp tip down to the enamel-root junction (ERJ) over several
@@ -260,11 +260,19 @@ clearly better (AICc) and rises by at least 0.5‰; its position on the crown ha
 Rises above 3‰ are flagged, since rumen development alone gives about 1–2‰ and a change of diet
 (for example to C4 plants) may be involved.
 
-Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so both signals are
+**C3 or C4 diet (δ¹³C).** C4 plants (millet, maize, sorghum, many tropical grasses) are about 15‰
+higher in δ¹³C than C3 plants. Enamel is about 14.1‰ above the diet in large ruminants (Cerling &
+Harris 1999), so the diet's δ¹³C, from enamel formed after the rumen transition, is placed between a C3
+and a C4 end member to give the share of C4 plants with a 95% interval. The default end members (C3
+−27‰, C4 −11‰) are for a pre-industrial atmosphere; modern animals need modern values, about 1.5‰
+lower, because fossil-fuel CO₂ has lowered plant δ¹³C. C3 plants vary by several ‰ with water stress
+and shade (Kohn 2010), so the interval is wide; local plant or herbivore values narrow it.
+
+Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so the signals are
 smoothed: the real δ¹⁸O cycle was larger and the δ¹³C change sharper than recorded. Positions are
 not converted into ages, because enamel formation tables for cattle are not yet available.
 
-![Figure 4. Enamel results for a synthetic cattle M2 (simulated data). Top: δ¹⁸O along the crown with the fitted cosine and its maximum. Bottom: δ¹³C with the fitted wave and rumen step, and the transition with its 95% interval.](figures/enamel_result.png){width=88%}
+![Figure 4. Enamel results for a synthetic cattle M2 (simulated data). Top: δ¹⁸O along the crown with the fitted cosine and its maximum. Bottom: δ¹³C with the fitted wave and rumen step, and the transition with its 95% interval. The text above gives the share of C4 plants.](figures/enamel_result.png){width=88%}
 
 # 7. Comparing groups
 
@@ -369,6 +377,8 @@ Burnham KP, Anderson DR (2002) *Model Selection and Multimodel Inference*, 2nd e
 
 Cerling TE, Harris JM (1999) *Oecologia* 120: 347–363.
 
+Cerling TE, Harris JM, MacFadden BJ, Leakey MG, Quade J, Eisenmann V, Ehleringer JR (1997) *Nature* 389: 153–158.
+
 Cocozza C, Cirelli E, Groß M, Teegen W-R, Fernandes R (2022) *Sci. Data* 9: 354 (CIMA).
 
 DeNiro MJ (1985) *Nature* 317: 806–809.
@@ -394,6 +404,8 @@ Holm S (1979) *Scand. J. Stat.* 6: 65–70.
 Hurvich CM, Tsai C-L (1989) *Biometrika* 76: 297–307.
 
 Jenkins SG et al. (2001) *Oecologia* 129: 336–341.
+
+Kohn MJ (2010) *Proc. Natl. Acad. Sci. USA* 107: 19691–19695.
 
 Millard AR (2000) In Goodfriend GA et al. (eds) *Perspectives in Amino Acid and Protein Geochemistry*. Oxford University Press.
 

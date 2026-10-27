@@ -131,7 +131,8 @@ def test_whole_workflow(page):
     page.fill("#enamel-draws", "100")
     click(page, "#btn-enamel-run")
     page.wait_for_selector("#view-enamel-results.active", timeout=120000)
-    assert "birth index" in page.text_content("#enamel-res-summary") and "Rumen development" in page.text_content("#enamel-res-summary")
+    summary = page.text_content("#enamel-res-summary")
+    assert "birth index" in summary and "Rumen development" in summary and "C3 diet" in summary
     assert "Site B" in page.text_content("#enamel-group-table")
     click(page, '.step[data-view="data"]')
     page.click("text=Tooth calculation")

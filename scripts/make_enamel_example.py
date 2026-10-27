@@ -4,8 +4,9 @@
 
 Each tooth's enamel δ18O follows a yearly cosine and its δ13C rises once as the rumen develops,
 on top of a weaker seasonal wave. Both are smoothed over 8 mm of crown, as enamel mineralisation
-smooths them, and measurement noise is added. Site A calved within about two months; Site B over
-about seven. The true values are in each row's notes. These are not real measurements.
+smooths them, and measurement noise is added. Site A calved within about two months and ate C3
+plants; Site B calved over about seven months and ate about a third C4 plants (e.g. millet). The
+true values are in each row's notes. These are not real measurements.
 """
 
 import csv
@@ -19,6 +20,8 @@ OUT = Path(__file__).resolve().parents[1] / "src" / "weanage" / "data" / "exampl
 PERIOD = 46.0  # mm of M2 crown formed in a year
 CROWN = 52.0  # the highest sample, mm above the enamel-root junction
 SITES = {"Site A": (0.30, 0.38), "Site B": (0.10, 0.68)}  # range of true birth indices (x0/X)
+C4_SHARE = {"Site A": 0.0, "Site B": 0.33}  # share of C4 plants in the diet once the rumen works
+SPACING, C3, C4 = 14.1, -27.0, -11.0  # the analysis defaults (enamel-diet spacing, plant end members)
 SMOOTH_MM, NOISE_O, NOISE_C = 8.0, 0.15, 0.12
 
 
@@ -37,12 +40,14 @@ def main():
             x = np.round(np.arange(CROWN, 1, -2.5) + rng.normal(0, 0.2, 21), 1)
             transition = rng.uniform(41, 46)
             d18o = smoothed(lambda xx, x0=index * PERIOD: cosine(xx, -4.8, 2.4, PERIOD, x0), x) + rng.normal(0, NOISE_O, x.size)
-            d13c = smoothed(lambda xx, middle=transition: -13.6 + 1.4 * rumen_step(xx, middle, 1.5)
+            weaned = C3 + C4_SHARE[site] * (C4 - C3) + SPACING  # enamel δ13C on the adult diet
+            d13c = smoothed(lambda xx, middle=transition, top=weaned: top - 1.4 + 1.4 * rumen_step(xx, middle, 1.5)
                             + 0.35 * np.sin(2 * np.pi * xx / PERIOD), x) + rng.normal(0, NOISE_C, x.size)
             for k, (xi, o, c) in enumerate(zip(x, d18o, d13c), start=1):
                 rows.append({"specimen_id": sid, "site": site, "species": "cattle", "tooth": "M2", "sample_index": k,
                              "erj_distance_mm": xi, "d18O": round(o, 2), "d13C": round(c, 2),
-                             "notes": f"SYNTHETIC; true birth index {index:.2f}; true rumen transition {transition:.1f} mm"})
+                             "notes": f"SYNTHETIC; true birth index {index:.2f}; true rumen transition {transition:.1f} mm; "
+                                      f"true C4 share {C4_SHARE[site]:.2f}"})
     with OUT.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()

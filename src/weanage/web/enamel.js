@@ -4,7 +4,8 @@ import { api } from "./api.js";
 import { forestChart, profileChart } from "./chart.js";
 import { $, download, esc, help, num, plural, progressBar, renderIssues, renderReady, renderWarnings, table, toast, toCsv } from "./util.js";
 
-const FIELDS = ["period_min_mm", "period_max_mm", "min_amplitude_permil", "min_rumen_rise_permil", "max_rumen_rise_permil", "draws"];
+const FIELDS = ["period_min_mm", "period_max_mm", "min_amplitude_permil", "min_rumen_rise_permil", "max_rumen_rise_permil", "draws",
+  "c3_plants_d13C", "c3_plants_sd", "c4_plants_d13C", "c4_plants_sd", "enamel_diet_spacing_permil", "enamel_diet_spacing_sd"];
 
 const teeth = (n) => `${n} ${n === 1 ? "tooth" : "teeth"}`;
 
@@ -128,7 +129,8 @@ async function runEnamel() {
 // Results
 const currentResult = () => state.enamel.results?.find((r) => r.specimen_id === state.enamel.current) || state.enamel.results?.[0];
 const range = (v, d = 2) => (v?.ci_low != null ? `${num(v.ci_low, d)}–${num(v.ci_high, d)}` : "");
-const warningsOf = (r) => [...(r.season?.warnings || []), ...(r.rumen?.warnings || [])];
+const warningsOf = (r) => [...(r.season?.warnings || []), ...(r.rumen?.warnings || []), ...(r.diet?.warnings || [])];
+const pct = (v) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 
 function choose(id) {
   state.enamel.current = id;
@@ -171,7 +173,13 @@ function summary(res) {
         ${num(r.transition_mm.estimate, 1)} mm above the enamel-root junction${r.transition_mm.ci_low != null ? ` (95% interval ${range(r.transition_mm, 1)} mm)` : ""}${
         r.months_after_first_sample != null ? `, about ${num(r.months_after_first_sample, 1)} months of crown growth after the first sample` : ""}.</p>`
     : `<p><strong>No rumen development detected ${help("rumen")}.</strong> ${esc(r.message)}.</p>`;
-  return season + rumen;
+  const d = res.diet;
+  const diet = !d ? "" : d.share_c4
+    ? `<p><strong>Diet ${help("c4")}:</strong> ${esc(d.category)}, about ${pct(d.share_c4.estimate)} C4 plants
+        (95% interval ${pct(d.share_c4.ci_low)}–${pct(d.share_c4.ci_high)}; samples range ${pct(d.sample_range[0])}–${pct(d.sample_range[1])}),
+        from ${plural(d.n, "sample")}${d.after_rumen ? " formed after the rumen transition" : ""}. Diet δ¹³C about ${num(d.diet_d13C, 1)}‰.</p>`
+    : `<p><strong>No diet estimate ${help("c4")}.</strong> ${esc(d.message)}.</p>`;
+  return season + rumen + diet;
 }
 
 function drawCharts(res) {
@@ -195,8 +203,9 @@ function drawCharts(res) {
 
 function renderGroups() {
   const groups = state.enamel.groups || [];
-  $("#enamel-group-chart").innerHTML = groups.length ? "" : '<p class="muted">No tooth has a birth index.</p>';
-  if (groups.length) forestChart($("#enamel-group-chart"), groups.map((g) => ({
+  const dated = groups.filter((g) => g.n_index);
+  $("#enamel-group-chart").innerHTML = dated.length ? "" : '<p class="muted">No tooth has a birth index.</p>';
+  if (dated.length) forestChart($("#enamel-group-chart"), dated.map((g) => ({
     label: g.group, mean: g.mean_index, lo: NaN, hi: NaN,
     values: g.teeth.map((t) => ({ v: t.birth_index, label: `${esc(t.specimen_id)}: ${num(t.birth_index, 2)}` })),
   })), "Birth index (x₀/X): squares = circular mean, dots = teeth");
@@ -206,6 +215,7 @@ function renderGroups() {
     { label: "Mean index", cls: "num", render: (g) => num(g.mean_index, 2) },
     { label: "Spread", cls: "num", render: (g) => num(g.spread_index, 2) },
     { label: "≈ months of births", cls: "num", render: (g) => num(g.spread_months, 1) },
+    { label: "Mean C4 share", cls: "num", render: (g) => pct(g.mean_share_c4) },
   ], groups);
 }
 
@@ -217,5 +227,7 @@ function estimateRows() {
     rumen_detected: r.rumen?.detected, rumen_transition_mm: r.rumen?.transition_mm?.estimate,
     rumen_transition_ci_low: r.rumen?.transition_mm?.ci_low, rumen_transition_ci_high: r.rumen?.transition_mm?.ci_high,
     rumen_rise_permil: r.rumen?.rise_permil, months_after_first_sample: r.rumen?.months_after_first_sample,
+    diet: r.diet?.category, c4_share: r.diet?.share_c4?.estimate, c4_share_ci_low: r.diet?.share_c4?.ci_low,
+    c4_share_ci_high: r.diet?.share_c4?.ci_high, diet_d13C: r.diet?.diet_d13C, diet_samples: r.diet?.n,
   }));
 }

@@ -1,4 +1,4 @@
-"""Season of birth and rumen development from sequential enamel δ18O and δ13C, for cattle.
+"""Season of birth, rumen development and C3/C4 diet from sequential enamel δ18O and δ13C, for cattle.
 
 A molar's enamel forms from the cusp tip down to the enamel-root junction (ERJ) over several
 months, so samples taken up the crown are a time series: the further from the ERJ, the earlier
@@ -13,6 +13,9 @@ in life the enamel formed. Each sample's position is its distance from the ERJ.
   fermentation enriches the carbon that reaches the enamel in 13C (Passey et al. 2005), so first
   molar enamel δ13C rises (Towers et al. 2014). The δ13C series is fitted with a seasonal wave of
   the same period X plus a rising step, and the step is kept only if it improves the fit (AICc).
+* C3 or C4 diet (δ13C). Enamel δ13C is about 14‰ above the diet's (Cerling & Harris 1999), and C4
+  grasses (millet, maize, many tropical grasses) are about 15‰ higher than C3 plants. The share of C4
+  plants is found by mixing a C3 and a C4 end member, from the enamel formed after the rumen works.
 
 Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so both signals are
 smoothed: amplitudes are lower and transitions more gradual than in life. Positions are not
@@ -218,6 +221,46 @@ def fit_rumen(x, y, period, tooth, options, rng):
     return out
 
 
+def diet_c4(x, y, rumen, tooth, options, rng):
+    """Share of C4 plants in the diet: diet δ13C = enamel δ13C − spacing, mixed from a C3 and a C4 end member.
+
+    The uncertainty of the spacing, of both end members and of the tooth's mean is carried through by
+    random draws. When a rumen transition was found, only enamel formed after it is used, because milk
+    and an undeveloped rumen lower enamel δ13C.
+    """
+    after = bool(rumen and rumen.get("detected"))
+    used = x < rumen["transition_mm"]["estimate"] if after else np.ones(len(x), dtype=bool)
+    out = {"n": int(used.sum()), "after_rumen": after, "share_c4": None, "message": "", "warnings": []}
+    if used.sum() < 3:
+        out["message"] = f"Only {int(used.sum())} δ13C values formed after the rumen transition; at least 3 are needed"
+        return out
+    o = options
+    values = y[used]
+    mean, se = float(values.mean()), float(values.std(ddof=1) / math.sqrt(len(values)))
+    to_share = lambda enamel, spacing, c3, c4: (enamel - spacing - c3) / (c4 - c3)  # noqa: E731
+    raw = to_share(mean, o.enamel_diet_spacing_permil, o.c3_plants_d13C, o.c4_plants_d13C)
+    estimate = float(np.clip(raw, 0, 1))
+    n = max(o.draws, 1000)
+    draws = np.clip(to_share(rng.normal(mean, se, n), rng.normal(o.enamel_diet_spacing_permil, o.enamel_diet_spacing_sd, n),
+                             rng.normal(o.c3_plants_d13C, o.c3_plants_sd, n), rng.normal(o.c4_plants_d13C, o.c4_plants_sd, n)), 0, 1)
+    low, high = interval(draws)
+    each = np.clip(to_share(values, o.enamel_diet_spacing_permil, o.c3_plants_d13C, o.c4_plants_d13C), 0, 1)
+    category = "C3 diet" if estimate < 0.2 else "C4 diet" if estimate > 0.8 else "mixed C3 and C4 diet"
+    out.update(enamel_mean_d13C=mean, diet_d13C=mean - o.enamel_diet_spacing_permil, category=category,
+               share_c4={"estimate": estimate, "ci_low": low, "ci_high": high},
+               sample_range=[float(each.min()), float(each.max())])
+    if not after and tooth.lower() == "m1":
+        out["warnings"].append("Part of this M1 formed while the calf suckled, when milk and an undeveloped rumen lower "
+                               "δ13C: the C4 share may be underestimated (an M2, M3 or the part after a rumen transition "
+                               "is better)")
+    if raw < -0.25:
+        out["warnings"].append("δ13C is lower than a pure C3 diet should give: closed forest (the canopy effect) or a "
+                               "different enamel-diet spacing may explain it")
+    if raw > 1.25:
+        out["warnings"].append("δ13C is higher than a pure C4 diet should give: check the end members and the spacing")
+    return out
+
+
 def analyze_tooth(rows, options, rng):
     rows = sorted(rows, key=lambda r: -r.erj_distance_mm)  # first formed first
     first = rows[0]
@@ -227,8 +270,9 @@ def analyze_tooth(rows, options, rng):
     season = fit_season(*map(np.array, zip(*o)), options, rng) if o else None
     period = season.get("period_mm") if season and season["birth_index"] else None
     rumen = fit_rumen(*map(np.array, zip(*c)), period, first.tooth, options, rng) if c else None
+    diet = diet_c4(*map(np.array, zip(*c)), rumen, first.tooth, options, rng) if c else None
     return {"specimen_id": first.specimen_id, "site": first.site, "species": first.species, "tooth": first.tooth,
-            "period": first.period, "points": points, "season": season, "rumen": rumen}
+            "period": first.period, "points": points, "season": season, "rumen": rumen, "diet": diet}
 
 
 def circular_mean(values):
@@ -245,25 +289,29 @@ def smallest_arc(values):
     return float(1 - gaps.max())
 
 
-def birth_seasons(results):
-    """Birth indices of each site × species × tooth (× period): their circular mean and spread.
+def group_summary(results):
+    """Each site × species × tooth (× period): birth indices and C4 shares of its teeth.
 
-    x0/X is only comparable between teeth of the same type. The spread of the indices, times 12,
-    approximates how many months births were spread over (Balasse et al. 2012).
+    x0/X is only comparable between teeth of the same type. The spread of the indices (the shortest
+    stretch of the year holding them all), times 12, approximates how many months births were spread
+    over (Balasse et al. 2012).
     """
     groups: dict[tuple, list] = {}
     for r in results:
-        if r["season"] and r["season"]["birth_index"]:
-            key = (r["site"], r["species"], r["tooth"], r["period"])
-            groups.setdefault(key, []).append((r["specimen_id"], r["season"]["birth_index"]["estimate"]))
+        groups.setdefault((r["site"], r["species"], r["tooth"], r["period"]), []).append(r)
     out = []
-    for (site, species, tooth, period), items in groups.items():
-        values = [v for _, v in items]
-        arc = smallest_arc(values)
+    for (site, species, tooth, period), members in groups.items():
+        index_of = {r["specimen_id"]: r["season"]["birth_index"]["estimate"] for r in members
+                    if r["season"] and r["season"]["birth_index"]}
+        shares = [r["diet"]["share_c4"]["estimate"] for r in members if r["diet"] and r["diet"]["share_c4"]]
+        indices = list(index_of.values())
+        arc = smallest_arc(indices) if indices else None
         out.append({"group": " · ".join(str(k) for k in (site, species, tooth, period) if k), "site": site,
-                    "species": species, "tooth": tooth, "period": period, "n": len(values),
-                    "mean_index": circular_mean(values), "spread_index": arc, "spread_months": arc * 12,
-                    "teeth": [{"specimen_id": s, "birth_index": v} for s, v in items]})
+                    "species": species, "tooth": tooth, "period": period, "n": len(members), "n_index": len(indices),
+                    "mean_index": circular_mean(indices) if indices else None, "spread_index": arc,
+                    "spread_months": arc * 12 if arc is not None else None,
+                    "mean_share_c4": float(np.mean(shares)) if shares else None, "n_diet": len(shares),
+                    "teeth": [{"specimen_id": sid, "birth_index": v} for sid, v in index_of.items()]})
     return out
 
 
@@ -276,4 +324,4 @@ def analyze_enamel(samples, options=None, progress=None):
         results.append(analyze_tooth(rows, options, rng))
         if progress:
             progress(i + 1, len(teeth))
-    return {"results": results, "groups": birth_seasons(results)}
+    return {"results": results, "groups": group_summary(results)}
