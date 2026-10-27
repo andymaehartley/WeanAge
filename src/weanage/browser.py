@@ -11,7 +11,7 @@ import numpy as np
 
 from . import service
 from .schema import GrowthTable
-from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, EnamelAnalyzeIn, SimulateBoneIn, SimulateIn
+from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, SimulateBoneIn, SimulateIn
 
 
 def clean(value):
@@ -47,10 +47,10 @@ REQUESTS = {
     "bone_upload": lambda r, progress: service.read_bone_upload(r["filename"], bytes(r["content"])),
     "bone_analyze": lambda r, progress: service.run_bone_analysis(BoneAnalyzeIn(**r), progress),
     "bone_simulate": lambda r, progress: service.run_bone_planner(SimulateBoneIn(**r), progress),
-    "enamel_example": lambda r, progress: service.enamel_example(r.get("name", "synthetic_enamel")),
-    "enamel_records": lambda r, progress: service.check_enamel_records(r["records"]),
-    "enamel_upload": lambda r, progress: service.read_enamel_upload(r["filename"], bytes(r["content"])),
-    "enamel_analyze": lambda r, progress: service.run_enamel_analysis(EnamelAnalyzeIn(**r), progress),
+    "calc_example": lambda r, progress: service.calculation_example(r["calc"], r.get("example")),
+    "calc_records": lambda r, progress: service.check_calculation_records(r["calc"], r["records"]),
+    "calc_upload": lambda r, progress: service.read_calculation_upload(r["calc"], r["filename"], bytes(r["content"])),
+    "calc_analyze": lambda r, progress: service.run_calculation(r["calc"], r, progress),
 }
 
 

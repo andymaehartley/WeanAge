@@ -98,6 +98,10 @@ def species_priors(species):
     return priors.get(species.lower(), priors["default"])
 
 
+def diet_sources():
+    return read_json(DATA_DIR / "diet_sources.json")
+
+
 def qc_config():
     return read_json(DATA_DIR / "qc_thresholds.json")
 
@@ -132,6 +136,10 @@ def tbd_items():
         if entry.get("placeholder") and species != "default":
             items.append({"id": f"bone-priors:{species}", "area": "Bone model priors", "label": f"{species} priors",
                           "note": entry.get("tbd_note", ""), "file": "src/weanage/data/bone_priors.json"})
+    diet = diet_sources()
+    if diet.get("placeholder"):
+        items.append({"id": "diet:sources", "area": "Diet mixing", "label": "Food sources and collagen-diet offsets",
+                      "note": diet.get("tbd_note", ""), "file": "src/weanage/data/diet_sources.json"})
     qc = qc_config()
     if qc.get("placeholder"):
         items.append({"id": "qc:thresholds", "area": "Collagen QC", "label": "Quality-control thresholds",

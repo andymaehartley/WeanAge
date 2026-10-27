@@ -263,6 +263,45 @@ export function profileChart(box, { points, curve, marks = [], yLabel, title, pa
   return svg;
 }
 
+/**
+ * δ13C–δ15N biplot for the diet mixing model: samples (shape and colour by group) and food groups
+ * already shifted by the collagen-diet offsets, each drawn as a ±1 SD box.
+ * points: [{x, y, label, group}]  sources: [{name, x, y, sdx, sdy}]
+ */
+export function biplotChart(box, { points, sources, title, palette = theme() }) {
+  const desc = `${points.length} samples; food groups plus offsets: ${sources.map((s) => `${s.name} δ13C ${num(s.x, 1)}, δ15N ${num(s.y, 1)}`).join("; ")}.`;
+  const { svg, area } = newChart(box, 760, 420, { l: 64, r: 24, t: 16, b: 56 }, title, desc);
+  const xsAll = [...points.map((p) => p.x), ...sources.flatMap((s) => [s.x - s.sdx, s.x + s.sdx])];
+  const ysAll = [...points.map((p) => p.y), ...sources.flatMap((s) => [s.y - s.sdy, s.y + s.sdy])];
+  const xt = niceTicks(Math.min(...xsAll), Math.max(...xsAll));
+  const yt = niceTicks(Math.min(...ysAll), Math.max(...ysAll), 5);
+  const xs = scale(xt[0], xt.at(-1), area.left, area.right);
+  const ys = scale(yt[0], yt.at(-1), area.bottom, area.top);
+  const axes = el("g", { class: "axes" }, svg);
+  yAxis(axes, area, ys, yt, "Collagen δ¹⁵N (‰ AIR)");
+  xAxis(axes, area, xs, xt, "Collagen δ¹³C (‰ VPDB)");
+  const muted = color("average", palette);
+  for (const s of sources) {
+    el("rect", { x: xs(s.x - s.sdx), y: ys(s.y + s.sdy), width: xs(s.x + s.sdx) - xs(s.x - s.sdx), height: ys(s.y - s.sdy) - ys(s.y + s.sdy),
+      fill: "none", stroke: muted, "stroke-dasharray": "5 3" }, svg);
+  }
+  const groups = [...new Set(points.map((p) => p.group))];
+  const groupColor = (i) => color(["logistic", "piecewise", "exponential", "two_phase"][i % 4], palette);
+  for (const p of points) {
+    const i = groups.indexOf(p.group);
+    hover(box, marker(SHAPES[i % 4], xs(p.x), ys(p.y), 5, { fill: groupColor(i), class: "pt-group" }, svg), p.label);
+  }
+  for (const s of sources) { // names last, so points do not cover them
+    el("text", { x: xs(s.x), y: ys(s.y + s.sdy) - 6, "text-anchor": "middle", fill: muted, class: "marker-label" }, svg).textContent = s.name;
+  }
+  groups.forEach((g, i) => {
+    const y = area.top + 12 + i * 18;
+    marker(SHAPES[i % 4], area.left + 16, y, 5, { fill: groupColor(i) }, svg);
+    el("text", { x: area.left + 28, y: y + 4, class: "legend-text" }, svg).textContent = g;
+  });
+  return svg;
+}
+
 /** Line chart for the planner. series: [{name, color, dash, points: [{x, y}]}] */
 export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   const desc = series.map((s) => `${s.name}: ${s.points.map((p) => `${label(p.x)} → ${num(p.y)}`).join(", ")}`).join("; ");

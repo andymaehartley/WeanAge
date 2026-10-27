@@ -2,7 +2,9 @@
 import { initAbout } from "./about.js";
 import { initBonePlanner, renderBonePlan } from "./bone_planner.js";
 import { applyBoneSettings, boneSettings, initBone, loadBoneExample, loadBoneFile, renderBoneData, renderBoneResults, renderTurnover, setBoneReport } from "./bone.js";
-import { applyEnamelSettings, enamelSettings, initEnamel, loadEnamelExample, loadEnamelFile, renderEnamelData, renderEnamelResults, setEnamelReport } from "./enamel.js";
+import { enamel } from "./enamel.js";
+import { killoff } from "./killoff.js";
+import { mixing } from "./mixing.js";
 import { api, inBrowser, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
@@ -13,7 +15,7 @@ import { $, $$, ageNum, ageText, ageValue, ci, download, esc, getAgeUnit, help, 
 
 const state = {
   config: null, // settings and lists sent by the server
-  mode: "tooth", // which calculation: "tooth", "bone" or "enamel" (their data and results are in state.bone, state.enamel)
+  mode: "tooth", // which calculation: "tooth", "bone", or one of CALCS (their data and results are in state.bone, state.enamel...)
   samples: [],
   report: null, // the server's check of the samples (issues, specimen list)
   overrides: {}, // "species:tooth" -> simple linear age model
@@ -29,9 +31,13 @@ const state = {
 };
 const capital = (s) => s[0].toUpperCase() + s.slice(1);
 
+// The one-table calculations (see calc.js)
+const CALCS = { enamel, killoff, mixing };
+const oneTable = () => CALCS[state.mode];
+
 // Switching views
-// The bone and enamel calculations have their own pages for these views.
-const OWN_VIEWS = { bone: ["settings", "results", "plan"], enamel: ["settings", "results"] };
+// The bone calculation and CALCS have their own pages for these views.
+const OWN_VIEWS = { bone: ["settings", "results", "plan"], ...Object.fromEntries(Object.keys(CALCS).map((name) => [name, ["settings", "results"]])) };
 
 function show(view) {
   for (const b of $$(".step")) {
@@ -43,7 +49,7 @@ function show(view) {
   const own = OWN_VIEWS[state.mode]?.includes(view) ? state.mode : null;
   const bone = own === "bone";
   for (const v of $$(".view")) v.classList.toggle("active", v.id === `view-${own ? `${own}-${view}` : view}`);
-  if (view === "settings" && state.mode !== "enamel") {
+  if (view === "settings" && !oneTable()) {
     // The collagen QC limits are shared, so their card moves to whichever settings page is open.
     $(bone ? "#qc-bone-home" : "#qc-home").append($("#qc-card"));
     if (bone) renderTurnover();
@@ -56,14 +62,14 @@ function show(view) {
 
 function enableResults() {
   const tooth = state.mode === "tooth";
-  $('.step[data-view="results"]').disabled = !{ tooth: state.results, bone: state.bone.results, enamel: state.enamel.results }[state.mode];
+  $('.step[data-view="results"]').disabled = !(oneTable() ? oneTable().hasResults() : { tooth: state.results, bone: state.bone.results }[state.mode]);
   for (const b of $$('.step[data-view="compare"], #btn-report')) {
     b.disabled = !tooth || !state.results;
     b.title = tooth ? "" : "Tooth calculation only";
   }
   const plan = $('.step[data-view="plan"]');
-  plan.disabled = state.mode === "enamel";
-  plan.title = state.mode === "enamel" ? "Tooth and bone calculations only" : "";
+  plan.disabled = Boolean(oneTable());
+  plan.title = oneTable() ? "Tooth and bone calculations only" : "";
 }
 
 /** Switch between the tooth and bone calculations; each keeps its own data and results. */
@@ -71,9 +77,9 @@ function setMode(mode, save = true) {
   state.mode = mode;
   for (const radio of $$('input[name="calc"]')) radio.checked = radio.value === mode;
   for (const node of $$("[data-mode]")) node.hidden = node.dataset.mode !== mode;
-  const examples = { tooth: state.config.examples, bone: state.config.bone_examples, enamel: state.config.enamel_examples }[mode];
+  const examples = oneTable() ? state.config.calculations[mode].examples : { tooth: state.config.examples, bone: state.config.bone_examples }[mode];
   $("#example-choice").innerHTML = examples.map((e) => `<option value="${esc(e.name)}">${esc(e.label)}</option>`).join("");
-  $("#btn-template").href = { tooth: api.templateUrl, bone: api.boneTemplateUrl, enamel: api.enamelTemplateUrl }[mode];
+  $("#btn-template").href = oneTable() ? api.calcTemplateUrl(mode) : { tooth: api.templateUrl, bone: api.boneTemplateUrl }[mode];
   renderData();
   enableResults();
   if (save) autosave(); // not on start-up, which would overwrite the session waiting to be restored
@@ -125,7 +131,10 @@ function ageModelLabel(species, tooth) {
 
 function renderData() {
   if (state.mode === "bone") return renderBoneData(); // the Data page is showing another calculation
-  if (state.mode === "enamel") return renderEnamelData();
+  if (oneTable()) {
+    $("#specimens-card").hidden = true; // the tooth calculation's table
+    return oneTable().renderData();
+  }
   renderIssues(state.report ? state.report.issues : []);
   $("#specimens-card").hidden = !state.samples.length || state.mode === "bone";
   $("#sample-count").textContent = `· ${state.samples.length} samples`;
@@ -159,7 +168,7 @@ function renderData() {
 
 async function loadFile(file) {
   if (state.mode === "bone") return loadBoneFile(file);
-  if (state.mode === "enamel") return loadEnamelFile(file);
+  if (oneTable()) return oneTable().loadFile(file);
   try {
     setReport(await api.uploadFile(file));
   } catch (e) {
@@ -573,8 +582,7 @@ function project() {
     analysis_options: state.options, current: state.current, plan: state.plan, mode: state.mode,
     bone: { samples: state.bone.samples, settings: boneSettings(settings().qc), results: state.bone.results,
       options: state.bone.options, current: state.bone.current },
-    enamel: { samples: state.enamel.samples, settings: enamelSettings(), results: state.enamel.results, groups: state.enamel.groups,
-      options: state.enamel.options, current: state.enamel.current },
+    ...Object.fromEntries(Object.values(CALCS).map((calc) => [calc.name, calc.saved()])),
   };
 }
 
@@ -589,7 +597,7 @@ function autosave() {
       try {
         const small = project();
         small.bone.results = null;
-        small.enamel.results = null;
+        for (const name in CALCS) small[name].output = null;
         localStorage.setItem("weanage-autosave", JSON.stringify({ ...small, results: null, estimates: null }));
       } catch {}
     }
@@ -607,14 +615,7 @@ function openProject(p) {
       if (state.bone.results) renderBoneResults();
     }).catch((e) => toast(e.message));
   }
-  if (p.enamel) {
-    applyEnamelSettings(p.enamel.settings || {});
-    Object.assign(state.enamel, { results: p.enamel.results, groups: p.enamel.groups, options: p.enamel.options, current: p.enamel.current });
-    api.enamelRecords(p.enamel.samples || []).then((report) => {
-      setEnamelReport(report, true);
-      if (state.enamel.results) renderEnamelResults();
-    }).catch((e) => toast(e.message));
-  }
+  for (const calc of Object.values(CALCS)) if (p[calc.name]) calc.restore(p[calc.name]);
   setMode(p.mode || "tooth");
   Object.assign(state, { samples: p.samples, options: p.analysis_options, plan: p.plan || null });
   state.visible = new Set([...(state.options?.models || []), "average"]);
@@ -632,10 +633,10 @@ function offerRestore() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem("weanage-autosave")); } catch {}
   const animals = saved?.bone?.samples?.length || 0;
-  const enamel = saved?.enamel?.samples?.length || 0;
-  if (!saved?.samples?.length && !animals && !enamel) return;
+  const others = Object.values(CALCS).map((calc) => [saved?.[calc.name]?.samples?.length || 0, calc.plural]);
+  if (!saved?.samples?.length && !animals && !others.some(([n]) => n)) return;
   const what = [saved.samples.length && `${saved.samples.length} tooth samples`, animals && `${animals} animals (bone)`,
-    enamel && `${enamel} enamel samples`].filter(Boolean).join(", ");
+    ...others.map(([n, noun]) => n && `${n} ${noun}`)].filter(Boolean).join(", ");
   $("#restore-when").textContent = `${what}, ${new Date(saved.saved_at).toLocaleString()}`;
   $("#restore-banner").hidden = false;
   $("#btn-restore").onclick = () => { openProject(saved); $("#restore-banner").hidden = true; };
@@ -674,7 +675,7 @@ function bind() {
   for (const radio of $$('input[name="calc"]')) radio.addEventListener("change", () => setMode(radio.value));
   on("#btn-example", "click", async () => {
     if (state.mode === "bone") return loadBoneExample($("#example-choice").value);
-    if (state.mode === "enamel") return loadEnamelExample($("#example-choice").value);
+    if (oneTable()) return oneTable().loadExample($("#example-choice").value);
     try {
       const report = await api.example($("#example-choice").value || "synthetic");
       setReport(report);
@@ -686,8 +687,8 @@ function bind() {
   on("#btn-clear", "click", () => {
     if (state.mode === "bone") {
       if (!state.bone.samples.length || confirm("Remove all loaded animals?")) setBoneReport({ samples: [], issues: [], groups: [] });
-    } else if (state.mode === "enamel") {
-      if (!state.enamel.samples.length || confirm("Remove all loaded enamel samples?")) setEnamelReport({ samples: [], issues: [], teeth: [] });
+    } else if (oneTable()) {
+      oneTable().clear();
     } else if (!state.samples.length || confirm("Remove all loaded samples?")) setReport({ samples: [], issues: [], specimens: [] });
   });
   on("#manual-form", "submit", addSampleByHand);
@@ -771,7 +772,7 @@ function setLook(key, value) {
   showLook();
   if (state.results?.length) renderResults(); // charts pick their colours when drawn
   if (state.bone?.results) renderBoneResults();
-  if (state.enamel?.results) renderEnamelResults();
+  for (const calc of Object.values(CALCS)) calc.renderResults();
   if (state.plan) renderPlan(state);
   if (state.bonePlan) renderBonePlan(state);
 }
@@ -788,7 +789,7 @@ function setUnits(unit) {
   if (state.mode === "bone") renderBoneData();
   if (state.results?.length) renderResults();
   if (state.bone?.results) renderBoneResults();
-  if (state.enamel?.results) renderEnamelResults();
+  for (const calc of Object.values(CALCS)) calc.renderResults();
   if (state.plan) renderPlan(state);
   if (state.bonePlan) renderBonePlan(state);
   if ($("#view-compare").classList.contains("active")) refreshCompare();
@@ -832,7 +833,7 @@ async function init() {
   $("#sb-mode").textContent = inBrowser ? "Running in this browser" : "Local app";
   initSettings();
   initBone(state, { show, autosave, refreshNav: enableResults, qc: () => settings().qc });
-  initEnamel(state, { show, autosave, refreshNav: enableResults });
+  for (const calc of Object.values(CALCS)) calc.init(state, { show, autosave, refreshNav: enableResults });
   setMode("tooth", false);
   initAbout(state.config);
   initPlanner(state);

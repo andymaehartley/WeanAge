@@ -1,0 +1,17 @@
+{
+  "_README": "Food groups and collagen-diet offsets for the diet mixing model (‰, mean and SD). Food values are for the protein as eaten. PLACEHOLDERS: these are rough, round values meant to show how the model works. Replace them with values from plants and animal bones of the same site and period (TBD-LAB), and choose offsets from the literature for your species (e.g. O'Connell et al. 2012 for human δ15N).",
+  "placeholder": true,
+  "tbd_note": "Measure local food baselines (plants, fauna, fish) and choose collagen-diet offsets for the species studied.",
+  "sources": [
+    {"name": "C3 plants", "d13C": -25.0, "d13C_sd": 1.0, "d15N": 3.0, "d15N_sd": 1.5, "d34S": 5.0, "d34S_sd": 3.0},
+    {"name": "C4 plants", "d13C": -11.0, "d13C_sd": 1.0, "d15N": 4.0, "d15N_sd": 1.5, "d34S": 5.0, "d34S_sd": 3.0},
+    {"name": "Terrestrial animals", "d13C": -21.0, "d13C_sd": 1.0, "d15N": 6.0, "d15N_sd": 1.0, "d34S": 5.0, "d34S_sd": 3.0},
+    {"name": "Marine fish", "d13C": -14.0, "d13C_sd": 1.0, "d15N": 12.0, "d15N_sd": 1.5, "d34S": 17.0, "d34S_sd": 1.5}
+  ],
+  "offset_d13C": 4.8,
+  "offset_d13C_sd": 0.5,
+  "offset_d15N": 5.5,
+  "offset_d15N_sd": 0.5,
+  "offset_d34S": 0.5,
+  "offset_d34S_sd": 1.0
+}

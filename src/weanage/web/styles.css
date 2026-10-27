@@ -124,6 +124,7 @@ label:has(> [data-helpslot]) > .tbd-badge { justify-self: start; }
 label.check:has(> [data-helpslot]) { display: flex; }
 button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; font: inherit; display: inline; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .6rem .9rem; }
+.form-grid.pairs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .form-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: .75rem; }
 fieldset.inline { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; }
 fieldset.inline legend { float: left; margin-right: .5rem; font-size: .84rem; color: var(--muted); }
@@ -250,6 +251,7 @@ svg.chart .pt { fill: var(--text); stroke: var(--card); stroke-width: 1.5; curso
 svg.chart .pt-extra { fill: var(--muted); }
 svg.chart .pt-excluded { fill: none; stroke: var(--error); stroke-width: 1.75; }
 svg.chart .pt-small { fill: var(--accent); }
+svg.chart .pt-group { stroke: var(--card); stroke-width: 1.5; cursor: pointer; }
 svg.chart .ci { stroke: var(--text); stroke-width: 2; }
 svg.chart .mean { fill: var(--text); }
 svg.chart .marker-label { font-weight: 500; font-size: 11.5px; paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
@@ -355,3 +357,8 @@ td.num, th.num, .age, .readout, .pill { font-variant-numeric: tabular-nums; }
 .readout .unit { font-size: 1rem; color: var(--text); }
 .readout .what { color: var(--muted); }
 .specimen-list button > span:last-child { white-space: nowrap; flex: none; }
+
+/* Editable tables (diet mixing food groups) */
+.edit-table td { padding: 4px; }
+.edit-table input { width: 100%; min-width: 5.5rem; }
+.edit-table input[type="text"] { min-width: 10rem; }

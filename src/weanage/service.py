@@ -7,7 +7,8 @@ Two front doors use these same functions:
 Bad requests raise ValueError; each front door turns that into an error message.
 """
 
-from typing import Any, Literal
+from collections.abc import Callable
+from typing import Any, Literal, NamedTuple
 
 import pandas as pd
 from pydantic import BaseModel, Field
@@ -21,6 +22,9 @@ from .calibrate import CalibrationPoint, Method, calibrate_growth_table
 from .enamel import analyze_enamel, ingest_enamel_dataframe
 from .inference import compare_groups
 from .ingest import ingest_file, ingest_records, read_table
+from .killoff import analyze_killoff, ingest_killoff_dataframe
+from .mixing import analyze_mixing, ingest_mixing_dataframe
+from .mixing import with_defaults as with_diet_defaults
 from .models import MODEL_CATALOG
 from .qc import FLAG_DESCRIPTIONS
 from .schema import (
@@ -31,6 +35,10 @@ from .schema import (
     EnamelSample,
     GrowthTable,
     IsotopeSample,
+    KilloffOptions,
+    KilloffSample,
+    MixingOptions,
+    MixingSample,
     ModelName,
 )
 from .simulate import SimulationScenario, SweepParam, run_simulation, sweep
@@ -45,11 +53,6 @@ class AnalyzeIn(BaseModel):
 class BoneAnalyzeIn(BaseModel):
     samples: list[BoneSample] = Field(min_length=1)
     options: BoneOptions | None = None
-
-
-class EnamelAnalyzeIn(BaseModel):
-    samples: list[EnamelSample] = Field(min_length=1)
-    options: EnamelOptions | None = None
 
 
 class SimulateBoneIn(BaseModel):
@@ -86,6 +89,11 @@ class SimulateIn(BaseModel):
 
 
 # Settings and data
+def defaults(calc):
+    options = calc.options()
+    return (with_diet_defaults(options) if isinstance(options, MixingOptions) else options).model_dump()
+
+
 def get_config():
     saved = config.saved_growth_tables()
     return {
@@ -102,8 +110,8 @@ def get_config():
         "bone_examples": [{"name": key, "label": label} for key, (_, label, _) in BONE_EXAMPLES.items()],
         "turnover_tables": [t.model_dump() for t in config.turnover_tables()],
         "bone_priors": config.bone_priors(),
-        "enamel_defaults": EnamelOptions().model_dump(),
-        "enamel_examples": [{"name": key, "label": label} for key, (_, label, _) in ENAMEL_EXAMPLES.items()],
+        "calculations": {name: {"defaults": defaults(c), "examples": [{"name": key, "label": label} for key, (_, label, _) in c.examples.items()]}
+                         for name, c in CALCULATIONS.items()},
     }
 
 
@@ -187,36 +195,69 @@ def run_bone_planner(body: SimulateBoneIn, progress=None):
     return run_bone_plan(body.scenario, body.options, body.sweep_param, body.sweep_values, progress)
 
 
-# Enamel data: season of birth (δ18O) and rumen development (δ13C) along one molar
-ENAMEL_EXAMPLES = {
-    "synthetic_enamel": ("synthetic_enamel_example.csv", "Synthetic cattle M2 enamel (simulated)",
-                         "Loaded SYNTHETIC enamel data (simulated, not real measurements): Site A calved within about "
-                         "a month, Site B over about seven; three Site B animals moved as calves (87Sr/86Sr)."),
+# Calculations that take one table of samples and one set of settings: enamel, kill-off, diet mixing.
+class Calculation(NamedTuple):
+    sample: type[BaseModel]
+    options: type[BaseModel]
+    ingest: Callable  # DataFrame -> {"samples", "issues", ...}
+    analyze: Callable  # (samples, options, progress) -> results
+    examples: dict  # name -> (csv file, label, message on loading)
+
+
+CALCULATIONS = {
+    "enamel": Calculation(EnamelSample, EnamelOptions, ingest_enamel_dataframe, analyze_enamel, {
+        "synthetic_enamel": ("synthetic_enamel_example.csv", "Synthetic cattle M2 enamel (simulated)",
+                             "Loaded SYNTHETIC enamel data (simulated, not real measurements): Site A calved within "
+                             "about a month, Site B over about seven; three Site B animals moved as calves (87Sr/86Sr)."),
+    }),
+    "killoff": Calculation(KilloffSample, KilloffOptions, ingest_killoff_dataframe, analyze_killoff, {
+        "synthetic_killoff": ("synthetic_killoff_example.csv", "Synthetic sheep/goat mandibles (simulated)",
+                              "Loaded SYNTHETIC mandibles (simulated, not real data): Site A was drawn with most deaths "
+                              "in stages A–B, Site B in C–D."),
+    }),
+    "mixing": Calculation(MixingSample, MixingOptions, ingest_mixing_dataframe, analyze_mixing, {
+        "synthetic_mixing": ("synthetic_mixing_example.csv", "Synthetic human bone collagen (simulated)",
+                             "Loaded SYNTHETIC collagen values (simulated, not real measurements) from the placeholder "
+                             "food sources: an inland and a coastal site."),
+    }),
 }
 
 
-def read_enamel_upload(filename, content):
+def calculation(name):
+    if name not in CALCULATIONS:
+        raise ValueError(f"unknown calculation {name!r}")
+    return CALCULATIONS[name]
+
+
+def read_calculation_upload(name, filename, content):
     try:
-        return report_json(ingest_enamel_dataframe(read_table(content, filename)))
+        return report_json(calculation(name).ingest(read_table(content, filename)))
     except Exception as err:
         raise ValueError(f"Could not read file: {err}") from err
 
 
-def check_enamel_records(rows):
+def check_calculation_records(name, rows):
     if not rows:
-        return {"samples": [], "issues": [], "teeth": []}
-    return report_json(ingest_enamel_dataframe(pd.DataFrame(rows)))
+        return {"samples": [], "issues": []}
+    return report_json(calculation(name).ingest(pd.DataFrame(rows)))
 
 
-def enamel_example(name="synthetic_enamel"):
-    if name not in ENAMEL_EXAMPLES:
-        raise ValueError(f"unknown enamel example {name!r}")
-    table = read_table(config.DATA_DIR / "examples" / ENAMEL_EXAMPLES[name][0])
-    return {**report_json(ingest_enamel_dataframe(table)), "message": ENAMEL_EXAMPLES[name][2]}
+def calculation_example(name, example=None):
+    examples = calculation(name).examples
+    example = example or next(iter(examples))
+    if example not in examples:
+        raise ValueError(f"unknown example {example!r}")
+    file, _, message = examples[example]
+    return {**report_json(calculation(name).ingest(read_table(config.DATA_DIR / "examples" / file))), "message": message}
 
 
-def run_enamel_analysis(body: EnamelAnalyzeIn, progress=None):
-    return analyze_enamel(body.samples, body.options or EnamelOptions(), progress)
+def run_calculation(name, body: dict, progress=None):
+    """body: {"samples": [...], "options": {...} or None}; checked against the calculation's shapes."""
+    calc = calculation(name)
+    samples = [calc.sample(**row) for row in body.get("samples") or []]
+    if not samples:
+        raise ValueError("no samples to analyse")
+    return calc.analyze(samples, calc.options(**(body.get("options") or {})), progress)
 
 
 def save_table(table: GrowthTable):

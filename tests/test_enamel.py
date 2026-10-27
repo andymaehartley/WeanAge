@@ -78,16 +78,16 @@ def test_api_job():
     from weanage.api import app
 
     client = TestClient(app)
-    example = client.get("/api/enamel/example").json()
+    example = client.get("/api/calc/enamel/example").json()
     assert len(example["samples"]) == 252 and "SYNTHETIC" in example["message"]
-    job = client.post("/api/jobs/enamel", json={"samples": example["samples"][:42], "options": {"draws": 100}}).json()
+    job = client.post("/api/calc/enamel/jobs", json={"samples": example["samples"][:42], "options": {"draws": 100}}).json()
     for _ in range(200):
         state = client.get(f"/api/jobs/{job['id']}").json()
         if state["status"] in {"done", "error"}:
             break
         time.sleep(0.05)
     assert state["status"] == "done" and len(state["result"]["results"]) == 2
-    assert client.get("/api/enamel/template.csv").status_code == 200
+    assert client.get("/api/calc/enamel/template.csv").status_code == 200
 
 
 def test_calendar_months():

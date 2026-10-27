@@ -353,3 +353,89 @@ class EnamelOptions(BaseModel):
         if self.local_sr_min is not None and self.local_sr_max is not None and self.local_sr_min >= self.local_sr_max:
             raise ValueError("local_sr_min must be smaller than local_sr_max")
         return self
+
+
+# Payne (1973) mandible wear stages for sheep and goats, as age ranges in months.
+PAYNE_STAGES = {"A": (0, 2), "B": (2, 6), "C": (6, 12), "D": (12, 24), "E": (24, 36), "F": (36, 48),
+                "G": (48, 72), "H": (72, 96), "I": (96, 120)}
+PAYNE_BOUNDS = [0.0, 2, 6, 12, 24, 36, 48, 72, 96, 120]
+
+
+class KilloffSample(Sample):
+    """One aged mandible (or loose tooth). Give a Payne wear stage, or an age range in months.
+
+    A stage may span several, written "D/E" or "D-E": the mandible could be either.
+    """
+
+    payne_stage: str | None = None
+    age_min_months: float | None = Field(default=None, ge=0, le=600)
+    age_max_months: float | None = Field(default=None, gt=0, le=600)
+
+    @model_validator(mode="after")
+    def has_an_age(self):
+        if self.payne_stage:
+            letters = [c for c in self.payne_stage.upper() if c.isalpha()]
+            if not letters or len(letters) > 2 or any(c not in PAYNE_STAGES for c in letters):
+                raise ValueError(f"payne_stage {self.payne_stage!r} is not a Payne stage A–I, or a range such as D/E")
+            first, last = sorted(letters)[0], sorted(letters)[-1]
+            if self.age_min_months is None:
+                self.age_min_months = float(PAYNE_STAGES[first][0])
+            if self.age_max_months is None:
+                self.age_max_months = float(PAYNE_STAGES[last][1])
+        if self.age_min_months is None or self.age_max_months is None:
+            raise ValueError("each mandible needs payne_stage, or age_min_months and age_max_months")
+        if self.age_min_months >= self.age_max_months:
+            raise ValueError("age_min_months must be smaller than age_max_months")
+        return self
+
+
+class KilloffOptions(BaseModel):
+    """Settings of the kill-off profiles."""
+
+    class_bounds_months: list[float] = Field(default=PAYNE_BOUNDS, min_length=3, max_length=20)
+    bootstrap_draws: int = Field(default=1000, ge=0, le=10000)
+    permutations: int = Field(default=1000, ge=0, le=10000)
+    random_seed: int | None = 42
+
+    @field_validator("class_bounds_months")
+    @classmethod
+    def rising(cls, bounds):
+        if any(b >= c for b, c in zip(bounds, bounds[1:])) or bounds[0] < 0:
+            raise ValueError("class_bounds_months must start at 0 or more and rise")
+        return bounds
+
+
+class MixingSample(Sample):
+    """One bone or dentine collagen sample, for estimating the diet's make-up."""
+
+    d13C: float = Field(ge=-35, le=-5)
+    d15N: float = Field(ge=-5, le=30)
+    d34S: float | None = Field(default=None, ge=-40, le=40)
+
+
+class DietSource(BaseModel):
+    """A food group's isotope values (of its protein, as eaten), mean and SD in ‰."""
+
+    name: str = Field(min_length=1)
+    d13C: float
+    d13C_sd: float = Field(gt=0)
+    d15N: float
+    d15N_sd: float = Field(gt=0)
+    d34S: float | None = None
+    d34S_sd: float | None = Field(default=None, gt=0)
+
+
+class MixingOptions(BaseModel):
+    """Settings of the collagen diet mixing model. Sources and offsets default to data/diet_sources.json."""
+
+    sources: list[DietSource] | None = Field(default=None, min_length=2, max_length=6)
+    # Collagen minus diet (‰), mean and SD.
+    offset_d13C: float | None = None
+    offset_d13C_sd: float | None = Field(default=None, ge=0)
+    offset_d15N: float | None = None
+    offset_d15N_sd: float | None = Field(default=None, ge=0)
+    offset_d34S: float | None = None
+    offset_d34S_sd: float | None = Field(default=None, ge=0)
+    measurement_sd_permil: float = Field(default=0.2, ge=0, le=2)
+    draws: int = Field(default=20000, ge=1000, le=200000)
+    random_seed: int | None = 42

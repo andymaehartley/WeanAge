@@ -75,19 +75,19 @@ const server = {
     return waitForJob(job, onProgress);
   },
   boneTemplateUrl: "/api/bone/template.csv",
-  // Enamel: season of birth and rumen development
-  enamelExample: (name = "synthetic_enamel") => request(`/api/enamel/example?name=${encodeURIComponent(name)}`),
-  enamelUpload(file) {
+  // The one-table calculations: "enamel", "killoff" and "mixing"
+  calcExample: (calc, name) => request(`/api/calc/${calc}/example${name ? `?example=${encodeURIComponent(name)}` : ""}`),
+  calcUpload(calc, file) {
     const form = new FormData();
     form.append("file", file);
-    return request("/api/enamel/ingest/file", { method: "POST", body: form });
+    return request(`/api/calc/${calc}/ingest/file`, { method: "POST", body: form });
   },
-  async enamelAnalyze(samples, options, onProgress) {
-    const job = await request("/api/jobs/enamel", json({ samples, options }));
+  async calcAnalyze(calc, samples, options, onProgress) {
+    const job = await request(`/api/calc/${calc}/jobs`, json({ samples, options }));
     return waitForJob(job, onProgress);
   },
-  enamelRecords: (records) => request("/api/enamel/ingest/records", json({ records })),
-  enamelTemplateUrl: "/api/enamel/template.csv",
+  calcRecords: (calc, records) => request(`/api/calc/${calc}/ingest/records`, json({ records })),
+  calcTemplateUrl: (calc) => `/api/calc/${calc}/template.csv`,
 };
 
 // Browser version
@@ -184,11 +184,11 @@ const browser = {
   boneRecords: (records) => python("bone_records", { records }),
   boneSimulate: (body, onProgress) => python("bone_simulate", body, onProgress),
   boneTemplateUrl: "weanage_bone_template.csv",
-  enamelExample: (name = "synthetic_enamel") => python("enamel_example", { name }),
-  enamelUpload: async (file) => python("enamel_upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
-  enamelAnalyze: (samples, options, onProgress) => python("enamel_analyze", { samples, options }, onProgress),
-  enamelRecords: (records) => python("enamel_records", { records }),
-  enamelTemplateUrl: "weanage_enamel_template.csv",
+  calcExample: (calc, example) => python("calc_example", { calc, example }),
+  calcUpload: async (calc, file) => python("calc_upload", { calc, filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
+  calcAnalyze: (calc, samples, options, onProgress) => python("calc_analyze", { calc, samples, options }, onProgress),
+  calcRecords: (calc, records) => python("calc_records", { calc, records }),
+  calcTemplateUrl: (calc) => `weanage_${calc}_template.csv`,
 };
 
 export const api = IN_BROWSER ? browser : server;

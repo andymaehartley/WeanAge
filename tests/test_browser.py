@@ -138,6 +138,17 @@ def test_whole_workflow(page):
     page.click('#enamel-result-list [data-tooth="B01"]')
     assert "⁸⁷Sr/⁸⁶Sr shifts from 0.712" in page.text_content("#enamel-res-summary")
     assert page.is_visible("#enamel-sr-chart svg")
+    # Kill-off profiles and diet mixing.
+    for mode, card, run_text in [("killoff", "#killoff-groups-card", "Site A"), ("mixing", "#mixing-samples-card", "Marine fish")]:
+        click(page, '.step[data-view="data"]')
+        page.check(f'input[name="calc"][value="{mode}"]')
+        click(page, "#btn-example")
+        page.wait_for_selector(f"{card}:not([hidden])")
+        click(page, "#btn-next-settings")
+        click(page, f"#btn-{mode}-run")
+        page.wait_for_selector(f"#view-{mode}-results.active", timeout=120000)
+        assert run_text in page.text_content(f"#view-{mode}-results")
+    assert page.is_visible("#mixing-biplot svg") and page.is_visible("#mixing-placeholder")
     click(page, '.step[data-view="data"]')
     page.click("text=Tooth calculation")
     assert not page.is_disabled('.step[data-view="compare"]') and page.is_visible("#specimens-card")

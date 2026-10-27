@@ -1,76 +1,53 @@
-// The enamel calculation: season of birth (δ18O) and rumen development (δ13C) along one cattle molar.
-// Its data, settings and results live in state.enamel, apart from the other calculations'.
-import { api } from "./api.js";
+// The enamel calculation: season of birth (δ18O), rumen development and diet (δ13C) and mobility
+// (87Sr/86Sr) along one cattle molar.
+import { oneTableCalc } from "./calc.js";
 import { forestChart, profileChart } from "./chart.js";
-import { $, download, esc, help, num, plural, progressBar, renderIssues, renderReady, renderWarnings, table, toast, toCsv } from "./util.js";
+import { $, download, esc, help, num, plural, renderIssues, renderReady, renderWarnings, table, toCsv } from "./util.js";
 
-const FIELDS = ["period_min_mm", "period_max_mm", "min_amplitude_permil", "min_rumen_rise_permil", "max_rumen_rise_permil", "draws",
-  "c3_plants_d13C", "c3_plants_sd", "c4_plants_d13C", "c4_plants_sd", "enamel_diet_spacing_permil", "enamel_diet_spacing_sd",
-  "d18O_max_month", "reference_birth_index", "reference_birth_month", "sr_min_shift", "local_sr_min", "local_sr_max",
-  "mineralisation_length_mm"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
 const teeth = (n) => `${n} ${n === 1 ? "tooth" : "teeth"}`;
 
-let state;
-let hooks; // { show, autosave, refreshNav }
+export const enamel = oneTableCalc({
+  name: "enamel",
+  plural: "enamel samples",
+  working: "Fitting teeth",
+  fields: ["period_min_mm", "period_max_mm", "min_amplitude_permil", "min_rumen_rise_permil", "max_rumen_rise_permil", "draws",
+    "c3_plants_d13C", "c3_plants_sd", "c4_plants_d13C", "c4_plants_sd", "enamel_diet_spacing_permil", "enamel_diet_spacing_sd",
+    "d18O_max_month", "reference_birth_index", "reference_birth_month", "sr_min_shift", "local_sr_min", "local_sr_max",
+    "mineralisation_length_mm"],
+  init: bindResults,
+  renderData,
+  renderResults,
+  prepare: withToothWeaningAges,
+  first: (output) => output.results[0]?.specimen_id,
+});
 
-export function initEnamel(appState, appHooks) {
-  state = appState;
-  hooks = appHooks;
-  state.enamel = { samples: [], report: null, results: null, groups: null, options: null, current: null };
-  applyEnamelSettings(state.config.enamel_defaults);
-  $("#btn-enamel-run").addEventListener("click", runEnamel);
+function bindResults(calc) {
+  const own = calc.own;
+  const choose = (id) => {
+    own().current = id;
+    renderResults(own());
+    $(`#enamel-result-list [data-tooth="${CSS.escape(id)}"]`)?.focus();
+  };
   $("#enamel-result-list").addEventListener("click", (e) => {
     const b = e.target.closest("[data-tooth]");
     if (b) choose(b.dataset.tooth);
   });
   $("#enamel-result-list").addEventListener("keydown", (e) => {
-    const ids = state.enamel.results.map((r) => r.specimen_id);
+    const ids = own().output.results.map((r) => r.specimen_id);
     const moves = { ArrowDown: 1, ArrowUp: -1 };
     if (!(e.key in moves)) return;
     e.preventDefault();
-    choose(ids[Math.min(Math.max(ids.indexOf(state.enamel.current) + moves[e.key], 0), ids.length - 1)]);
+    choose(ids[Math.min(Math.max(ids.indexOf(own().current) + moves[e.key], 0), ids.length - 1)]);
   });
-  $("#view-enamel-settings").addEventListener("change", hooks.autosave);
-  $("#btn-enamel-csv").addEventListener("click", () => download("weanage_enamel_estimates.csv", new Blob([toCsv(estimateRows())], { type: "text/csv" })));
+  $("#btn-enamel-csv").addEventListener("click", () => download("weanage_enamel_estimates.csv", new Blob([toCsv(estimateRows(own().output.results))], { type: "text/csv" })));
   $("#btn-enamel-json").addEventListener("click", () => download("weanage_enamel_results.json",
-    new Blob([JSON.stringify({ options: state.enamel.options, results: state.enamel.results, groups: state.enamel.groups }, null, 2)])));
+    new Blob([JSON.stringify({ options: own().options, ...own().output }, null, 2)])));
 }
 
 // Data
-export async function loadEnamelFile(file) {
-  try {
-    setEnamelReport(await api.enamelUpload(file));
-  } catch (e) {
-    toast(e.message);
-  }
-}
-
-export async function loadEnamelExample(name) {
-  try {
-    const report = await api.enamelExample(name);
-    setEnamelReport(report);
-    toast(report.message, "ok");
-  } catch (e) {
-    toast(e.message);
-  }
-}
-
-export function setEnamelReport(report, keepResults = false) {
-  state.enamel.report = report;
-  state.enamel.samples = report.samples;
-  if (!keepResults) state.enamel.results = null;
-  renderEnamelData();
-  hooks.refreshNav();
-  hooks.autosave();
-}
-
-export function renderEnamelData() {
-  if (state.mode !== "enamel") return;
-  const { report, samples } = state.enamel;
+function renderData({ report, samples }) {
   const loaded = report?.teeth || [];
-  $("#specimens-card").hidden = true; // the tooth calculation's table
   renderIssues(report ? report.issues : []);
   renderReady(samples.length && `${plural(samples.length, "sample")} from ${teeth(loaded.length)} loaded.`);
   $("#enamel-teeth-card").hidden = !samples.length;
@@ -95,48 +72,12 @@ export function renderEnamelData() {
   ], samples);
 }
 
-// Settings
-export function applyEnamelSettings(o) {
-  for (const key of FIELDS) if (key in o) $(`#enamel-${key}`).value = o[key] ?? "";
-}
-
-export function enamelSettings() {
-  const defaults = state.config.enamel_defaults;
-  const out = { random_seed: 42 };
-  for (const key of FIELDS) {
-    const value = $(`#enamel-${key}`).value;
-    out[key] = value === "" ? defaults[key] : Number(value);
-  }
-  return out;
-}
-
-async function runEnamel() {
-  if (!state.enamel.samples.length) return toast("Load some enamel data first.");
-  const options = enamelSettings();
-  const bar = $("#enamel-progress");
-  $("#btn-enamel-run").disabled = true;
-  progressBar(bar, 0, 0, "Fitting teeth");
-  try {
-    const out = await api.enamelAnalyze(withToothWeaningAges(state.enamel.samples), options, (done, total) => progressBar(bar, done, total, "Fitting teeth"));
-    Object.assign(state.enamel, { results: out.results, groups: out.groups, options, current: out.results[0]?.specimen_id });
-    hooks.refreshNav();
-    renderEnamelResults();
-    hooks.show("results");
-    hooks.autosave();
-  } catch (e) {
-    toast(e.message);
-  } finally {
-    $("#btn-enamel-run").disabled = false;
-    bar.hidden = true;
-  }
-}
-
 // The weaning age of each animal from the tooth (dentine) calculation, where the enamel table has none.
 // Matched by specimen or individual ID; ages that are only bounds or withheld are not used.
-function withToothWeaningAges(samples) {
-  const milestone = state.options?.reported_milestone || "midpoint";
+function withToothWeaningAges(samples, appState) {
+  const milestone = appState.options?.reported_milestone || "midpoint";
   const ages = new Map();
-  for (const r of state.results || []) {
+  for (const r of appState.results || []) {
     const age = r.model_average?.[milestone];
     if (age?.estimate != null && !age.beyond) {
       ages.set(r.specimen_id, { weaning_age_months: age.estimate, weaning_age_sd_months: age.ci_low != null ? (age.ci_high - age.ci_low) / 3.92 : null });
@@ -153,21 +94,14 @@ const monthName = (m) => {
   return `${part} ${MONTHS[Math.floor(m) - 1]}`;
 };
 const monthRange = (v) => (v?.ci_low != null ? ` (95% interval ${monthName(v.ci_low)} to ${monthName(v.ci_high)})` : "");
-const currentResult = () => state.enamel.results?.find((r) => r.specimen_id === state.enamel.current) || state.enamel.results?.[0];
 const range = (v, d = 2) => (v?.ci_low != null ? `${num(v.ci_low, d)}–${num(v.ci_high, d)}` : "");
 const warningsOf = (r) => [r.season, r.rumen, r.diet, r.strontium].flatMap((part) => part?.warnings || []);
 const pct = (v) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 
-function choose(id) {
-  state.enamel.current = id;
-  renderEnamelResults();
-  $(`#enamel-result-list [data-tooth="${CSS.escape(id)}"]`)?.focus();
-}
-
-export function renderEnamelResults() {
-  const results = state.enamel.results || [];
+function renderResults({ output, current }) {
+  const { results, groups } = output;
   $("#enamel-result-list").innerHTML = results.map((r) => {
-    const chosen = r.specimen_id === state.enamel.current;
+    const chosen = r.specimen_id === current;
     const index = r.season?.birth_index;
     const n = warningsOf(r).length;
     return `<li role="none"><button role="option" aria-selected="${chosen}" tabindex="${chosen ? 0 : -1}" data-tooth="${esc(r.specimen_id)}" class="${chosen ? "active" : ""}">
@@ -175,14 +109,14 @@ export function renderEnamelResults() {
       <span><span class="age">${index ? num(index.estimate, 2) : "—"}</span>${n ? `<span class="warn-dot" aria-label="${plural(n, "warning")}">${n}</span>` : ""}</span>
     </button></li>`;
   }).join("");
-  const res = currentResult();
+  const res = results.find((r) => r.specimen_id === current) || results[0];
   if (!res) return;
   $("#enamel-res-title").textContent = res.specimen_id;
   $("#enamel-res-meta").textContent = `${res.site} · ${res.species} ${res.tooth}${res.period ? ` · ${res.period}` : ""} · ${plural(res.points.length, "enamel sample")}`;
   $("#enamel-res-summary").innerHTML = summary(res);
   drawCharts(res);
   renderWarnings("#enamel-warnings-box", "#enamel-warnings-summary", "#enamel-res-warnings", warningsOf(res), () => "warning");
-  renderGroups();
+  renderGroups(groups);
 }
 
 function summary(res) {
@@ -256,8 +190,7 @@ function drawCharts(res) {
   });
 }
 
-function renderGroups() {
-  const groups = state.enamel.groups || [];
+function renderGroups(groups) {
   const dated = groups.filter((g) => g.n_index);
   $("#enamel-group-chart").innerHTML = dated.length ? "" : '<p class="muted">No tooth has a birth index.</p>';
   if (dated.length) forestChart($("#enamel-group-chart"), dated.map((g) => ({
@@ -276,8 +209,8 @@ function renderGroups() {
   ], groups);
 }
 
-function estimateRows() {
-  return (state.enamel.results || []).map((r) => ({
+function estimateRows(results) {
+  return results.map((r) => ({
     specimen_id: r.specimen_id, site: r.site, species: r.species, tooth: r.tooth, period: r.period,
     birth_index: r.season?.birth_index?.estimate, birth_index_ci_low: r.season?.birth_index?.ci_low, birth_index_ci_high: r.season?.birth_index?.ci_high,
     period_mm: r.season?.period_mm, x0_mm: r.season?.x0_mm, d18O_amplitude_permil: r.season?.amplitude_permil,

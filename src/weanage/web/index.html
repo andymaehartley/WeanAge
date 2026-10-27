@@ -85,7 +85,13 @@
                   <small>Bone from many young animals that died at different ages, after WARN.</small></span></label>
               <label class="calc-option"><input type="radio" name="calc" value="enamel">
                 <span><strong>Enamel: season and rumen</strong>
-                  <small>δ¹⁸O and δ¹³C along a cattle molar: season of birth and rumen development.</small></span></label>
+                  <small>δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr along a cattle molar: season of birth, rumen development, diet and moves.</small></span></label>
+              <label class="calc-option"><input type="radio" name="calc" value="killoff">
+                <span><strong>Kill-off profiles</strong>
+                  <small>Aged mandibles: at what ages a herd's animals were killed, after Payne (1973).</small></span></label>
+              <label class="calc-option"><input type="radio" name="calc" value="mixing">
+                <span><strong>Diet mixing</strong>
+                  <small>Bone collagen δ¹³C, δ¹⁵N (and δ³⁴S): the share of each food group in the diet.</small></span></label>
             </fieldset>
             <label id="dropzone" class="dropzone">
               <input id="csv-input" type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls" hidden>
@@ -93,6 +99,8 @@
               <small data-mode="tooth">One row per dentine slice.</small>
               <small data-mode="bone" hidden>One row per animal.</small>
               <small data-mode="enamel" hidden>One row per enamel sample.</small>
+              <small data-mode="killoff" hidden>One row per mandible.</small>
+              <small data-mode="mixing" hidden>One row per collagen sample.</small>
             </label>
             <div class="row gap wrap">
               <label class="inline">Example <select id="example-choice"></select></label>
@@ -136,6 +144,32 @@
                     with a reference tooth of known birth month, also birth and weaning.</li>
                 </ol>
                 <p class="hint">After Balasse et al. (2012), Towers et al. (2014) and Bentley (2006); see the user guide for the sources.</p>
+              </div>
+              <p class="hint" data-mode="killoff" hidden>Required columns: <code>specimen_id, site, species</code>, and either
+                <code>payne_stage</code> (A–I, or a range such as <code>D/E</code>; sheep and goats) or
+                <code>age_min_months</code> and <code>age_max_months</code> (any species).</p>
+              <div data-mode="killoff" hidden>
+                <h3>How kill-off profiles work</h3>
+                <ol class="steps-list">
+                  <li><strong>Count.</strong> Each mandible counts in the age class its stage or age range falls in; one that
+                    could be in several is shared among them as Payne (1973) did.</li>
+                  <li><strong>Profile.</strong> The share killed in each class, and the share still alive after it, with
+                    95% intervals from resampling the mandibles.</li>
+                  <li><strong>Compare.</strong> A permutation test asks whether two groups' profiles differ more than chance.</li>
+                </ol>
+              </div>
+              <p class="hint" data-mode="mixing" hidden>Required columns: <code>specimen_id, site, species, d13C, d15N</code>;
+                optional <code>d34S</code>. Bone or dentine collagen, ‰.</p>
+              <div data-mode="mixing" hidden>
+                <h3>How diet mixing works</h3>
+                <ol class="steps-list">
+                  <li><strong>Food groups.</strong> Each food group's δ values plus a collagen-diet offset (Settings) are the
+                    ends of the mix.</li>
+                  <li><strong>Weigh diets.</strong> Many possible diets are drawn and each is weighted by how well it explains the
+                    sample, as in FRUITS (Fernandes et al. 2014).</li>
+                  <li><strong>Shares.</strong> The share of each food group, with a 95% interval.</li>
+                </ol>
+                <p class="hint">The food values and offsets are placeholders until measured locally.</p>
               </div>
               <p class="hint" data-mode="tooth">Required columns: <code>specimen_id, site, species, tooth, position_mm, d15N</code>
                   <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
@@ -245,6 +279,18 @@
               <summary>Show all samples</summary>
               <div class="table-wrap tall"><table id="enamel-sample-table"></table></div>
             </details>
+          </article>
+          <article class="card" id="killoff-groups-card" data-mode="killoff" hidden>
+            <h2>Groups <span id="killoff-count" class="muted"></span></h2>
+            <div class="table-wrap"><table id="killoff-group-table"></table></div>
+            <details class="samples-details">
+              <summary>Show all mandibles</summary>
+              <div class="table-wrap tall"><table id="killoff-sample-table"></table></div>
+            </details>
+          </article>
+          <article class="card" id="mixing-samples-card" data-mode="mixing" hidden>
+            <h2>Samples <span id="mixing-count" class="muted"></span></h2>
+            <div class="table-wrap tall"><table id="mixing-sample-table"></table></div>
           </article>
           <article class="card" id="specimens-card" hidden>
             <h2>Specimens <span id="sample-count" class="muted"></span></h2>
@@ -640,6 +686,74 @@
       </div>
     </section>
 
+    <!-- 2. settings (kill-off) -->
+    <section id="view-killoff-settings" class="view" aria-labelledby="h-killoff-settings">
+      <h2 id="h-killoff-settings" class="sr-only">Kill-off settings</h2>
+      <div class="grid-3">
+        <article class="card">
+          <h2>Age classes <span data-helpslot="killoff"></span></h2>
+          <label>Class boundaries (months)<input id="killoff-class_bounds_months" type="text" inputmode="decimal"
+            aria-describedby="killoff-bounds-hint"></label>
+          <p id="killoff-bounds-hint" class="hint">The default boundaries are Payne's (1973) stages A–I. Other boundaries
+            (e.g. for cattle) need mandibles given as age ranges.</p>
+        </article>
+        <article class="card">
+          <h2>Uncertainty</h2>
+          <div class="form-grid">
+            <label>Resamples for the 95% intervals<input id="killoff-bootstrap_draws" type="number" min="0" max="10000" step="100"></label>
+            <label>Permutations for comparing groups<input id="killoff-permutations" type="number" min="0" max="10000" step="100"></label>
+          </div>
+        </article>
+      </div>
+      <div class="run-bar">
+        <div id="killoff-progress" class="progress-wrap" hidden></div>
+        <button id="btn-killoff-run" class="primary">Build kill-off profiles</button>
+      </div>
+    </section>
+
+    <!-- 2. settings (diet mixing) -->
+    <section id="view-mixing-settings" class="view" aria-labelledby="h-mixing-settings">
+      <h2 id="h-mixing-settings" class="sr-only">Diet mixing settings</h2>
+      <article class="card" data-tbd="diet:sources">
+        <h2>Food groups <span data-helpslot="mixing"></span></h2>
+        <p class="hint">Mean and SD (‰) of each food group's protein as eaten, from plants and animals of the same site and
+          period. Leave δ³⁴S empty to use δ¹³C and δ¹⁵N only. Two to six groups; with more groups than isotopes + 1 the shares
+          stay uncertain.</p>
+        <div class="table-wrap">
+          <table id="mixing-sources" class="edit-table">
+            <thead><tr><th scope="col">Name</th><th scope="col">δ¹³C</th><th scope="col">SD</th><th scope="col">δ¹⁵N</th>
+              <th scope="col">SD</th><th scope="col">δ³⁴S</th><th scope="col">SD</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <button id="btn-mixing-add-source" class="secondary" type="button">Add a food group</button>
+      </article>
+      <div class="grid-3">
+        <article class="card" data-tbd="diet:sources">
+          <h2>Collagen minus diet <span data-helpslot="offsets"></span></h2>
+          <div class="form-grid pairs">
+            <label>δ¹³C offset (‰)<input id="mixing-offset_d13C" type="number" step="0.1"></label>
+            <label>δ¹³C SD<input id="mixing-offset_d13C_sd" type="number" min="0" step="0.1"></label>
+            <label>δ¹⁵N offset (‰)<input id="mixing-offset_d15N" type="number" step="0.1"></label>
+            <label>δ¹⁵N SD<input id="mixing-offset_d15N_sd" type="number" min="0" step="0.1"></label>
+            <label>δ³⁴S offset (‰)<input id="mixing-offset_d34S" type="number" step="0.1"></label>
+            <label>δ³⁴S SD<input id="mixing-offset_d34S_sd" type="number" min="0" step="0.1"></label>
+          </div>
+        </article>
+        <article class="card">
+          <h2>Uncertainty</h2>
+          <div class="form-grid">
+            <label>Measurement SD (‰)<input id="mixing-measurement_sd_permil" type="number" min="0" step="0.05"></label>
+            <label>Diets drawn<input id="mixing-draws" type="number" min="1000" max="200000" step="1000"></label>
+          </div>
+        </article>
+      </div>
+      <div class="run-bar">
+        <div id="mixing-progress" class="progress-wrap" hidden></div>
+        <button id="btn-mixing-run" class="primary">Estimate diets</button>
+      </div>
+    </section>
+
     <!-- 3. results (enamel) -->
     <section id="view-enamel-results" class="view" aria-labelledby="h-enamel-results">
       <h2 id="h-enamel-results" class="sr-only">Enamel results</h2>
@@ -683,6 +797,69 @@
           </article>
         </div>
       </div>
+    </section>
+
+    <!-- 3. results (kill-off) -->
+    <section id="view-killoff-results" class="view" aria-labelledby="h-killoff-results">
+      <h2 id="h-killoff-results" class="sr-only">Kill-off results</h2>
+      <article class="card">
+        <div class="row between wrap">
+          <h2>Survivorship <span data-helpslot="killoff"></span></h2>
+          <span class="row gap export-links">
+            <span class="muted small">Export:</span>
+            <button id="btn-killoff-csv" class="link" type="button">profiles (CSV)</button>
+            <button id="btn-killoff-json" class="link" type="button">results (JSON)</button>
+          </span>
+        </div>
+        <div id="killoff-survival-chart" class="chart-box"></div>
+        <div class="table-wrap"><table id="killoff-summary-table"></table></div>
+        <p class="hint">Many deaths before 6 months fit milk production or culling of surplus young; deaths at 6–36 months,
+          meat; many animals alive at 4 years, wool, breeding or traction (Payne 1973). Young mandibles survive burial less
+          well, so early deaths are often under-counted.</p>
+        <details class="advanced" id="killoff-warnings-box">
+          <summary id="killoff-warnings-summary">Warnings</summary>
+          <div class="advanced-body"><ul id="killoff-warnings" class="issues"></ul></div>
+        </details>
+      </article>
+      <article class="card">
+        <h2>Share killed in each age class</h2>
+        <div class="table-wrap"><table id="killoff-class-table"></table></div>
+      </article>
+      <article class="card" id="killoff-compare-card">
+        <h2>Comparing groups</h2>
+        <div class="table-wrap"><table id="killoff-compare-table"></table></div>
+      </article>
+    </section>
+
+    <!-- 3. results (diet mixing) -->
+    <section id="view-mixing-results" class="view" aria-labelledby="h-mixing-results">
+      <h2 id="h-mixing-results" class="sr-only">Diet mixing results</h2>
+      <article class="card">
+        <div class="row between wrap">
+          <h2>Diet by group <span data-helpslot="mixing"></span></h2>
+          <span class="row gap export-links">
+            <span class="muted small">Export:</span>
+            <button id="btn-mixing-csv" class="link" type="button">shares (CSV)</button>
+            <button id="btn-mixing-json" class="link" type="button">results (JSON)</button>
+          </span>
+        </div>
+        <p id="mixing-placeholder" class="warn-text small">The food groups and offsets are the bundled placeholders: these
+          shares show how the model works, not what people ate.</p>
+        <div id="mixing-biplot" class="chart-box"></div>
+        <p class="hint">Boxes: each food group plus the collagen-diet offset, ±1 SD. Samples outside every mix of the boxes
+          cannot be explained by these food groups.</p>
+        <div class="table-wrap"><table id="mixing-group-table"></table></div>
+      </article>
+      <article class="card">
+        <h2>Each sample</h2>
+        <p class="hint">Posterior mean share and 95% interval. With many food groups and few isotopes, read the intervals
+          rather than the means.</p>
+        <div class="table-wrap tall"><table id="mixing-result-table"></table></div>
+        <details class="advanced" id="mixing-warnings-box">
+          <summary id="mixing-warnings-summary">Warnings</summary>
+          <div class="advanced-body"><ul id="mixing-warnings" class="issues"></ul></div>
+        </details>
+      </article>
     </section>
 
     <!-- 4. compare -->
