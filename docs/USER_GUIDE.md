@@ -59,14 +59,25 @@ real, it leaves the list.
 
 ## 3. Load your data
 
-One row per dentine slice. Required columns: `specimen_id`, `site`, `species`, `tooth`,
-`position_mm` (cusp tip to the middle of the slice) and `d15N`. Either:
+First drop a CSV or Excel file on the dashed box (common spellings such as `δ15N (‰)`, `C:N`
+or `Animal` are recognised). WeanAge checks the table against every calculation and lists them
+below the box: those it can feed show how many rows they can use; the others say what is missing
+(for example "Missing required column(s): stage"). Tick the calculations to run. One table can
+feed several: tooth slices with δ¹³C and δ¹⁵N can go to both the tooth calculation and diet
+mixing. Each ticked calculation keeps its own data, settings and results, and the buttons at the
+top of the page (*Showing: …*) switch between them.
 
-* drop a CSV or Excel file on the dashed box (common spellings such as `δ15N (‰)`,
-  `C:N` or `Animal` are recognised),
+![The Data tab after dropping a file: the calculations it can be used for](screenshots/16_data_detected.png)
+
+For the tooth calculation, one row per dentine slice. Required columns: `specimen_id`, `site`,
+`species`, `tooth`, `position_mm` (cusp tip to the middle of the slice) and `d15N`. Other
+columns (for example `sex` or `burial`) are kept, so Compare can group by them. Instead of a
+file you can also:
+
 * *Download blank template* to start a spreadsheet with the right columns,
 * *Add samples by hand* with the form on the right, or
-* choose an example: the simulated dataset, real archaeological cattle from Khami
+* choose an example from the list (every calculation has one; loading it ticks its
+  calculation): the simulated dataset, real archaeological cattle from Khami
   (Zimbabwe) and Bornais (Outer Hebrides) from the IsoArcH database, or human first molars
   from Mikulčice (CIMA). In the IsoArcH example the slice positions are assumed (see
   `src/weanage/data/examples/README.md`).
@@ -87,7 +98,7 @@ are joined into one timeline.
 
 ### Humans
 
-Choose *human* as the species (or write `human` in the species column). Human first molars use a
+Write `human` in the species column. Human first molars use a
 growth table running from birth at the cusp apex to root completion at about 9.5 years (Beaumont et
 al. 2013, London Atlas); it is marked TBD-LAB until it has been checked against the Atlas. In the
 bone calculation, humans use WARN's own turnover values and priors.
@@ -101,7 +112,7 @@ months and are labelled so. The analysis itself works in months.
 
 ### Bone instead of teeth
 
-Choose *Bone calculation* at the top of *Load isotope data* when you have bone collagen from
+Tick *Bone calculation* under the drop zone when you have bone collagen from
 many young animals of known or estimated age at death, rather than slices of teeth. One row
 per animal: `specimen_id`, `site`, `species`, `d15N`, and for young animals the age at death
 in months (`age_months`, or better `age_min_months` + `age_max_months`). Mark adults with
@@ -122,7 +133,7 @@ nursing signal is found.
 
 ### Season of birth, rumen development and diet (enamel)
 
-Choose *Enamel: season and rumen* for sequential enamel samples from cattle molars. One row per
+Tick *Enamel: season and rumen* for sequential enamel samples from cattle molars. One row per
 sample: `specimen_id`, `site`, `species`, `tooth`, `erj_distance_mm` (distance from the
 enamel-root junction to the middle of the sample) and `d18O` and/or `d13C` (enamel carbonate,
 ‰ VPDB). A synthetic example of twelve M2 from two sites is included.
@@ -146,7 +157,7 @@ over* (mm) undoes part of the smoothing of the δ¹⁸O cycle and the rumen step
 
 ### Kill-off profiles
 
-Choose *Kill-off profiles* for aged mandibles. One row per mandible: `specimen_id`, `site`, `species`
+Tick *Kill-off profiles* for aged mandibles. One row per mandible: `specimen_id`, `site`, `species`
 and either `payne_stage` (A–I, or two stages such as `D/E`, for sheep and goats) or `age_min_months`
 and `age_max_months`. Results show survivorship by group, the share killed before 6 months, at 6–36
 months and the share alive at 4 years (each with a 95% interval), the share killed in each age class,
@@ -155,12 +166,49 @@ and a permutation test between groups. A synthetic sheep/goat example is include
 
 ### Diet mixing
 
-Choose *Diet mixing* for bone (or dentine) collagen: `specimen_id`, `site`, `species`, `d13C`, `d15N`
+Tick *Diet mixing* for bone (or dentine) collagen: `specimen_id`, `site`, `species`, `d13C`, `d15N`
 and, if measured, `d34S`. In Settings, edit the food groups (2–6, each with a mean and SD per isotope)
 and the collagen-diet offsets. The bundled values are placeholders: replace them with plants and
 animals from the same site and period. Results show a δ¹³C–δ¹⁵N plot with the food groups, each group's
 mean diet, and each sample's shares with 95% intervals. With more food groups than isotopes + 1, read
 the intervals rather than the means. See section 14 of [METHODS.md](METHODS.md).
+
+### Dental age
+
+Tick *Dental age* for children's teeth scored in Moorrees et al. (1963) formation stages: one row
+per tooth, with `specimen_id` (the individual), `site`, `species`, `tooth` (di1–dm2, I1–M3; P3/P4
+are read as PM1/PM2) and `stage` (Ci … Ac, or 1–13). Results give each child's age at death with
+the range passed on, and two buttons set these as the ages at death of the same specimen IDs in the
+bone calculation or the life tables. The formation ages are placeholders until a published standard
+is entered in `data/dental_stages.json`. See section 16 of [METHODS.md](METHODS.md).
+
+### Enamel hypoplasia timing
+
+Tick *Enamel hypoplasia timing* for linear enamel hypoplasia: one row per defect, with `tooth`,
+`defect_mm` (height above the cemento-enamel junction) and `crown_height_mm` (unworn). Each defect
+is dated, and if the tooth calculation has been run for the same specimen IDs, set against that
+individual's weaning interval and stress episodes. Section 17 of [METHODS.md](METHODS.md).
+
+### Life tables
+
+Tick *Life tables* for skeletal ages at death: `age_min_years` and `age_max_years` (blank for an
+open-ended adult age such as 50+). Results give survivorship, life expectancy, the share of infants
+and under-fives, the juvenility index and a full life table for each site, an optional Siler hazard
+fit and a permutation test between sites. Section 18 of [METHODS.md](METHODS.md).
+
+### Mobility (bulk enamel)
+
+Tick *Mobility* for bulk enamel δ¹⁸O and/or ⁸⁷Sr/⁸⁶Sr. Carbonate δ¹⁸O (‰ VPDB, the default) or
+phosphate (‰ VSMOW, `d18O_material` = phosphate) is converted to drinking water; mark local fauna or
+plants measured for strontium with `role` = baseline. Give local ranges in Settings if known. Section
+19 of [METHODS.md](METHODS.md).
+
+### Breast-milk share
+
+In the tooth calculation, enter the adult-female δ¹⁵N (and, if measured, δ¹³C) for the site under
+Settings → Advanced. Results then show, below the curve, how much of the diet was breast milk at each
+increment, and when it fell below half. An optional third weaning food can be given if δ¹³C is known.
+Section 15 of [METHODS.md](METHODS.md).
 
 ### Stress and δ³⁴S in dentine
 
@@ -270,7 +318,7 @@ adds the carbon values on a second axis.
 
 ## 12. Compare sites and species
 
-Group by site, species and/or period, and choose where the estimates come from.
+Group by site, species and/or period, or by any other column of the tooth table that varies (for example `sex` or `burial`), and choose where the estimates come from.
 
 ![Group comparison](guide/15_compare_chart.png)
 

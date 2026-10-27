@@ -11,7 +11,10 @@ before teeth are cut or bones sampled. For cattle it also estimates season of bi
 δ¹⁸O), rumen development and the share of C3 and C4 plants in the diet (enamel δ¹³C), and moves
 (⁸⁷Sr/⁸⁶Sr) along a molar, placing them in the months of the year. Two further calculations put
 weaning in context: kill-off profiles from aged mandibles (after Payne 1973), and the share of
-each food group in the diet from collagen δ¹³C, δ¹⁵N and δ³⁴S (a Bayesian mixing model).
+each food group in the diet from collagen δ¹³C, δ¹⁵N and δ³⁴S (a Bayesian mixing model). For
+people it also gives the share of breast milk at each dentine increment, age at death from
+dental development, the timing of enamel hypoplasia, life tables, and mobility from enamel δ¹⁸O
+and ⁸⁷Sr/⁸⁶Sr. Drop one table and WeanAge shows which calculations it can be used for.
 
 Browser version (no installation): <https://andymaehartley.github.io/WeanAge/>
 
@@ -91,6 +94,11 @@ Enamel data (cattle): one row per enamel sample, with `specimen_id`, `site`, `sp
 (enamel carbonate, ‰ VPDB) and `sr87_86`; optionally `weaning_age_months` for the month of
 weaning. See the [user guide](docs/USER_GUIDE.md#season-of-birth-rumen-development-and-diet-enamel).
 
+Human calculations: dental age (`tooth`, `stage` per tooth), enamel hypoplasia (`tooth`,
+`defect_mm`, `crown_height_mm`), life tables (`age_min_years`, `age_max_years`) and mobility
+(`d18O`, `d18O_material`, `sr87_86`, `role`). Columns are listed under *Columns, template and more*
+on the Data tab, with a blank template for each calculation.
+
 Kill-off data: one row per mandible, with `specimen_id`, `site`, `species` and `payne_stage`
 (A–I or e.g. `D/E`) or `age_min_months` + `age_max_months`. Diet-mixing data: one row per
 collagen sample, with `specimen_id`, `site`, `species`, `d13C`, `d15N` and optionally `d34S`.
@@ -119,6 +127,9 @@ collagen sample, with `specimen_id`, `site`, `species`, `d13C`, `d15N` and optio
 | Enamel ⁸⁷Sr/⁸⁶Sr follows local geology (Bentley 2006) | strontium shifts |
 | Mandible wear stages and herding models (Payne 1973) | kill-off profiles |
 | Bayesian diet mixing (FRUITS: Fernandes et al. 2014; Phillips et al. 2014) | diet mixing |
+| Formation stages (Moorrees et al. 1963); enamel formation (Reid & Dean 2006) | dental age; hypoplasia timing |
+| Juvenility index (Bocquet-Appel & Masset 1977); Siler (1979) hazard | life tables |
+| Carbonate-to-drinking-water δ¹⁸O (Chenery et al. 2012) | mobility |
 | Prehistoric cattle calved seasonally (Balasse et al. 2021) | seasonal term and checks |
 | Weaning curves and elbow (WARN: Tsutaya & Yoneda 2013; WEAN: Ganiatsou et al. 2023) | curve models, adult-female baseline, bone calculation |
 
@@ -141,6 +152,11 @@ src/weanage/
   changes.py     level shifts (87Sr/86Sr, δ34S) and stress episodes (opposing δ15N and δ13C)
   killoff.py     kill-off profiles from aged mandibles
   mixing.py      Bayesian diet mixing model for collagen
+  milkshare.py   breast-milk share at each dentine increment
+  dental_age.py  age at death from tooth formation stages
+  hypoplasia.py  timing of enamel hypoplasia
+  lifetable.py   life tables and the Siler hazard
+  mobility.py    enamel δ18O as drinking water, and 87Sr/86Sr against the local range
   simulate.py    tooth sampling planner
   bone_planner.py  bone sampling planner
   calibrate.py   growth tables from known-age reference points

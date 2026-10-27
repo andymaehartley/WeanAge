@@ -3,6 +3,21 @@
 ## Unreleased
 
 ### Added
+* Data tab: drop a table first; WeanAge lists every calculation with the rows it can use or what is
+  missing, and any number can be ticked and run from the same file. Buttons at the top switch
+  between the ticked calculations. Examples of every calculation are in one list.
+* Breast-milk share at each dentine increment (tooth calculation), from the adult-female baseline
+  (δ¹⁵N, optionally δ¹³C) and the nursing enrichment, with an optional third weaning food.
+* Dental age (new calculation): age at death from Moorrees stages, combined over a child's teeth,
+  with discordant teeth flagged; the ages can be passed to the bone calculation and life tables.
+  Formation ages are placeholders (`data/dental_stages.json`).
+* Enamel hypoplasia timing (new calculation): defect ages from their height on the crown, set
+  against the same individual's weaning interval and stress episodes.
+* Life tables (new calculation): Dx, dx, lx, qx, Lx, Tx, ex, infant and under-5 shares and the
+  juvenility index with bootstrap intervals, an interval-censored Siler fit, and a permutation test.
+* Mobility from bulk enamel (new calculation): δ¹⁸O to drinking water (Chenery et al. 2012; Daux et
+  al. 2008) and ⁸⁷Sr/⁸⁶Sr against a local range from baseline samples, Settings or Tukey fences.
+* Compare can group by any other column of the tooth table (for example sex or burial type).
 * Kill-off profiles (new calculation): aged mandibles as Payne (1973) stages or age ranges, shared
   between stages as Payne did; deaths and survivorship by age class with bootstrap intervals; shares
   killed before 6 months, at 6–36 months and alive at 4 years; permutation test between groups; a

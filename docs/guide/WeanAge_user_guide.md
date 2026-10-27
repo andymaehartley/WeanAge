@@ -11,13 +11,15 @@ WeanAge estimates when young mammals were weaned from the nitrogen isotope ratio
 their collagen. It works with two kinds of material: thin slices along one tooth, which record
 one animal's childhood, and the bones of many young animals from one site that died at
 different ages. For cattle it also reads enamel δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr along a molar for the
-season of birth, the development of the rumen, the diet and moves. Two further calculations put
-weaning in context: kill-off profiles from aged mandibles, and the make-up of the diet from bone
-collagen. It runs as a local app or in a web browser.
+season of birth, the development of the rumen, the diet and moves. Further calculations put
+weaning in context: kill-off profiles from aged mandibles, the make-up of the diet from bone
+collagen, and, for people, the share of breast milk at each dentine increment, age at death from
+dental development, the timing of enamel hypoplasia, life tables and mobility. It runs as a local
+app or in a web browser.
 
 This guide explains each part of the software, how the parts combine into a weaning age, and
-where each method comes from. Section 1 gives the background, sections 2–10 follow the
-calculations step by step, section 11 shows the app, and section 12 lists what is still provisional. Words in
+where each method comes from. Section 1 gives the background, sections 2–11 follow the
+calculations step by step, section 12 shows the app, and section 13 lists what is still provisional. Words in
 `code font` are column names, settings or files in the software. References are listed at the end.
 
 # 1. Background
@@ -53,11 +55,12 @@ et al. 2001), and the same has been found in sheep (Díez-Canseco & Tornero 2026
 <div><b>Tooth calculation</b><br>slices of one tooth<br>→ position to age (§3)<br>→ quality control (§2)<br>→ curve models (§4)<br>→ uncertainty, averaging (§4)<br>→ one animal's weaning age</div>
 <div><b>Bone calculation</b><br>many young animals + adult females<br>→ quality control (§2)<br>→ diet and bone-turnover model (§5)<br>→ Bayesian fit (§5)<br>→ a site's weaning age</div>
 <div><b>Enamel (cattle)</b><br>δ¹⁸O, δ¹³C, ⁸⁷Sr/⁸⁶Sr up one molar<br>→ yearly δ¹⁸O cycle (§6)<br>→ season-of-birth index<br>→ rumen development, C4 share<br>→ moves, and months of the year (§6)</div>
-<div><b>Context</b><br>aged mandibles → kill-off profile (§7)<br>bone collagen → diet make-up (§8)<br><br><b>Then</b><br>compare groups (§9); plan sampling (§10)</div>
+<div><b>Context</b><br>aged mandibles → kill-off profile (§7)<br>bone collagen → diet make-up (§8)<br>people: dental age, hypoplasia, life tables, mobility (§9)<br><br><b>Then</b><br>compare groups (§10); plan sampling (§11)</div>
 </div>
 
 The app has the same order: **Data → Settings → Results → Compare**, plus **Plan sampling**.
-The Data tab switches between the tooth, bone, enamel, kill-off and diet-mixing calculations.
+On the Data tab a table is dropped first; WeanAge then lists the calculations it can feed, and any
+number of them can be ticked and run.
 
 # 2. Data and quality control
 
@@ -184,6 +187,15 @@ average beside it (Figure 2).
 * **Adult-female baseline** (after WARN; Tsutaya & Yoneda 2013). If the δ¹⁵N of adult females
   from the same site is entered, results also give the nursing enrichment above them, and the
   adult plateau can be held within ±2 SD of the female mean.
+
+## Breast-milk share
+
+When the adult females' δ¹⁵N (and δ¹³C) is known for a site, each increment is read as a mix of
+collagen made on breast milk alone, one nursing enrichment above the adult females (δ¹⁵N; about 1‰ in
+δ¹³C, Fuller et al. 2006), and on the adult diet alone, as WARN does for bone (Tsutaya & Yoneda 2013).
+The milk share at each increment and its 95% interval are computed exactly on a grid of all mixes,
+allowing for the uncertainty of the baseline and the enrichment, and the age at which milk falls below
+half the diet is reported. A third weaning food (e.g. animal milk) can be added when δ¹³C is measured.
 
 ## Warnings
 
@@ -334,7 +346,43 @@ placeholders. For δ¹⁵N, a controlled feeding study found collagen about 6‰
 
 ![Figure 6. Synthetic human bone collagen from an inland and a coastal site (simulated data), with the placeholder food groups plus offsets (dashed boxes, ±1 SD).](figures/mixing_result.png){width=80%}
 
-# 9. Comparing groups
+# 9. People: dental age, hypoplasia, life tables and mobility
+
+**Dental age** (`dental_age.py`). Children's teeth are scored in the formation stages of Moorrees et al.
+(1963), from crown initiation (Ci) to apex closed (Ac). A tooth in a stage lies between the ages at which
+it reached that stage and the next, so its age is the middle of that span. The teeth of a child are
+averaged, weighted by their precision; because they develop together, the combined uncertainty is that
+of a typical tooth. Teeth that disagree are flagged. The ages can be passed on as ages at death to the
+bone calculation and the life tables. The formation ages are placeholders until a published standard
+(AlQahtani et al. 2010; Smith 1991) is entered, so these ages are illustrative.
+
+![Figure 7. Dental ages of 24 simulated children: squares are estimates, bars the ranges passed on, dots the single teeth.](figures/dental_result.png){width=72%}
+
+**Enamel hypoplasia** (`hypoplasia.py`). A defect's height above the cemento-enamel junction gives its
+age, taking the crown to form at an even rate from initiation to completion (Goodman & Rose 1990). Enamel
+forms more slowly towards the junction (Reid & Dean 2006), so these ages are approximate. Each defect is
+set against the same individual's weaning interval and stress episodes from the dentine, asking whether
+growth disruptions coincide with weaning.
+
+**Life tables** (`lifetable.py`). Ages at death are shared over age classes to give deaths, survivors,
+the probability of dying and life expectancy in each class (Chamberlain 2006), with the share of infants
+and the juvenility index D5–14/D20+ (Bocquet-Appel & Masset 1977). A Siler (1979) hazard can be fitted
+directly to the age ranges. Single years up to 5 show whether deaths cluster around weaning. A cemetery
+is not a living population: selective mortality and hidden frailty (the osteological paradox, Wood et al.
+1992) and missing infant burials (Bocquet-Appel & Masset 1982) are flagged or stated with every result.
+
+![Figure 8. Survivorship in two simulated cemeteries, with Siler fits (dashed). Site B lost most of its infant burials.](figures/lifetable_result.png){width=72%}
+
+**Mobility** (`mobility.py`). Bulk enamel δ¹⁸O is converted to drinking water (carbonate: Chenery et al.
+2012, after Coplen et al. 1983 for the scale; phosphate: Daux et al. 2008), with an SD of 1‰ for the
+conversion (Pollard et al. 2011). ⁸⁷Sr/⁸⁶Sr is compared with a local range from local fauna or plants
+(mean ± 2 SD; Price et al. 2002), or failing that with Tukey fences among the people (Lightfoot &
+O'Connell 2016). First molars and deciduous teeth may carry a breastfeeding signal in δ¹⁸O (Wright &
+Schwarcz 1998).
+
+![Figure 9. Drinking-water δ¹⁸O and ⁸⁷Sr/⁸⁶Sr of 30 simulated people, with the local range; five grew up elsewhere.](figures/mobility_result.png){width=72%}
+
+# 10. Comparing groups
 
 The Compare tab groups tooth estimates by site, species and/or period (`aggregate.py`,
 `inference.py`, `joint.py`).
@@ -357,7 +405,7 @@ The Compare tab groups tooth estimates by site, species and/or period (`aggregat
 included, the Compare tab reports each model's bias, mean absolute error, root-mean-square error,
 correlation and 95% interval coverage.
 
-# 10. Planning a study
+# 11. Planning a study
 
 Both planners answer "would this sampling design work?" before teeth are cut or bones sampled.
 
@@ -375,14 +423,14 @@ error, the width and coverage of the 95% interval, and how often the nursing sig
 Because the data are simulated with the model that is fitted, it tests the design, not the
 model; with placeholder turnover it shows relative, not absolute, precision.
 
-# 11. Using the app
+# 12. Using the app
 
 ![](figures/app_data.png){width=49%} ![](figures/app_compare.png){width=49%}
 
-*Figure 7. The Data tab with the cattle example loaded (left) and the Compare tab (right).*
+*Figure 10. The Data tab with the cattle example loaded (left) and the Compare tab (right).*
 
-1. **Data.** Choose the tooth, bone, enamel, kill-off or diet-mixing calculation, then drop a file, load an example or type
-   samples in. Problems are listed with their row numbers.
+1. **Data.** Drop a file, then tick the calculations it can feed (or load an example, or type
+   samples in). Problems are listed with their row numbers.
 2. **Settings.** The main choices are shown; less used ones are under *Advanced settings*. The
    defaults suit a first run.
 3. **Results.** Pick a specimen or group on the left. The headline gives the reported age and its
@@ -397,7 +445,7 @@ Examples from IsoArcH (cattle teeth from Khami and Bornais) and CIMA (Cocozza et
 bone from Wharram Percy, York Fishergate and Newark Bay, and human teeth from Mikulčice) are
 included; their slice positions or tooth age models are partly assumed, as noted when they load.
 
-# 12. Limits and placeholders
+# 13. Limits and placeholders
 
 Values that still need laboratory data are marked **placeholder** in the app and listed in the
 yellow banner at the top. Until they are replaced, results are illustrative. The most important are:
@@ -406,7 +454,8 @@ yellow banner at the top. Until they are replaced, results are illustrative. The
   human M1 table;
 * bone collagen turnover rates and nursing-enrichment priors for livestock;
 * collagen quality-control limits and the minimum weaning drop for each laboratory;
-* the food groups and collagen-diet offsets of the diet-mixing model.
+* the food groups and collagen-diet offsets of the diet-mixing model;
+* tooth formation ages for dental age and hypoplasia timing.
 
 Other limits: growth layers are treated as straight and the tooth as round in cross-section;
 the one-stage model uses only the logistic curve; and the bone calculation is not yet part of
@@ -432,7 +481,13 @@ Beaumont J, Gledhill A, Lee-Thorp J, Montgomery J (2013) *Archaeometry* 55: 277�
 
 Beaumont J, Montgomery J (2016) *PLoS ONE* 11: e0160065.
 
+Beaumont J, Montgomery J, Buckberry J, Jay M (2015) *Am. J. Phys. Anthropol.* 157: 441–457.
+
 Bentley RA (2006) *J. Archaeol. Method Theory* 13: 135–187.
+
+Bocquet-Appel J-P, Masset C (1977) *L'Homme* 17(4): 65–90.
+
+Bocquet-Appel J-P, Masset C (1982) *J. Hum. Evol.* 11: 321–333.
 
 Brown WAB, Christofferson PV, Massler M, Weiss MB (1960) *Am. J. Vet. Res.* 21: 7–34.
 
@@ -442,7 +497,15 @@ Cerling TE, Harris JM (1999) *Oecologia* 120: 347–363.
 
 Cerling TE, Harris JM, MacFadden BJ, Leakey MG, Quade J, Eisenmann V, Ehleringer JR (1997) *Nature* 389: 153–158.
 
+Chamberlain AT (2006) *Demography in Archaeology*. Cambridge University Press.
+
+Chenery CA, Pashley V, Lamb AL, Sloane HJ, Evans JA (2012) *Rapid Commun. Mass Spectrom.* 26: 309–319.
+
 Cocozza C, Cirelli E, Groß M, Teegen W-R, Fernandes R (2022) *Sci. Data* 9: 354 (CIMA).
+
+Coplen TB, Kendall C, Hopple J (1983) *Nature* 302: 236–238.
+
+Daux V et al. (2008) *J. Hum. Evol.* 55: 1138–1147.
 
 DeNiro MJ (1985) *Nature* 317: 806–809.
 
@@ -462,6 +525,8 @@ Ganiatsou E, Souleles A, Papageorgopoulou C (2023) *Archaeol. Anthropol. Sci.* 1
 
 Gelman A (2006) *Bayesian Anal.* 1: 515–534.
 
+Goodman AH, Rose JC (1990) *Yearb. Phys. Anthropol.* 33: 59–110.
+
 Guiry EJ, Szpak P (2020) *Methods Ecol. Evol.* 11: 1049–1060.
 
 Holm S (1979) *Scand. J. Stat.* 6: 65–70.
@@ -472,11 +537,15 @@ Jenkins SG et al. (2001) *Oecologia* 129: 336–341.
 
 Kohn MJ (2010) *Proc. Natl. Acad. Sci. USA* 107: 19691–19695.
 
+Lightfoot E, O'Connell TC (2016) *PLoS ONE* 11: e0153850.
+
 Millard AR (2000) In Goodfriend GA et al. (eds) *Perspectives in Amino Acid and Protein Geochemistry*. Oxford University Press.
 
 Minagawa M, Wada E (1984) *Geochim. Cosmochim. Acta* 48: 1135–1140.
 
 Montgomery J, Evans JA, Horstwood MSA (2010) *Environ. Archaeol.* 15: 32–42.
+
+Moorrees CFA, Fanning EA, Hunt EE (1963) *J. Dent. Res.* 42: 1490–1502.
 
 Nehlich O (2015) *Earth-Sci. Rev.* 142: 1–17.
 
@@ -492,11 +561,21 @@ Payne S (1973) *Anatolian Stud.* 23: 281–303.
 
 Phillips DL, Inger R, Bearhop S, Jackson AL, Moore JW, Parnell AC, Semmens BX, Ward EJ (2014) *Can. J. Zool.* 92: 823–835.
 
+Pollard AM, Pellegrini M, Lee-Thorp JA (2011) *Am. J. Phys. Anthropol.* 145: 499–504.
+
+Price TD, Burton JH, Bentley RA (2002) *Archaeometry* 44: 117–135.
+
+Reid DJ, Dean MC (2006) *J. Hum. Evol.* 50: 329–346.
+
 Reynard LM, Tuross N (2015) *J. Archaeol. Sci.* 53: 618–625.
 
 Richards MP, Mays S, Fuller BT (2002) *Am. J. Phys. Anthropol.* 119: 205–210.
 
+Siler W (1979) *Ecology* 60: 750–757.
+
 Sisson SA, Fan Y, Tanaka MM (2007) *Proc. Natl. Acad. Sci. USA* 104: 1760–1765.
+
+Smith BH (1991) In Kelley MA, Larsen CS (eds) *Advances in Dental Anthropology*, 143–168. Wiley-Liss.
 
 Stock BC, Jackson AL, Ward EJ, Parnell AC, Phillips DL, Semmens BX (2018) *PeerJ* 6: e5096 (MixSIAR).
 
@@ -515,6 +594,10 @@ Vehtari A, Gelman A, Simpson D, Carpenter B, Bürkner P-C (2021) *Bayesian Anal.
 Vigne J-D, Helmer D (2007) *Anthropozoologica* 42: 9–40.
 
 Waters-Rist AL, Katzenberg MA (2010) *Int. J. Osteoarchaeol.* 20: 172–191.
+
+Wood JW, Milner GR, Harpending HC, Weiss KM (1992) *Curr. Anthropol.* 33: 343–370.
+
+Wright LE, Schwarcz HP (1998) *Am. J. Phys. Anthropol.* 106: 1–18.
 
 Zazzo A, Balasse M, Patterson WP (2005) *Geochim. Cosmochim. Acta* 69: 3631–3642.
 

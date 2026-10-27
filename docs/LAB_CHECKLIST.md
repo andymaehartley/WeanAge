@@ -139,6 +139,24 @@ From known-age young animals and their mothers, ideally from the same herds.
 - [ ] **Collagen-diet offsets** for the species studied (humans: δ¹⁵N about 6‰, O'Connell et al. 2012).
 - [ ] Decide which food groups to include; more groups than isotopes + 1 cannot be told apart.
 
+## 8d. People (`data/dental_stages.json` and Settings)
+
+- [ ] **Tooth formation ages**: replace the placeholder initiation, crown, root and apex ages with stage
+      ages and SDs from a published standard (e.g. AlQahtani et al. 2010; Smith 1991), ideally one
+      suited to the population; add **cuspal formation times** (Reid & Dean 2006) for hypoplasia timing.
+- [ ] Record each child's **Moorrees stages** per tooth (from radiographs or loose teeth), scored blind
+      to other age evidence; note inter-observer checks.
+- [ ] For hypoplasia: measure the **defect height above the CEJ** and the **unworn crown height** on the
+      same face, with calipers or a microscope; note wear.
+- [ ] **Adult-female δ¹⁵N and δ¹³C** for each site, for the breast-milk share; check the **nursing
+      enrichment** (humans: WARN's 1.9 ± 0.9‰; δ¹³C about 1‰, Fuller et al. 2006).
+- [ ] For life tables: the **ageing methods** used for adults and children, open-ended ranges, and how
+      infants were recovered (sieving, cemetery coverage).
+- [ ] For mobility: whether δ¹⁸O is **carbonate (VPDB) or phosphate (VSMOW)**, the pretreatment, the
+      **local drinking-water δ¹⁸O** range, and **local bioavailable ⁸⁷Sr/⁸⁶Sr** (fauna, plants, snails).
+- [ ] Prefer **later-forming teeth** (PM2, M2, M3) for mobility: M1 and deciduous teeth may carry a
+      breastfeeding δ¹⁸O signal.
+
 ## 9. Example data assumptions
 
 The bundled real examples rely on assumptions that should be checked against the original

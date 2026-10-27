@@ -560,6 +560,151 @@ estimated marine shares follow the true ones (r > 0.8).
 * Stock BC, Jackson AL, Ward EJ, Parnell AC, Phillips DL, Semmens BX (2018) Analyzing mixing systems using a new generation of Bayesian tracer mixing models. *PeerJ* 6: e5096.
 * Vigne J-D, Helmer D (2007) Was milk a "secondary product" in the Old World Neolithisation process? *Anthropozoologica* 42: 9–40.
 
+## 15. Breast-milk share per increment (`milkshare.py`)
+
+With an adult-female baseline for the site (mean and SD of δ¹⁵N, optionally δ¹³C), each used dentine
+increment is treated as a mix of collagen made on breast milk alone and on the adult diet alone (the
+WARN idea, Tsutaya & Yoneda 2013, applied increment by increment). For a milk share p (and an optional
+third food share o, with the adult diet 1 − p − o):
+
+```
+expected  = (p + adult)·baseline + p·E + o·food
+variance  = (p + adult)²·sd_baseline² + p²·sd_E² + o²·sd_food² + sd_measurement²
+```
+
+for δ¹⁵N, and for δ¹³C when the baseline has it. The baseline term is shared by milk and adult diet,
+so its uncertainty is not split between them. E (δ¹⁵N) defaults to the species prior of the bone
+calculation (humans: 1.9 ± 0.9‰, WARN); the δ¹³C enrichment is 1.0 ± 0.5‰ (Fuller et al. 2006). The
+measurement SD is the lab precision, or 0.2‰ if not given. The shares have a flat prior and the
+posterior is computed exactly on a grid (steps of 0.01). Reported per increment: the posterior mean
+milk share and its 95% interval; and the first age after which the mean stays below one half. Posterior
+means of a bounded share cannot reach 0 or 1, so lower thresholds are not dated. A third food needs δ¹³C
+for both the food and the baseline, because one isotope cannot separate three foods; without it the food
+is left out with a warning. Dentine increments average weeks to months and collagen lags the diet
+(Beaumont et al. 2015; Tsutaya 2020), so the curve is smoothed and slightly late.
+
+Tested on a simulated child weaned at 24 months: the half-way age is recovered within 4 months, and the
+share falls from over 0.7 to under 0.3.
+
+## 16. Dental age (`dental_age.py`)
+
+Each tooth is scored in a Moorrees et al. (1963) stage: Ci, Cco, Coc, Cr½, Cr¾, Crc, Ri, R¼, R½, R¾, Rc,
+A½, Ac (Cli is read as Ri; numbers 1–13 are accepted). For each tooth `data/dental_stages.json` gives four
+ages (months from birth; negative before birth): crown initiation, crown complete, root length complete
+and apex closed. Stage attainment ages are spaced evenly between them (Ci–Crc over the crown; Ri at 5%,
+then R¼–Rc over the root; A½ and Ac over apex closure). **These are rounded placeholder values**, not a
+checked standard; they should be replaced with stage ages from a published atlas (e.g. AlQahtani et al.
+2010; Smith 1991).
+
+* A tooth in a stage is between the attainment of that stage and of the next: its age is the midpoint,
+  with SD² = width²/12 (uniform) + spread², spread = max(10% of the age, 2 months) (placeholder).
+* A tooth at Ac gives only a minimum age.
+* Teeth are combined by an inverse-variance weighted mean. Teeth of one child are not independent, so
+  the combined SD is √(n / Σw), the SD of a typical tooth, rather than √(1 / Σw).
+* Teeth more than 2 SD from the combined age are flagged; an estimate younger than a closed apex allows
+  is flagged; an estimate before birth is noted.
+* The range passed on is estimate ± 1.96 SD (`interval_z`), clipped at 0. In the app it can be written
+  into the bone calculation (`age_min_months`/`age_max_months` of non-adults with the same specimen ID)
+  or the life tables.
+
+Tested on 24 simulated children (stages drawn from the same table with 8% developmental variation): mean
+absolute error under 6 months and coverage of the range above 85%. This checks the arithmetic, not the
+formation ages.
+
+## 17. Enamel hypoplasia timing (`hypoplasia.py`)
+
+A linear enamel hypoplasia (LEH) defect is dated from its height above the cemento-enamel junction (CEJ),
+d, on a crown of unworn height H, assuming the visible crown forms at an even rate (Goodman & Rose 1990):
+
+```
+age = initiation + cuspal + (1 − d/H)·(crown completion − initiation − cuspal)
+```
+
+Initiation and completion come from `data/dental_stages.json`; `cuspal_months` (the enamel formed under
+the cusp before the surface layers appear; Reid & Dean 2006) is 0 until set. Enamel in fact forms more
+slowly towards the CEJ (Reid & Dean 2006), so even-rate ages are too young near the cusp and too old near
+the CEJ. The 95% interval comes from 2000 draws of the formation ages (SD as in section 16) and of d (SD
+0.2 mm). When the tooth calculation has results for the same specimen ID, each defect is classed as
+before, during (its interval overlaps onset–completion of the model-average δ¹⁵N fall) or after weaning,
+and as overlapping a dentine stress episode or not; the share of comparable defects formed during weaning
+is reported.
+
+## 18. Life tables (`lifetable.py`)
+
+Each skeleton's age range (years; an open range runs to the last class boundary) is shared over the age
+classes by overlap. Default classes: single years to 5, then 5–10, 10–15, 15–20, decades to 60, and
+60–80. For each site × period (Chamberlain 2006):
+
+```
+Dx deaths, dx = Dx/N, lx = 1 − Σ earlier dx, qx = dx/lx, Lx = n·(lx + lx+n)/2, Tx = Σ_{≥x} Lx, ex = Tx/lx
+```
+
+* Summaries: e₀; share of deaths under 1 and under 5 years; juvenility index D5–14 / D20+
+  (Bocquet-Appel & Masset 1977), with deaths spread evenly within classes. 95% intervals from 1000
+  resamples of the skeletons.
+* Siler (1979) hazard h(t) = a₁e^(−b₁t) + a₂ + a₃e^(b₃t), fitted by maximum likelihood with each age range
+  interval-censored (an open range runs to 1.2 × the last boundary), with parameters bounded to plausible
+  values (b₁ 0.05–10, b₃ 0.01–0.2 per year). Its e₀ is the area under the survival curve. With open-ended
+  adult ages the senescent part is poorly fixed.
+* Groups are compared with the permutation test of section 13 on the shares of deaths by class.
+* Warnings: fewer than 30 skeletons; infants under 10% of the dead (pre-modern populations usually lost
+  far more, so infant burials are probably missing; Bocquet-Appel & Masset 1982). Always: a life table
+  describes a living population only if it was stationary and the dead are a fair sample (the
+  osteological paradox, Wood et al. 1992).
+
+Tested on a hand-checked ten-skeleton table and on two simulated cemeteries (Siler hazards, adult ages in
+14-year ranges and 50+): e₀ within 6 years of the truth, and the cemetery that lost infant burials is
+flagged.
+
+## 19. Mobility from bulk enamel (`mobility.py`)
+
+* **Oxygen.** Carbonate δ¹⁸O (‰ VPDB) is put on the VSMOW scale (δ¹⁸O_VSMOW = 1.03091·δ¹⁸O_VPDB + 30.91;
+  Coplen et al. 1983) and converted to drinking water with δ¹⁸O_dw = 1.590·δ¹⁸O_c − 48.634 (Chenery et
+  al. 2012). Phosphate (‰ VSMOW) uses δ¹⁸O_dw = 1.54·δ¹⁸O_p − 33.72 (Daux et al. 2008); Chenery's equation
+  is their carbonate-to-phosphate relation (δ¹⁸O_p = 1.0322·δ¹⁸O_c − 9.6849) followed by Daux's, which the
+  tests check. Each value carries an SD (default 1‰) for the conversion error, which Pollard et al. (2011)
+  show can be larger.
+* **Strontium.** The local range is, in order: the range in Settings; the mean ± 2 SD of baseline samples
+  from the same site (`role` = baseline; Price et al. 2002); or Tukey fences (1.5 × IQR beyond the
+  quartiles) among the site's people if there are at least 8, preferred to ± 2 SD by Lightfoot &
+  O'Connell (2016). The drinking-water range is from Settings or Tukey fences.
+* A value is **non-local** if it lies outside the range by more than 1.96 SD (δ¹⁸O) or at all (⁸⁷Sr/⁸⁶Sr).
+  Outside means "not from here", not "from there".
+* First molars and deciduous teeth form partly during breastfeeding, which raises δ¹⁸O (Wright & Schwarcz
+  1998); they are noted.
+
+Tested on the conversion equations (Chenery's worked value: −4.0‰ VPDB carbonate ≈ −6.0‰ drinking water)
+and on a simulated site where exactly the five incomers are found.
+
+## 20. Choosing calculations and grouping by other columns
+
+The Data page sends a dropped table to `/api/detect`, which runs every calculation's reader on it and
+reports the rows each would accept and, if none, the first problem. Ticked calculations receive the file.
+In the tooth calculation, columns that are not used are kept as labels on each sample and passed into the
+estimates, so Compare can group by them (any label with 2–20 values).
+
+### References for sections 15–20
+
+* AlQahtani SJ, Hector MP, Liversidge HM (2010) Brief communication: the London atlas of human tooth development and eruption. *Am. J. Phys. Anthropol.* 142: 481–490.
+* Beaumont J, Montgomery J, Buckberry J, Jay M (2015) Infant mortality and isotopic complexity: new approaches to stress, maternal health, and weaning. *Am. J. Phys. Anthropol.* 157: 441–457.
+* Bocquet-Appel J-P, Masset C (1977) Estimateurs en paléodémographie. *L'Homme* 17(4): 65–90.
+* Bocquet-Appel J-P, Masset C (1982) Farewell to paleodemography. *J. Hum. Evol.* 11: 321–333.
+* Chamberlain AT (2006) *Demography in Archaeology*. Cambridge University Press.
+* Chenery CA, Pashley V, Lamb AL, Sloane HJ, Evans JA (2012) The oxygen isotope relationship between the phosphate and structural carbonate fractions of human bioapatite. *Rapid Commun. Mass Spectrom.* 26: 309–319.
+* Coplen TB, Kendall C, Hopple J (1983) Comparison of stable isotope reference samples. *Nature* 302: 236–238.
+* Daux V et al. (2008) Oxygen isotope fractionation between human phosphate and water revisited. *J. Hum. Evol.* 55: 1138–1147.
+* Fuller BT, Fuller JL, Harris DA, Hedges REM (2006) Detection of breastfeeding and weaning in modern human infants with carbon and nitrogen stable isotope ratios. *Am. J. Phys. Anthropol.* 129: 279–293.
+* Goodman AH, Rose JC (1990) Assessment of systemic physiological perturbations from dental enamel hypoplasias and associated histological structures. *Yearb. Phys. Anthropol.* 33: 59–110.
+* Lightfoot E, O'Connell TC (2016) On the use of biomineral oxygen isotope data to identify human migrants in the archaeological record. *PLoS ONE* 11: e0153850.
+* Moorrees CFA, Fanning EA, Hunt EE (1963) Age variation of formation stages for ten permanent teeth. *J. Dent. Res.* 42: 1490–1502.
+* Pollard AM, Pellegrini M, Lee-Thorp JA (2011) Technical note: some observations on the conversion of dental enamel δ18Op values to δ18Ow to determine human mobility. *Am. J. Phys. Anthropol.* 145: 499–504.
+* Price TD, Burton JH, Bentley RA (2002) The characterization of biologically available strontium isotope ratios for the study of prehistoric migration. *Archaeometry* 44: 117–135.
+* Reid DJ, Dean MC (2006) Variation in modern human enamel formation times. *J. Hum. Evol.* 50: 329–346.
+* Siler W (1979) A competing-risk model for animal mortality. *Ecology* 60: 750–757.
+* Smith BH (1991) Standards of human tooth formation and dental age assessment. In Kelley MA, Larsen CS (eds) *Advances in Dental Anthropology*, pp. 143–168. Wiley-Liss.
+* Wood JW, Milner GR, Harpending HC, Weiss KM (1992) The osteological paradox. *Curr. Anthropol.* 33: 343–370.
+* Wright LE, Schwarcz HP (1998) Stable carbon and oxygen isotopes in human tooth enamel: identifying breastfeeding and weaning in prehistory. *Am. J. Phys. Anthropol.* 106: 1–18.
+
 ## Limitations / future work
 
 * The slice geometry assumes straight growth layers and a circular cross-section. Real

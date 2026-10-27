@@ -122,7 +122,6 @@ def app_screenshots():
         for calc, figure, name in [("killoff", "#killoff-survival-chart", "killoff_result.png"),
                                    ("mixing", "#mixing-biplot", "mixing_result.png"),
                                    ("dental", "#dental-chart", "dental_result.png"),
-                                   ("leh", "#leh-chart", "leh_result.png"),
                                    ("lifetable", "#lifetable-chart", "lifetable_result.png"),
                                    ("mobility", "#mobility-chart", "mobility_result.png")]:
             click(page, '.step[data-view="data"]')
