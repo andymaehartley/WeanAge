@@ -86,7 +86,7 @@ def app_screenshots():
         page.goto(f"http://127.0.0.1:{port}/app/")
         page.wait_for_selector("#model-options input", state="attached")
         page.add_style_tag(content=".statusbar { display: none; } .topbar { position: static; }")  # not over tall figures
-        page.select_option("#example-choice", "isoarch_cattle")
+        page.select_option("#example-choice", "tooth:isoarch_cattle")
         click(page, "#btn-example")
         page.wait_for_selector("#specimens-card:not([hidden])")
         page.evaluate("document.querySelector('#toast').hidden = true")
@@ -102,8 +102,7 @@ def app_screenshots():
         page.wait_for_timeout(400)
         page.screenshot(path=str(FIGURES / "app_compare.png"))
         click(page, '.step[data-view="data"]')
-        page.check('input[name="calc"][value="bone"]')
-        page.select_option("#example-choice", "cima_wharram_percy")
+        page.select_option("#example-choice", "bone:cima_wharram_percy")
         click(page, "#btn-example")
         page.wait_for_timeout(1000)
         click(page, '.step[data-view="settings"]')
@@ -112,7 +111,7 @@ def app_screenshots():
         page.wait_for_timeout(400)
         shot(page, "#view-bone-results .results-layout > :last-child", "bone_result.png")
         click(page, '.step[data-view="data"]')
-        page.check('input[name="calc"][value="enamel"]')
+        page.select_option("#example-choice", "enamel:synthetic_enamel")
         click(page, "#btn-example")
         page.wait_for_selector("#enamel-teeth-card:not([hidden])")
         click(page, '.step[data-view="settings"]')
@@ -121,9 +120,13 @@ def app_screenshots():
         page.wait_for_timeout(400)
         shot(page, "#view-enamel-results .results-main > :first-child", "enamel_result.png")
         for calc, figure, name in [("killoff", "#killoff-survival-chart", "killoff_result.png"),
-                                   ("mixing", "#mixing-biplot", "mixing_result.png")]:
+                                   ("mixing", "#mixing-biplot", "mixing_result.png"),
+                                   ("dental", "#dental-chart", "dental_result.png"),
+                                   ("leh", "#leh-chart", "leh_result.png"),
+                                   ("lifetable", "#lifetable-chart", "lifetable_result.png"),
+                                   ("mobility", "#mobility-chart", "mobility_result.png")]:
             click(page, '.step[data-view="data"]')
-            page.check(f'input[name="calc"][value="{calc}"]')
+            page.select_option("#example-choice", page.eval_on_selector(f'#example-choice option[value^="{calc}:"]', "o => o.value"))
             click(page, "#btn-example")
             page.wait_for_timeout(1000)
             click(page, '.step[data-view="settings"]')

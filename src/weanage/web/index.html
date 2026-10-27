@@ -68,44 +68,29 @@
   </div>
 
   <main id="main" tabindex="-1">
+    <nav id="calc-tabs" class="calc-tabs" aria-label="Calculation shown" hidden></nav>
     <!-- 1. data -->
     <section id="view-data" class="view active" aria-labelledby="h-data">
       <h2 id="h-data" class="sr-only">Data</h2>
       <div class="grid-2">
         <div class="column">
           <article class="card">
-            <h2>Load isotope data</h2>
-            <fieldset class="calc-choice">
-              <legend>Calculation</legend>
-              <label class="calc-option"><input type="radio" name="calc" value="tooth" checked>
-                <span><strong>Tooth calculation</strong>
-                  <small>Slices along a tooth: one animal's own weaning curve.</small></span></label>
-              <label class="calc-option"><input type="radio" name="calc" value="bone">
-                <span><strong>Bone calculation</strong>
-                  <small>Bone from many young animals that died at different ages, after WARN.</small></span></label>
-              <label class="calc-option"><input type="radio" name="calc" value="enamel">
-                <span><strong>Enamel: season and rumen</strong>
-                  <small>δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr along a cattle molar: season of birth, rumen development, diet and moves.</small></span></label>
-              <label class="calc-option"><input type="radio" name="calc" value="killoff">
-                <span><strong>Kill-off profiles</strong>
-                  <small>Aged mandibles: at what ages a herd's animals were killed, after Payne (1973).</small></span></label>
-              <label class="calc-option"><input type="radio" name="calc" value="mixing">
-                <span><strong>Diet mixing</strong>
-                  <small>Bone collagen δ¹³C, δ¹⁵N (and δ³⁴S): the share of each food group in the diet.</small></span></label>
-            </fieldset>
+            <h2>Load data</h2>
             <label id="dropzone" class="dropzone">
               <input id="csv-input" type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls" hidden>
               <strong>Drop a CSV or Excel file here</strong> or click to choose one
-              <small data-mode="tooth">One row per dentine slice.</small>
-              <small data-mode="bone" hidden>One row per animal.</small>
-              <small data-mode="enamel" hidden>One row per enamel sample.</small>
-              <small data-mode="killoff" hidden>One row per mandible.</small>
-              <small data-mode="mixing" hidden>One row per collagen sample.</small>
+              <small>WeanAge checks which calculations the table can be used for.</small>
             </label>
             <div class="row gap wrap">
               <label class="inline">Example <select id="example-choice"></select></label>
               <button id="btn-example" class="secondary">Load example</button>
             </div>
+            <p id="file-status" class="file-status" role="status" aria-live="polite" hidden></p>
+            <fieldset class="calc-choice">
+              <legend>Calculations to run <span data-helpslot="calcs"></span></legend>
+              <p id="calc-hint" class="hint">Load a file to see which calculations it can be used for, or tick one to type data in by hand.</p>
+              <div id="calc-list" class="calc-list"></div>
+            </fieldset>
             <p id="data-ready" class="data-ready" hidden><span id="data-ready-text"></span>
               <button id="btn-next-settings" type="button">Next: settings</button></p>
             <details class="advanced">
@@ -171,6 +156,19 @@
                 </ol>
                 <p class="hint">The food values and offsets are placeholders until measured locally.</p>
               </div>
+              <p class="hint" data-mode="dental" hidden>Required columns: <code>specimen_id, site, species, tooth, stage</code>.
+                One row per tooth; <code>specimen_id</code> is the individual. Teeth: di1, di2, dc, dm1, dm2, I1, I2, C, PM1 (P3),
+                PM2 (P4), M1, M2, M3. Stages (Moorrees et al. 1963): Ci, Cco, Coc, Cr1/2, Cr3/4, Crc, Ri, R1/4, R1/2, R3/4, Rc,
+                A1/2, Ac, or 1–13.</p>
+              <p class="hint" data-mode="leh" hidden>Required columns: <code>specimen_id, site, species, tooth, defect_mm,
+                crown_height_mm</code>: the defect's height above the cemento-enamel junction and the unworn crown height (mm).
+                Use the same <code>specimen_id</code> as in the tooth calculation to set defects against weaning.</p>
+              <p class="hint" data-mode="lifetable" hidden>Required columns: <code>specimen_id, site, species, age_min_years</code>;
+                <code>age_max_years</code> (blank for an open-ended adult age such as 50+). Months work too
+                (<code>age_min_months</code>, <code>age_max_months</code>).</p>
+              <p class="hint" data-mode="mobility" hidden>Required columns: <code>specimen_id, site, species</code> and
+                <code>d18O</code> and/or <code>sr87_86</code>. <code>d18O_material</code> is carbonate (‰ VPDB, the default) or
+                phosphate (‰ VSMOW). Mark local fauna or plants measured for strontium with <code>role</code> = baseline.</p>
               <p class="hint" data-mode="tooth">Required columns: <code>specimen_id, site, species, tooth, position_mm, d15N</code>
                   <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
                   <code>position_reference</code> + <code>crown_height_mm</code> (if measured from the cervix).</p>
@@ -292,6 +290,22 @@
             <h2>Samples <span id="mixing-count" class="muted"></span></h2>
             <div class="table-wrap tall"><table id="mixing-sample-table"></table></div>
           </article>
+          <article class="card" id="dental-card" data-mode="dental" hidden>
+            <h2>Teeth scored <span id="dental-count" class="muted"></span></h2>
+            <div class="table-wrap tall"><table id="dental-table"></table></div>
+          </article>
+          <article class="card" id="leh-card" data-mode="leh" hidden>
+            <h2>Defects <span id="leh-count" class="muted"></span></h2>
+            <div class="table-wrap tall"><table id="leh-table"></table></div>
+          </article>
+          <article class="card" id="lifetable-card" data-mode="lifetable" hidden>
+            <h2>Groups <span id="lifetable-count" class="muted"></span></h2>
+            <div class="table-wrap"><table id="lifetable-group-table"></table></div>
+          </article>
+          <article class="card" id="mobility-card" data-mode="mobility" hidden>
+            <h2>Sites <span id="mobility-count" class="muted"></span></h2>
+            <div class="table-wrap"><table id="mobility-site-table"></table></div>
+          </article>
           <article class="card" id="specimens-card" hidden>
             <h2>Specimens <span id="sample-count" class="muted"></span></h2>
             <div class="table-wrap"><table id="specimen-table"></table></div>
@@ -389,6 +403,24 @@
                 <div id="baseline-list" class="baseline-list"></div>
                 <label class="check"><input id="opt-constrain" type="checkbox">
                   Constrain the adult plateau to baseline ± 2 SD</label>
+                <h3>Breast-milk share <span data-helpslot="milk_share"></span></h3>
+                <p class="hint">Uses the baseline above. Blank δ¹⁵N enrichment: the species' value from the bone calculation's priors.</p>
+                <div class="form-grid">
+                  <label>Nursing enrichment δ¹⁵N (‰)<input id="opt-enrich-n" type="number" min="0" max="6" step="0.1"></label>
+                  <label>SD (‰)<input id="opt-enrich-n-sd" type="number" min="0.05" max="3" step="0.1"></label>
+                  <label>Nursing enrichment δ¹³C (‰)<input id="opt-enrich-c" type="number" min="-1" max="3" step="0.1"></label>
+                  <label>SD (‰)<input id="opt-enrich-c-sd" type="number" min="0.05" max="2" step="0.1"></label>
+                </div>
+                <fieldset class="weaning-food">
+                  <legend>Another weaning food (optional; needs δ¹³C)</legend>
+                  <div class="form-grid">
+                    <label>Name<input id="food-name" type="text" placeholder="e.g. animal milk"></label>
+                    <label>Collagen δ¹⁵N on it alone (‰)<input id="food-d15N" type="number" step="0.1"></label>
+                    <label>SD (‰)<input id="food-d15N-sd" type="number" min="0.05" step="0.1" placeholder="0.5"></label>
+                    <label>Collagen δ¹³C on it alone (‰)<input id="food-d13C" type="number" step="0.1"></label>
+                    <label>SD (‰)<input id="food-d13C-sd" type="number" min="0.05" step="0.1" placeholder="0.5"></label>
+                  </div>
+                </fieldset>
               </div>
             </div>
           </details>
@@ -634,6 +666,11 @@
               </div>
             </details>
           </article>
+          <article class="card" id="milk-card">
+            <h2>Breast-milk share <span data-helpslot="milk_share"></span></h2>
+            <div id="milk-summary"></div>
+            <div id="milk-chart" class="chart-box"></div>
+          </article>
         </div>
       </div>
     </section>
@@ -754,6 +791,106 @@
       </div>
     </section>
 
+    <!-- 2. settings (dental age) -->
+    <section id="view-dental-settings" class="view" aria-labelledby="h-dental-settings">
+      <h2 id="h-dental-settings" class="sr-only">Dental age settings</h2>
+      <div class="grid-3">
+        <article class="card" data-tbd="dental:stages">
+          <h2>Formation ages <span data-helpslot="dental"></span></h2>
+          <p class="hint">The ages at which each tooth reaches each stage are in <code>data/dental_stages.json</code>. The bundled
+            values are rounded placeholders: replace them with a published standard before using the ages.</p>
+        </article>
+        <article class="card">
+          <h2>Ranges and checks</h2>
+          <div class="form-grid">
+            <label>Range passed on: estimate ± this many SD<input id="dental-interval_z" type="number" min="0.5" max="4" step="0.01"></label>
+            <label>Flag a tooth this many SD away<input id="dental-discordance_z" type="number" min="0.5" max="5" step="0.1"></label>
+          </div>
+        </article>
+      </div>
+      <div class="run-bar">
+        <div id="dental-progress" class="progress-wrap" hidden></div>
+        <button id="btn-dental-run" class="primary">Estimate ages</button>
+      </div>
+    </section>
+
+    <!-- 2. settings (enamel hypoplasia) -->
+    <section id="view-leh-settings" class="view" aria-labelledby="h-leh-settings">
+      <h2 id="h-leh-settings" class="sr-only">Enamel hypoplasia settings</h2>
+      <div class="grid-3">
+        <article class="card" data-tbd="dental:stages">
+          <h2>Crown formation <span data-helpslot="leh"></span></h2>
+          <p class="hint">Crown initiation and completion ages come from <code>data/dental_stages.json</code> (placeholders).
+            Defects are set against weaning when the tooth calculation has results for the same specimen IDs.</p>
+        </article>
+        <article class="card">
+          <h2>Uncertainty</h2>
+          <div class="form-grid">
+            <label>Height measurement SD (mm)<input id="leh-measurement_sd_mm" type="number" min="0" max="3" step="0.05"></label>
+            <label>Random draws<input id="leh-draws" type="number" min="100" max="20000" step="100"></label>
+          </div>
+        </article>
+      </div>
+      <div class="run-bar">
+        <div id="leh-progress" class="progress-wrap" hidden></div>
+        <button id="btn-leh-run" class="primary">Date the defects</button>
+      </div>
+    </section>
+
+    <!-- 2. settings (life tables) -->
+    <section id="view-lifetable-settings" class="view" aria-labelledby="h-lifetable-settings">
+      <h2 id="h-lifetable-settings" class="sr-only">Life table settings</h2>
+      <div class="grid-3">
+        <article class="card">
+          <h2>Age classes <span data-helpslot="lifetable"></span></h2>
+          <label>Class boundaries (years)<input id="lifetable-class_bounds_years" type="text" inputmode="decimal" aria-describedby="lifetable-bounds-hint"></label>
+          <p id="lifetable-bounds-hint" class="hint">Single years up to 5 show deaths around weaning. An open-ended adult age
+            (e.g. 50+) is spread up to the last boundary.</p>
+          <label class="check"><input id="lifetable-siler" type="checkbox"> Also fit a Siler hazard model <span data-helpslot="siler"></span></label>
+        </article>
+        <article class="card">
+          <h2>Uncertainty</h2>
+          <div class="form-grid">
+            <label>Resamples for the 95% intervals<input id="lifetable-bootstrap_draws" type="number" min="0" max="10000" step="100"></label>
+            <label>Permutations for comparing groups<input id="lifetable-permutations" type="number" min="0" max="10000" step="100"></label>
+          </div>
+        </article>
+      </div>
+      <div class="run-bar">
+        <div id="lifetable-progress" class="progress-wrap" hidden></div>
+        <button id="btn-lifetable-run" class="primary">Build life tables</button>
+      </div>
+    </section>
+
+    <!-- 2. settings (mobility) -->
+    <section id="view-mobility-settings" class="view" aria-labelledby="h-mobility-settings">
+      <h2 id="h-mobility-settings" class="sr-only">Mobility settings</h2>
+      <div class="grid-3">
+        <article class="card">
+          <h2>Oxygen <span data-helpslot="drinking_water"></span></h2>
+          <div class="form-grid">
+            <label>SD of a drinking-water value (‰)<input id="mobility-drinking_water_sd" type="number" min="0" max="5" step="0.1"></label>
+            <label>Local drinking water, from (‰)<input id="mobility-local_d18O_dw_min" type="number" step="0.1"></label>
+            <label>to (‰)<input id="mobility-local_d18O_dw_max" type="number" step="0.1"></label>
+          </div>
+        </article>
+        <article class="card">
+          <h2>Strontium <span data-helpslot="local_sr"></span></h2>
+          <div class="form-grid">
+            <label>Local ⁸⁷Sr/⁸⁶Sr, from<input id="mobility-local_sr_min" type="number" min="0.69" max="0.75" step="0.0001"></label>
+            <label>to<input id="mobility-local_sr_max" type="number" min="0.69" max="0.75" step="0.0001"></label>
+            <label>Baseline mean ± this many SD<input id="mobility-baseline_sd_multiplier" type="number" min="0.5" max="4" step="0.5"></label>
+          </div>
+          <p class="hint">Leave the range empty to use the baseline samples (role = baseline), or, without them, the spread of
+            the people themselves.</p>
+        </article>
+      </div>
+      <div class="run-bar">
+        <div id="mobility-progress" class="progress-wrap" hidden></div>
+        <button id="btn-mobility-run" class="primary">Check for incomers</button>
+      </div>
+    </section>
+
     <!-- 3. results (enamel) -->
     <section id="view-enamel-results" class="view" aria-labelledby="h-enamel-results">
       <h2 id="h-enamel-results" class="sr-only">Enamel results</h2>
@@ -862,6 +999,107 @@
       </article>
     </section>
 
+    <!-- 3. results (dental age) -->
+    <section id="view-dental-results" class="view" aria-labelledby="h-dental-results">
+      <h2 id="h-dental-results" class="sr-only">Dental age results</h2>
+      <article class="card">
+        <div class="row between wrap">
+          <h2>Age at death <span data-helpslot="dental"></span></h2>
+          <span class="row gap export-links">
+            <span class="muted small">Export:</span>
+            <button id="btn-dental-csv" class="link" type="button">ages (CSV)</button>
+          </span>
+        </div>
+        <p id="dental-placeholder" class="warn-text small">The tooth formation ages are placeholders: these ages show how the method works.</p>
+        <div id="dental-chart" class="chart-box"></div>
+        <div class="row gap wrap">
+          <button id="btn-dental-to-bone" class="secondary tiny" type="button">Use as ages at death in the bone calculation</button>
+          <button id="btn-dental-to-life" class="secondary tiny" type="button">Use as ages at death in the life tables</button>
+        </div>
+        <div class="table-wrap tall"><table id="dental-results"></table></div>
+        <details class="advanced" id="dental-warnings-box">
+          <summary id="dental-warnings-summary">Warnings</summary>
+          <div class="advanced-body"><ul id="dental-warnings" class="issues"></ul></div>
+        </details>
+      </article>
+    </section>
+
+    <!-- 3. results (enamel hypoplasia) -->
+    <section id="view-leh-results" class="view" aria-labelledby="h-leh-results">
+      <h2 id="h-leh-results" class="sr-only">Enamel hypoplasia results</h2>
+      <article class="card">
+        <div class="row between wrap">
+          <h2>When the defects formed <span data-helpslot="leh"></span></h2>
+          <span class="row gap export-links">
+            <span class="muted small">Export:</span>
+            <button id="btn-leh-csv" class="link" type="button">defect ages (CSV)</button>
+          </span>
+        </div>
+        <p id="leh-placeholder" class="warn-text small">The crown formation ages are placeholders: these ages show how the method works.</p>
+        <div id="leh-summary" class="summary" aria-live="polite"></div>
+        <div id="leh-chart" class="chart-box"></div>
+        <div class="table-wrap tall"><table id="leh-results"></table></div>
+        <details class="advanced" id="leh-warnings-box">
+          <summary id="leh-warnings-summary">Warnings</summary>
+          <div class="advanced-body"><ul id="leh-warnings" class="issues"></ul></div>
+        </details>
+      </article>
+    </section>
+
+    <!-- 3. results (life tables) -->
+    <section id="view-lifetable-results" class="view" aria-labelledby="h-lifetable-results">
+      <h2 id="h-lifetable-results" class="sr-only">Life table results</h2>
+      <article class="card">
+        <div class="row between wrap">
+          <h2>Survivorship <span data-helpslot="lifetable"></span></h2>
+          <span class="row gap export-links">
+            <span class="muted small">Export:</span>
+            <button id="btn-lifetable-csv" class="link" type="button">life tables (CSV)</button>
+          </span>
+        </div>
+        <div id="lifetable-chart" class="chart-box"></div>
+        <div class="table-wrap"><table id="lifetable-summary"></table></div>
+        <details class="advanced" id="lifetable-warnings-box">
+          <summary id="lifetable-warnings-summary">Warnings</summary>
+          <div class="advanced-body"><ul id="lifetable-warnings" class="issues"></ul></div>
+        </details>
+      </article>
+      <article class="card">
+        <h2>Life tables</h2>
+        <div id="lifetable-tables"></div>
+      </article>
+      <article class="card" id="lifetable-compare-card">
+        <h2>Comparing groups</h2>
+        <div class="table-wrap"><table id="lifetable-compare"></table></div>
+      </article>
+    </section>
+
+    <!-- 3. results (mobility) -->
+    <section id="view-mobility-results" class="view" aria-labelledby="h-mobility-results">
+      <h2 id="h-mobility-results" class="sr-only">Mobility results</h2>
+      <article class="card">
+        <div class="row between wrap">
+          <h2>Local or not <span data-helpslot="drinking_water"></span></h2>
+          <span class="row gap export-links">
+            <span class="muted small">Export:</span>
+            <button id="btn-mobility-csv" class="link" type="button">samples (CSV)</button>
+          </span>
+        </div>
+        <div id="mobility-chart" class="chart-box"></div>
+        <p class="hint">Dashed box: the local range. A value is non-local only if it lies outside the range even allowing for the
+          drinking-water SD. Outside the range means "not from here", not where from.</p>
+        <div class="table-wrap"><table id="mobility-sites"></table></div>
+        <details class="advanced" id="mobility-warnings-box">
+          <summary id="mobility-warnings-summary">Warnings</summary>
+          <div class="advanced-body"><ul id="mobility-warnings" class="issues"></ul></div>
+        </details>
+      </article>
+      <article class="card">
+        <h2>Each sample</h2>
+        <div class="table-wrap tall"><table id="mobility-results"></table></div>
+      </article>
+    </section>
+
     <!-- 4. compare -->
     <section id="view-compare" class="view" aria-labelledby="h-compare">
       <h2 id="h-compare" class="sr-only">Compare</h2>
@@ -874,6 +1112,7 @@
               <label class="check"><input type="checkbox" name="group" value="site" checked> Site</label>
               <label class="check"><input type="checkbox" name="group" value="species" checked> Species</label>
               <label class="check"><input type="checkbox" name="group" value="period"> Period</label>
+              <span id="group-extra" class="contents"></span>
             </fieldset>
             <label>Milestone
               <select id="cmp-milestone">

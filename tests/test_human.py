@@ -154,3 +154,16 @@ def test_group_by_kept_columns():
     assert {row["burial"] for row in service.compare(body)["summary"]} <= {"crouched", "extended"}
     with pytest.raises(ValueError):
         service.compare(service.AggregateIn(estimates=out["estimates"], group_by=["nothing"], bayes=False))
+
+
+def test_detect_offers_only_the_calculations_a_table_can_feed():
+    from fastapi.testclient import TestClient
+
+    from weanage.api import app
+
+    content = (EXAMPLES / "synthetic_mobility_example.csv").read_bytes()
+    found = service.detect("m.csv", content)["calculations"]
+    assert [name for name, d in found.items() if d["rows"]] == ["mobility"]
+    assert "d15N" in found["tooth"]["problem"]
+    tooth = TestClient(app).post("/api/detect", files={"file": ("t.csv", (EXAMPLES / "synthetic_example.csv").read_bytes())}).json()
+    assert {name for name, d in tooth["calculations"].items() if d["rows"]} == {"tooth", "mixing"}

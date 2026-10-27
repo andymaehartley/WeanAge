@@ -75,7 +75,12 @@ const server = {
     return waitForJob(job, onProgress);
   },
   boneTemplateUrl: "/api/bone/template.csv",
-  // The one-table calculations: "enamel", "killoff" and "mixing"
+  detect(file) {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/api/detect", { method: "POST", body: form });
+  },
+  // The one-table calculations: "enamel", "killoff", "mixing", "dental", "leh", "lifetable", "mobility"
   calcExample: (calc, name) => request(`/api/calc/${calc}/example${name ? `?example=${encodeURIComponent(name)}` : ""}`),
   calcUpload(calc, file) {
     const form = new FormData();
@@ -184,6 +189,7 @@ const browser = {
   boneRecords: (records) => python("bone_records", { records }),
   boneSimulate: (body, onProgress) => python("bone_simulate", body, onProgress),
   boneTemplateUrl: "weanage_bone_template.csv",
+  detect: async (file) => python("detect", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
   calcExample: (calc, example) => python("calc_example", { calc, example }),
   calcUpload: async (calc, file) => python("calc_upload", { calc, filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
   calcAnalyze: (calc, samples, options, onProgress) => python("calc_analyze", { calc, samples, options }, onProgress),

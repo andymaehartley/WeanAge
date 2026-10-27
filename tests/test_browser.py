@@ -7,10 +7,13 @@ import os
 import socket
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
+
+EXAMPLES = Path(__file__).parents[1] / "src" / "weanage" / "data" / "examples"
 
 
 @pytest.fixture(scope="module")
@@ -51,6 +54,12 @@ def click(page, selector):
     page.evaluate(f"document.querySelector({selector!r}).click()")
 
 
+def load_example(page, value, card):
+    page.select_option("#example-choice", value)
+    click(page, "#btn-example")
+    page.wait_for_selector(f"{card}:not([hidden])")
+
+
 def test_whole_workflow(page):
     page.wait_for_selector(".tour-card")
     page.keyboard.press("Escape")  # close the first-visit tour
@@ -68,12 +77,25 @@ def test_whole_workflow(page):
     click(page, "#btn-tooth")
     assert "Cusp apex" in page.text_content("#tooth-dialog")
     page.keyboard.press("Escape")
-    click(page, "#btn-example")
+    # Drop a file: the calculations it can feed are offered, and ticked ones get its rows.
+    page.set_input_files("#csv-input", str(EXAMPLES / "synthetic_example.csv"))
+    page.wait_for_selector("#file-status:not([hidden])")
+    assert page.is_enabled('input[name="calc"][value="tooth"]') and page.is_disabled('input[name="calc"][value="dental"]')
+    assert "Not with this file" in page.text_content("#calc-list")
+    page.check('input[name="calc"][value="tooth"]')
+    page.wait_for_selector("#specimens-card:not([hidden])")
+    page.check('input[name="calc"][value="mixing"]')
+    page.wait_for_selector("#mixing-samples-card:not([hidden])")
+    assert page.is_visible("#calc-tabs") and page.is_hidden("#specimens-card")
+    click(page, '#calc-tabs [data-calc="tooth"]')
     page.wait_for_selector("#specimens-card:not([hidden])")
     click(page, '.step[data-view="settings"]')
+    page.evaluate("document.querySelector('.baseline-block').closest('details').open = true")
+    page.fill('.baseline-row[data-key="Site A:cattle"] .bl-mean', "6.5")  # adult females: gives the milk share
     click(page, "#btn-run")
     page.wait_for_selector("#view-results.active", timeout=60000)
     assert "Best-supported model" in page.text_content("#res-summary")
+    assert "Breast milk" in page.text_content("#milk-summary") and page.is_visible("#milk-chart svg")
     click(page, '.step[data-view="compare"]')
     page.wait_for_selector("#tests-body .summary", timeout=30000)
     assert "Do groups differ" in page.text_content("#tests-body")
@@ -83,10 +105,8 @@ def test_whole_workflow(page):
 
     # The bone calculation: its own data, settings and results; the tooth results are kept.
     click(page, '.step[data-view="data"]')
-    page.click("text=Bone calculation")
-    assert page.is_visible("#bone-groups-card") is False and page.is_hidden("#manual-form")
-    click(page, "#btn-example")
-    page.wait_for_selector("#bone-groups-card:not([hidden])")
+    load_example(page, "bone:synthetic_bone", "#bone-groups-card")
+    assert page.is_hidden("#manual-form")
     assert page.is_hidden("#specimens-card")  # the tooth table does not show under the bone data
     assert "Site A" in page.text_content("#bone-group-table")
     click(page, "#btn-next-settings")
@@ -123,9 +143,7 @@ def test_whole_workflow(page):
     assert "simulated site" in page.text_content("#bp-summary")
     # Enamel: season of birth and rumen development.
     click(page, '.step[data-view="data"]')
-    page.click("text=Enamel: season and rumen")
-    click(page, "#btn-example")
-    page.wait_for_selector("#enamel-teeth-card:not([hidden])")
+    load_example(page, "enamel:synthetic_enamel", "#enamel-teeth-card")
     assert page.is_hidden("#bone-groups-card") and page.is_disabled('.step[data-view="plan"]')
     click(page, "#btn-next-settings")
     page.fill("#enamel-draws", "100")
@@ -138,17 +156,19 @@ def test_whole_workflow(page):
     page.click('#enamel-result-list [data-tooth="B01"]')
     assert "⁸⁷Sr/⁸⁶Sr shifts from 0.712" in page.text_content("#enamel-res-summary")
     assert page.is_visible("#enamel-sr-chart svg")
-    # Kill-off profiles and diet mixing.
-    for mode, card, run_text in [("killoff", "#killoff-groups-card", "Site A"), ("mixing", "#mixing-samples-card", "Marine fish")]:
+    # The one-table calculations, each with its example.
+    for mode, card, run_text in [("killoff", "#killoff-groups-card", "Site A"), ("mixing", "#mixing-samples-card", "Marine fish"),
+                                 ("dental", "#dental-card", "C24"), ("leh", "#leh-card", "H15"),
+                                 ("lifetable", "#lifetable-card", "Juvenility"), ("mobility", "#mobility-card", "non-local")]:
         click(page, '.step[data-view="data"]')
-        page.check(f'input[name="calc"][value="{mode}"]')
-        click(page, "#btn-example")
-        page.wait_for_selector(f"{card}:not([hidden])")
+        example = page.eval_on_selector(f'#example-choice option[value^="{mode}:"]', "o => o.value")
+        load_example(page, example, card)
         click(page, "#btn-next-settings")
         click(page, f"#btn-{mode}-run")
         page.wait_for_selector(f"#view-{mode}-results.active", timeout=120000)
         assert run_text in page.text_content(f"#view-{mode}-results")
-    assert page.is_visible("#mixing-biplot svg") and page.is_visible("#mixing-placeholder")
+        assert page.is_visible(f"#view-{mode}-results svg")
+    assert page.is_visible("#mobility-chart svg") and page.is_visible("#calc-tabs")
     click(page, '.step[data-view="data"]')
     page.click("text=Tooth calculation")
     assert not page.is_disabled('.step[data-view="compare"]') and page.is_visible("#specimens-card")
@@ -161,8 +181,6 @@ def test_browser_version():
     import http.server
     import subprocess
     import sys
-    from pathlib import Path
-
     root = Path(__file__).parents[1]
     subprocess.run([sys.executable, str(root / "scripts" / "build_browser.py")], check=True)
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=root / "dist" / "browser")

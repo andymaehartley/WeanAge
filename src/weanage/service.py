@@ -23,7 +23,7 @@ from .dental_age import analyze_dental, ingest_dental_dataframe
 from .enamel import analyze_enamel, ingest_enamel_dataframe
 from .hypoplasia import analyze_leh, ingest_leh_dataframe
 from .inference import compare_groups
-from .ingest import ingest_file, ingest_records, read_table
+from .ingest import ingest_dataframe, ingest_file, ingest_records, read_table
 from .killoff import analyze_killoff, ingest_killoff_dataframe
 from .lifetable import analyze_lifetable, ingest_life_dataframe
 from .mixing import analyze_mixing, ingest_mixing_dataframe
@@ -136,6 +136,26 @@ def read_upload(filename, content):
         return report_json(ingest_file(content, filename))
     except Exception as err:
         raise ValueError(f"Could not read file: {err}") from err
+
+
+def detect(filename, content):
+    """Which calculations a table can feed: how many rows each accepts, and why it cannot if it accepts none."""
+    try:
+        table = read_table(content, filename)
+    except Exception as err:
+        raise ValueError(f"Could not read file: {err}") from err
+    readers = {"tooth": ingest_dataframe, "bone": ingest_bone_dataframe, **{name: c.ingest for name, c in CALCULATIONS.items()}}
+    found = {}
+    for name, ingest in readers.items():
+        try:
+            report = ingest(table.copy())
+        except Exception as err:  # a calculation that cannot read this table at all
+            found[name] = {"rows": 0, "problem": str(err)}
+            continue
+        errors = [i for i in report["issues"] if i["severity"] == "error"]
+        problem = "" if report["samples"] else (errors[0]["message"] if errors else "no usable rows")
+        found[name] = {"rows": len(report["samples"]), "problem": problem, "row_errors": len(errors)}
+    return {"filename": filename, "n_rows": len(table), "columns": [str(c) for c in table.columns], "calculations": found}
 
 
 def check_records(rows):

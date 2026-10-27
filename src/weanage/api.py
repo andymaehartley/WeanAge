@@ -97,6 +97,11 @@ async def upload_bone_file(file: UploadFile = File(...)):
     return checked(service.read_bone_upload, file.filename, await file.read())
 
 
+@app.post("/api/detect")
+async def detect_calculations(file: UploadFile = File(...)):
+    return checked(service.detect, file.filename, await file.read())
+
+
 @app.post("/api/bone/ingest/records")
 def check_bone_records(body: dict):
     return checked(service.check_bone_records, body.get("records", []))

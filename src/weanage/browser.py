@@ -47,6 +47,7 @@ REQUESTS = {
     "bone_upload": lambda r, progress: service.read_bone_upload(r["filename"], bytes(r["content"])),
     "bone_analyze": lambda r, progress: service.run_bone_analysis(BoneAnalyzeIn(**r), progress),
     "bone_simulate": lambda r, progress: service.run_bone_planner(SimulateBoneIn(**r), progress),
+    "detect": lambda r, progress: service.detect(r["filename"], bytes(r["content"])),
     "calc_example": lambda r, progress: service.calculation_example(r["calc"], r.get("example")),
     "calc_records": lambda r, progress: service.check_calculation_records(r["calc"], r["records"]),
     "calc_upload": lambda r, progress: service.read_calculation_upload(r["calc"], r["filename"], bytes(r["content"])),

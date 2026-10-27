@@ -2,20 +2,27 @@
 import { initAbout } from "./about.js";
 import { initBonePlanner, renderBonePlan } from "./bone_planner.js";
 import { applyBoneSettings, boneSettings, initBone, loadBoneExample, loadBoneFile, renderBoneData, renderBoneResults, renderTurnover, setBoneReport } from "./bone.js";
+import { dental } from "./dental.js";
 import { enamel } from "./enamel.js";
 import { killoff } from "./killoff.js";
+import { leh } from "./leh.js";
+import { lifetable } from "./lifetable.js";
 import { mixing } from "./mixing.js";
+import { mobility } from "./mobility.js";
 import { api, inBrowser, onEngineStatus } from "./api.js";
-import { curveChart, curveOptions, forestChart } from "./chart.js";
+import { curveChart, curveOptions, forestChart, lineChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
-import { $, $$, ageNum, ageText, ageValue, ci, download, esc, getAgeUnit, help, labelScrollBoxes, MILESTONES, num, plural, progressBar, pIs, percent, pval, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
+import { $, $$, ageNum, ageText, ageValue, ci, color, download, esc, getAgeUnit, help, labelScrollBoxes, MILESTONES, num, plural, progressBar, pIs, percent, pval, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
 
 const state = {
   config: null, // settings and lists sent by the server
-  mode: "tooth", // which calculation: "tooth", "bone", or one of CALCS (their data and results are in state.bone, state.enamel...)
+  mode: "tooth", // the calculation shown: "tooth", "bone", or one of CALCS (their data and results are in state.bone, state.enamel...)
+  chosen: [], // the calculations ticked on the Data page
+  file: null, // the last file dropped, and which calculations can use it
+  detected: null,
   samples: [],
   report: null, // the server's check of the samples (issues, specimen list)
   overrides: {}, // "species:tooth" -> simple linear age model
@@ -32,8 +39,22 @@ const state = {
 const capital = (s) => s[0].toUpperCase() + s.slice(1);
 
 // The one-table calculations (see calc.js)
-const CALCS = { enamel, killoff, mixing };
+const CALCS = { enamel, killoff, mixing, dental, leh, lifetable, mobility };
 const oneTable = () => CALCS[state.mode];
+
+// Every calculation offered on the Data page, in the order shown.
+const CALC_INFO = [
+  { name: "tooth", group: "Weaning", label: "Tooth calculation", blurb: "δ¹⁵N in slices along a tooth: one individual's own weaning curve." },
+  { name: "bone", group: "Weaning", label: "Bone calculation", blurb: "Bone δ¹⁵N of many young individuals who died at different ages, after WARN." },
+  { name: "dental", group: "People", label: "Dental age", blurb: "Children's age at death from tooth formation stages (Moorrees et al. 1963)." },
+  { name: "leh", group: "People", label: "Enamel hypoplasia timing", blurb: "When enamel defects formed, set against weaning and stress in the dentine." },
+  { name: "lifetable", group: "People", label: "Life tables", blurb: "Deaths, survivorship and life expectancy from skeletal ages at death." },
+  { name: "mobility", group: "People", label: "Mobility (bulk enamel)", blurb: "Enamel δ¹⁸O as drinking water, and ⁸⁷Sr/⁸⁶Sr against the local range." },
+  { name: "mixing", group: "Diet", label: "Diet mixing", blurb: "Bone collagen δ¹³C, δ¹⁵N (and δ³⁴S): the share of each food group in the diet." },
+  { name: "enamel", group: "Animals", label: "Enamel: season and rumen", blurb: "δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr along a cattle molar: season of birth, rumen, diet and moves." },
+  { name: "killoff", group: "Animals", label: "Kill-off profiles", blurb: "Aged mandibles: at what ages a herd's animals were killed, after Payne (1973)." },
+];
+const calcLabel = (name) => CALC_INFO.find((c) => c.name === name).label;
 
 // Switching views
 // The bone calculation and CALCS have their own pages for these views.
@@ -56,12 +77,16 @@ function show(view) {
     renderGrowthList(state);
     renderBaselines();
   }
-  if (view === "compare") refreshCompare();
+  if (view === "compare") {
+    renderGroupChoices();
+    refreshCompare();
+  }
   window.scrollTo({ top: 0 });
 }
 
 function enableResults() {
   const tooth = state.mode === "tooth";
+  $('.step[data-view="settings"]').disabled = !state.chosen.length;
   $('.step[data-view="results"]').disabled = !(oneTable() ? oneTable().hasResults() : { tooth: state.results, bone: state.bone.results }[state.mode]);
   for (const b of $$('.step[data-view="compare"], #btn-report')) {
     b.disabled = !tooth || !state.results;
@@ -72,17 +97,102 @@ function enableResults() {
   plan.title = oneTable() ? "Tooth and bone calculations only" : "";
 }
 
-/** Switch between the tooth and bone calculations; each keeps its own data and results. */
+/** Show one calculation; each keeps its own data and results. */
 function setMode(mode, save = true) {
   state.mode = mode;
-  for (const radio of $$('input[name="calc"]')) radio.checked = radio.value === mode;
-  for (const node of $$("[data-mode]")) node.hidden = node.dataset.mode !== mode;
-  const examples = oneTable() ? state.config.calculations[mode].examples : { tooth: state.config.examples, bone: state.config.bone_examples }[mode];
-  $("#example-choice").innerHTML = examples.map((e) => `<option value="${esc(e.name)}">${esc(e.label)}</option>`).join("");
+  const shown = state.chosen.includes(mode);
+  for (const node of $$("[data-mode]")) node.hidden = !shown || node.dataset.mode !== mode;
   $("#btn-template").href = oneTable() ? api.calcTemplateUrl(mode) : { tooth: api.templateUrl, bone: api.boneTemplateUrl }[mode];
-  renderData();
+  $("#btn-template").textContent = `Download blank template: ${calcLabel(mode)}`;
+  $("#btn-template").hidden = !shown;
+  if (shown) renderData();
+  else renderReady("");
   enableResults();
+  renderCalcList();
+  renderCalcTabs();
   if (save) autosave(); // not on start-up, which would overwrite the session waiting to be restored
+}
+
+// Choosing calculations
+/** The Data page's list of calculations: what each needs, and whether the loaded file can feed it. */
+function renderCalcList() {
+  const found = state.detected?.calculations;
+  let group = null;
+  $("#calc-list").innerHTML = CALC_INFO.map((c) => {
+    const d = found?.[c.name];
+    const chosen = state.chosen.includes(c.name);
+    const usable = !found || d.rows > 0;
+    const status = !found ? "" : d.rows
+      ? `<small class="calc-status ok">${plural(d.rows, "row")} can be used${d.row_errors ? ` · ${plural(d.row_errors, "problem")}` : ""}</small>`
+      : `<small class="calc-status">Not with this file: ${esc(d.problem)}</small>`;
+    const heading = c.group !== group ? `<p class="calc-group">${esc((group = c.group))}</p>` : "";
+    return `${heading}<label class="calc-option${usable ? "" : " unusable"}">
+      <input type="checkbox" name="calc" value="${c.name}" ${chosen ? "checked" : ""} ${usable || chosen ? "" : "disabled"}>
+      <span><strong>${esc(c.label)}</strong><small>${c.blurb}</small>${status}</span></label>`;
+  }).join("");
+  const usableCount = found ? Object.values(found).filter((d) => d.rows).length : 0;
+  $("#calc-hint").textContent = !found
+    ? "Load a file to see which calculations it can be used for, or tick one to type data in or load its example."
+    : usableCount ? "Tick the calculations to run with this file. Each keeps its own settings and results."
+      : "No calculation can use this file: check the column names under Columns, template and more.";
+}
+
+/** Above every page when more than one calculation is ticked: which one is shown. */
+function renderCalcTabs() {
+  const nav = $("#calc-tabs");
+  nav.hidden = state.chosen.length < 2;
+  nav.innerHTML = `<span class="muted small">Showing:</span>${state.chosen.map((name) =>
+    `<button type="button" class="secondary calc-tab" data-calc="${name}" aria-pressed="${name === state.mode}">${esc(calcLabel(name))}</button>`).join("")}`;
+}
+
+function switchCalc(name) {
+  const view = $(".step.active")?.dataset.view || "data";
+  setMode(name);
+  const open = { results: !$('.step[data-view="results"]').disabled, compare: name === "tooth" && state.results,
+    plan: !oneTable(), settings: true, data: true }[view];
+  show(open ? view : "data");
+}
+
+async function loadInto(name, file) {
+  if (name === "tooth") {
+    try {
+      setReport(await api.uploadFile(file));
+    } catch (e) {
+      toast(e.message);
+    }
+  } else if (name === "bone") await loadBoneFile(file);
+  else await CALCS[name].loadFile(file);
+}
+
+async function toggleCalc(name, on) {
+  state.chosen = on ? [...new Set([...state.chosen, name])] : state.chosen.filter((c) => c !== name);
+  const next = on ? name : state.mode === name ? state.chosen.at(-1) || name : state.mode;
+  setMode(next);
+  if (on && state.detected?.calculations[name]?.rows) await loadInto(name, state.file);
+}
+
+async function loadExample(value) {
+  const [name, example] = value.split(":");
+  Object.assign(state, { file: null, detected: null });
+  $("#file-status").hidden = true;
+  if (!state.chosen.includes(name)) state.chosen.push(name);
+  setMode(name);
+  if (name === "bone") return loadBoneExample(example);
+  if (CALCS[name]) return CALCS[name].loadExample(example);
+  try {
+    const report = await api.example(example);
+    setReport(report);
+    toast(report.message, "ok");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+function fillExampleChoice() {
+  const lists = { tooth: state.config.examples, bone: state.config.bone_examples,
+    ...Object.fromEntries(Object.keys(CALCS).map((name) => [name, state.config.calculations[name].examples])) };
+  $("#example-choice").innerHTML = CALC_INFO.map((c) => `<optgroup label="${esc(c.label)}">${lists[c.name]
+    .map((e) => `<option value="${c.name}:${esc(e.name)}">${esc(e.label)}</option>`).join("")}</optgroup>`).join("");
 }
 
 // Highlight every setting that is still a placeholder (TBD-LAB).
@@ -166,14 +276,29 @@ function renderData() {
   ], state.samples);
 }
 
+/** A dropped file: find which calculations can use it, and load it into the ticked ones that can. */
 async function loadFile(file) {
-  if (state.mode === "bone") return loadBoneFile(file);
-  if (oneTable()) return oneTable().loadFile(file);
+  let detected;
   try {
-    setReport(await api.uploadFile(file));
+    detected = await api.detect(file);
   } catch (e) {
-    toast(e.message);
+    return toast(e.message);
   }
+  Object.assign(state, { file, detected });
+  const found = detected.calculations;
+  const usable = CALC_INFO.filter((c) => found[c.name].rows).map((c) => c.name);
+  // With nothing ticked yet and only one calculation that fits, tick that one.
+  if (!state.chosen.some((n) => found[n].rows) && usable.length === 1) state.chosen.push(usable[0]);
+  $("#file-status").hidden = false;
+  $("#file-status").textContent = `${detected.filename}: ${plural(detected.n_rows, "row")}, ${plural(detected.columns.length, "column")}. `
+    + (usable.length ? `It can be used by ${plural(usable.length, "calculation")} (below).` : "No calculation can use it.");
+  const targets = state.chosen.filter((n) => found[n].rows);
+  setMode(targets.includes(state.mode) ? state.mode : targets[0] || state.mode);
+  for (const name of targets) {
+    state.mode = name; // each loader draws its own Data page
+    await loadInto(name, file);
+  }
+  setMode(targets.includes(state.mode) ? state.mode : targets[0] || state.mode);
 }
 
 async function addSampleByHand(event) {
@@ -229,6 +354,10 @@ const FIELDS = {
   stress_d15N_permil: ["#opt-stressn", "number"],
   stress_d13C_permil: ["#opt-stressc", "number"],
   d34S_min_shift_permil: ["#opt-sshift", "number"],
+  nursing_enrichment_d15N: ["#opt-enrich-n", "number"],
+  nursing_enrichment_d15N_sd: ["#opt-enrich-n-sd", "number"],
+  nursing_enrichment_d13C: ["#opt-enrich-c", "number"],
+  nursing_enrichment_d13C_sd: ["#opt-enrich-c-sd", "number"],
   elbow_normalise: ["#opt-elbownorm", "tick"],
   constrain_adult_plateau: ["#opt-constrain", "tick"],
 };
@@ -270,6 +399,11 @@ function applySettings(o) {
   if (o.growth_overrides) state.overrides = { ...o.growth_overrides };
   if (o.adult_baselines) state.baselines = { ...o.adult_baselines };
   if (o.growth_tables) state.editedTables = Object.fromEntries(o.growth_tables.map((t) => [`${t.species}:${t.tooth}`, t]));
+  if ("weaning_food" in o) {
+    const f = o.weaning_food || {};
+    [["#food-name", f.name], ["#food-d15N", f.d15N], ["#food-d15N-sd", f.d15N_sd], ["#food-d13C", f.d13C], ["#food-d13C-sd", f.d13C_sd]]
+      .forEach(([id, v]) => { $(id).value = v ?? ""; });
+  }
   matchQcPreset();
 }
 
@@ -304,7 +438,31 @@ function settings() {
     else out[key] = input.value === "" ? state.config.defaults[key] : Number(input.value);
   }
   out.analytical_sd_permil ||= null; // blank or 0 means "not known yet"
+  const food = (id) => ($(id).value === "" ? null : Number($(id).value));
+  out.weaning_food = $("#food-name").value.trim() && food("#food-d15N") != null ? {
+    name: $("#food-name").value.trim(), d15N: food("#food-d15N"), d15N_sd: food("#food-d15N-sd") ?? 0.5,
+    d13C: food("#food-d13C"), d13C_sd: food("#food-d13C-sd") ?? 0.5 } : null;
   return out;
+}
+
+/** The share of breast milk at each increment, when an adult-female baseline was given. */
+function renderMilkShare(res) {
+  const m = res.milk_share;
+  $("#milk-chart").hidden = !m?.points.length;
+  if (!m) {
+    $("#milk-summary").innerHTML = `<p class="muted">Enter the adult-female δ¹⁵N for ${esc(res.site)} (${esc(res.species)}) under
+      Settings → Advanced to see how much of the diet was breast milk at each increment.</p>`;
+    return;
+  }
+  $("#milk-summary").innerHTML = `<p>${m.below_half_age != null ? `Breast milk fell below half the diet at about <strong>${ageText(m.below_half_age)}</strong>.`
+    : "Breast milk did not clearly fall below half the diet within the sampled ages."} Nursing enrichment δ¹⁵N ${num(m.enrichment_d15N, 1)} ± ${num(m.enrichment_d15N_sd, 1)}‰.</p>`;
+  const line = (key, pick, name, colour, dash) => ({ name, color: colour, dash, markers: key === "estimate",
+    points: m.points.map((p) => ({ x: toUnit(p.age_months), y: 100 * pick(p)[key] })) });
+  const series = [line("estimate", (p) => p.milk, "Breast milk", color("logistic"), null),
+    line("ci_low", (p) => p.milk, "95% lower", color("logistic"), "3 3"), line("ci_high", (p) => p.milk, "95% upper", color("logistic"), "3 3")];
+  if (m.other_food) series.push(line("estimate", (p) => p.other, m.other_food, color("piecewise"), "9 4"));
+  lineChart($("#milk-chart"), series,
+    { xLabel: `Age (${unitWord()})`, yLabel: "Share of the diet (%)", title: `Breast-milk share at each increment: ${res.specimen_id}`, yMin: 0 });
 }
 
 function renderBaselines() {
@@ -314,6 +472,8 @@ function renderBaselines() {
           <span class="key">${esc(key.replace(":", " · "))}</span>
           <label>Mean δ¹⁵N (‰)<input type="number" step="0.01" class="bl-mean" value="${state.baselines[key]?.mean ?? ""}" ></label>
           <label>SD (‰)<input type="number" step="0.01" min="0.01" class="bl-sd" value="${state.baselines[key]?.sd ?? ""}" placeholder="0.5"></label>
+          <label>Mean δ¹³C (‰)<input type="number" step="0.01" class="bl-c" value="${state.baselines[key]?.d13C_mean ?? ""}"></label>
+          <label>SD (‰)<input type="number" step="0.01" min="0.01" class="bl-c-sd" value="${state.baselines[key]?.d13C_sd ?? ""}" placeholder="0.5"></label>
         </div>`).join("")
     : '<p class="muted">Load data to enter baselines for each site and species.</p>';
 }
@@ -395,6 +555,7 @@ function renderResults() {
     `<p class="muted small">δ³⁴S shifts ${help("sulphur")}: ${d.d34S_shifts.length
       ? d.d34S_shifts.map((s) => `${s.size > 0 ? "+" : ""}${num(s.size)}‰ at about ${num(s.position)} months`).join(", ") : "none found"}</p>`;
   $("#res-diagnostics").innerHTML = (checks.length ? `<p class="muted small">Seasonality checks ${help("seasonal")}: ${checks.join(" · ")}</p>` : "") + carbon + stress + sulphur;
+  renderMilkShare(res);
 
   const averageRow = hasAverage ? [{ model: "average", label: "Model average", converged: true, isAverage: true, ...res.model_average }] : [];
   table($("#fit-table"), [
@@ -450,6 +611,15 @@ function chooseSpecimen(id) {
 }
 
 // 4. compare
+/** Other columns of the tooth table (e.g. sex, burial type) can be grouped by too, if they vary. */
+function renderGroupChoices() {
+  const values = {};
+  for (const r of state.results || []) for (const [k, v] of Object.entries(r.labels || {})) (values[k] ??= new Set()).add(v);
+  const ticked = new Set($$('#group-extra input:checked').map((box) => box.value));
+  $("#group-extra").innerHTML = Object.entries(values).filter(([, v]) => v.size > 1 && v.size <= 20)
+    .map(([k]) => `<label class="check"><input type="checkbox" name="group" value="${esc(k)}" ${ticked.has(k) ? "checked" : ""}> ${esc(k)}</label>`).join("");
+}
+
 function compareRequest() {
   const group_by = $$('input[name="group"]:checked').map((box) => box.value);
   const body = { estimates: state.estimates, group_by, milestone: $("#cmp-milestone").value, model: $("#cmp-model").value || null,
@@ -579,7 +749,7 @@ function project() {
   return {
     format: "weanage-project", format_version: 1, app_version: state.config.version, saved_at: new Date().toISOString(),
     samples: state.samples, settings: settings(), results: state.results, estimates: state.estimates,
-    analysis_options: state.options, current: state.current, plan: state.plan, mode: state.mode,
+    analysis_options: state.options, current: state.current, plan: state.plan, mode: state.mode, chosen: state.chosen,
     bone: { samples: state.bone.samples, settings: boneSettings(settings().qc), results: state.bone.results,
       options: state.bone.options, current: state.bone.current },
     ...Object.fromEntries(Object.values(CALCS).map((calc) => [calc.name, calc.saved()])),
@@ -616,6 +786,7 @@ function openProject(p) {
     }).catch((e) => toast(e.message));
   }
   for (const calc of Object.values(CALCS)) if (p[calc.name]) calc.restore(p[calc.name]);
+  state.chosen = p.chosen || [p.mode || "tooth"]; // older projects had one calculation
   setMode(p.mode || "tooth");
   Object.assign(state, { samples: p.samples, options: p.analysis_options, plan: p.plan || null });
   state.visible = new Set([...(state.options?.models || []), "average"]);
@@ -671,19 +842,9 @@ function bind() {
   zone.addEventListener("dragleave", () => zone.classList.remove("over"));
   zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("over"); e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]); });
   zone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#csv-input").click(); } });
-  $("#btn-template").href = api.templateUrl;
-  for (const radio of $$('input[name="calc"]')) radio.addEventListener("change", () => setMode(radio.value));
-  on("#btn-example", "click", async () => {
-    if (state.mode === "bone") return loadBoneExample($("#example-choice").value);
-    if (oneTable()) return oneTable().loadExample($("#example-choice").value);
-    try {
-      const report = await api.example($("#example-choice").value || "synthetic");
-      setReport(report);
-      toast(report.message, "ok");
-    } catch (e) {
-      toast(e.message);
-    }
-  });
+  on("#calc-list", "change", (e) => e.target.name === "calc" && toggleCalc(e.target.value, e.target.checked));
+  on("#calc-tabs", "click", (e) => { const b = e.target.closest("[data-calc]"); if (b) switchCalc(b.dataset.calc); });
+  on("#btn-example", "click", () => loadExample($("#example-choice").value));
   on("#btn-clear", "click", () => {
     if (state.mode === "bone") {
       if (!state.bone.samples.length || confirm("Remove all loaded animals?")) setBoneReport({ samples: [], issues: [], groups: [] });
@@ -702,7 +863,11 @@ function bind() {
     const row = e.target.closest(".baseline-row");
     const mean = row.querySelector(".bl-mean").value;
     if (mean === "") delete state.baselines[row.dataset.key];
-    else state.baselines[row.dataset.key] = { mean: Number(mean), sd: Number(row.querySelector(".bl-sd").value) || 0.5 };
+    else {
+      const carbon = row.querySelector(".bl-c").value;
+      state.baselines[row.dataset.key] = { mean: Number(mean), sd: Number(row.querySelector(".bl-sd").value) || 0.5,
+        d13C_mean: carbon === "" ? null : Number(carbon), d13C_sd: Number(row.querySelector(".bl-c-sd").value) || 0.5 };
+    }
     autosave();
   });
   on("#view-settings", "change", autosave);
@@ -746,7 +911,7 @@ function bind() {
     const options = { visible: state.visible, milestone: state.options.reported_milestone, xRange: state.zoom, showD13C: $("#opt-show13c").checked, palette: "light" };
     download(`${res.specimen_id}_weaning_curve.svg`, new Blob([offscreen((box) => curveChart(box, curveOptions(res, options)))], { type: "image/svg+xml" }));
   });
-  for (const input of $$('input[name="group"], #cmp-milestone, #cmp-model, #cmp-bayes')) input.addEventListener("change", refreshCompare);
+  for (const input of $$('input[name="group"], #cmp-milestone, #cmp-model, #cmp-bayes, #group-extra')) input.addEventListener("change", refreshCompare);
 
   on("#btn-save", "click", () => download(`weanage_project_${new Date().toISOString().slice(0, 10)}.weanage.json`, new Blob([JSON.stringify(project(), null, 1)])));
   on("#project-input", "change", async (e) => {
@@ -834,6 +999,7 @@ async function init() {
   initSettings();
   initBone(state, { show, autosave, refreshNav: enableResults, qc: () => settings().qc });
   for (const calc of Object.values(CALCS)) calc.init(state, { show, autosave, refreshNav: enableResults });
+  fillExampleChoice();
   setMode("tooth", false);
   initAbout(state.config);
   initPlanner(state);

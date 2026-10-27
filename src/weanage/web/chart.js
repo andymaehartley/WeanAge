@@ -268,7 +268,7 @@ export function profileChart(box, { points, curve, marks = [], yLabel, title, pa
  * already shifted by the collagen-diet offsets, each drawn as a ±1 SD box.
  * points: [{x, y, label, group}]  sources: [{name, x, y, sdx, sdy}]
  */
-export function biplotChart(box, { points, sources, title, palette = theme() }) {
+export function biplotChart(box, { points, sources, title, xLabel = "Collagen δ¹³C (‰ VPDB)", yLabel = "Collagen δ¹⁵N (‰ AIR)", palette = theme() }) {
   const desc = `${points.length} samples; food groups plus offsets: ${sources.map((s) => `${s.name} δ13C ${num(s.x, 1)}, δ15N ${num(s.y, 1)}`).join("; ")}.`;
   const { svg, area } = newChart(box, 760, 420, { l: 64, r: 24, t: 16, b: 56 }, title, desc);
   const xsAll = [...points.map((p) => p.x), ...sources.flatMap((s) => [s.x - s.sdx, s.x + s.sdx])];
@@ -278,8 +278,8 @@ export function biplotChart(box, { points, sources, title, palette = theme() }) 
   const xs = scale(xt[0], xt.at(-1), area.left, area.right);
   const ys = scale(yt[0], yt.at(-1), area.bottom, area.top);
   const axes = el("g", { class: "axes" }, svg);
-  yAxis(axes, area, ys, yt, "Collagen δ¹⁵N (‰ AIR)");
-  xAxis(axes, area, xs, xt, "Collagen δ¹³C (‰ VPDB)");
+  yAxis(axes, area, ys, yt, yLabel);
+  xAxis(axes, area, xs, xt, xLabel);
   const muted = color("average", palette);
   for (const s of sources) {
     el("rect", { x: xs(s.x - s.sdx), y: ys(s.y + s.sdy), width: xs(s.x + s.sdx) - xs(s.x - s.sdx), height: ys(s.y - s.sdy) - ys(s.y + s.sdy),
@@ -302,7 +302,7 @@ export function biplotChart(box, { points, sources, title, palette = theme() }) 
   return svg;
 }
 
-/** Line chart for the planner. series: [{name, color, dash, points: [{x, y}]}] */
+/** Line chart. series: [{name, color, dash, markers (default true), points: [{x, y}]}] */
 export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   const desc = series.map((s) => `${s.name}: ${s.points.map((p) => `${label(p.x)} → ${num(p.y)}`).join(", ")}`).join("; ");
   const legend = series.length > 1; // one line needs no legend: the axis title names it
@@ -320,7 +320,7 @@ export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   series.forEach((s, i) => {
     const ok = s.points.filter(hasValue);
     el("path", { d: path(ok.map((p) => [p.x, p.y]), xs, ys), fill: "none", stroke: s.color, "stroke-width": 3, "stroke-dasharray": s.dash }, svg);
-    for (const p of ok) marker(SHAPES[i % 4], xs(p.x), ys(p.y), 5, { fill: s.color }, svg);
+    if (s.markers !== false) for (const p of ok) marker(SHAPES[i % 4], xs(p.x), ys(p.y), 5, { fill: s.color }, svg);
     if (!legend) return;
     const y = area.top + 12 + i * 18; // legend
     el("line", { x1: area.right + 12, x2: area.right + 34, y1: y, y2: y, stroke: s.color, "stroke-width": 3, "stroke-dasharray": s.dash }, svg);

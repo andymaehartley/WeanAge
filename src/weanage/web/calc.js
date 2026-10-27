@@ -7,7 +7,8 @@ import { $, progressBar, toast } from "./util.js";
 /**
  * spec: name ("enamel", "killoff" or "mixing"), plural ("enamel samples"), working ("Fitting teeth"),
  * fields (number settings, in inputs #<name>-<field>), renderData(own), renderResults(own),
- * and optionally init(calc), readSettings(out), writeSettings(options), prepare(samples, state), first(output).
+ * and optionally init(calc), readSettings(out), writeSettings(options), prepare(samples, state),
+ * prepareOptions(options, state) (adds what other calculations found), first(output).
  */
 export function oneTableCalc(spec) {
   const { name } = spec;
@@ -24,7 +25,8 @@ export function oneTableCalc(spec) {
     progressBar(bar, 0, 0, spec.working);
     try {
       const samples = spec.prepare ? spec.prepare(own().samples, state) : own().samples;
-      const output = await api.calcAnalyze(name, samples, options, (done, total) => progressBar(bar, done, total, spec.working));
+      const sent = spec.prepareOptions ? spec.prepareOptions(options, state) : options;
+      const output = await api.calcAnalyze(name, samples, sent, (done, total) => progressBar(bar, done, total, spec.working));
       Object.assign(own(), { output, options, current: spec.first?.(output) ?? null });
       hooks.refreshNav();
       calc.renderResults();
@@ -42,6 +44,7 @@ export function oneTableCalc(spec) {
     name,
     plural: spec.plural,
     own,
+    app: () => state, // the whole app's state, for calculations that use another's data
     init(appState, appHooks) {
       state = appState;
       hooks = appHooks;
