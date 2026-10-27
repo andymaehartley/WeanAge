@@ -243,7 +243,7 @@ export function forestChart(box, groups, xTitle) {
  */
 export function profileChart(box, { points, curve, marks = [], yLabel, title, palette = theme() }) {
   const desc = `${points.length} samples of ${yLabel} against distance from the enamel-root junction.`;
-  const { svg, area } = newChart(box, 760, 300, { l: 64, r: 24, t: 30, b: 56 }, title, desc);
+  const { svg, area } = newChart(box, 760, 300, { l: 80, r: 24, t: 30, b: 56 }, title, desc); // room for 0.7095
   if (!points.length) return svg;
   const xt = niceTicks(0, Math.max(...points.map((p) => p.x)));
   const yt = niceTicks(Math.min(...points.map((p) => p.y)), Math.max(...points.map((p) => p.y)), 5);

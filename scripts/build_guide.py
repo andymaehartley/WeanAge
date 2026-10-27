@@ -120,6 +120,17 @@ def app_screenshots():
         page.wait_for_selector("#view-enamel-results.active", timeout=300000)
         page.wait_for_timeout(400)
         shot(page, "#view-enamel-results .results-main > :first-child", "enamel_result.png")
+        for calc, figure, name in [("killoff", "#killoff-survival-chart", "killoff_result.png"),
+                                   ("mixing", "#mixing-biplot", "mixing_result.png")]:
+            click(page, '.step[data-view="data"]')
+            page.check(f'input[name="calc"][value="{calc}"]')
+            click(page, "#btn-example")
+            page.wait_for_timeout(1000)
+            click(page, '.step[data-view="settings"]')
+            click(page, f"#btn-{calc}-run")
+            page.wait_for_selector(f"#view-{calc}-results.active", timeout=300000)
+            page.wait_for_timeout(400)
+            shot(page, figure, name)
         browser.close()
     server.should_exit = True
 

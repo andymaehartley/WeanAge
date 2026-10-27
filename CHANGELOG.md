@@ -3,6 +3,20 @@
 ## Unreleased
 
 ### Added
+* Kill-off profiles (new calculation): aged mandibles as Payne (1973) stages or age ranges, shared
+  between stages as Payne did; deaths and survivorship by age class with bootstrap intervals; shares
+  killed before 6 months, at 6–36 months and alive at 4 years; permutation test between groups; a
+  synthetic sheep/goat example.
+* Diet mixing (new calculation): shares of 2–6 food groups from collagen δ¹³C, δ¹⁵N and δ³⁴S by
+  importance sampling of a flat Dirichlet prior (FRUITS-style), with outside-the-mixing-space and
+  underdetermined warnings, a δ¹³C–δ¹⁵N biplot, editable food groups and offsets (placeholders in
+  `data/diet_sources.json`), and a synthetic example.
+* Enamel: ⁸⁷Sr/⁸⁶Sr shifts along the crown (BIC change points, local range); the month of the rumen
+  transition and of strontium shifts from the δ¹⁸O cycle; birth and weaning months from a reference
+  tooth and each animal's weaning age (taken from the tooth calculation when IDs match); an optional
+  correction of the δ¹⁸O amplitude and rumen step width for mineralisation smoothing.
+* Dentine: stress episodes (δ¹⁵N above the weaning curve while δ¹³C is below its expected level) and
+  δ³⁴S shifts from an optional `d34S` column.
 * C3 or C4 diet from enamel δ¹³C: the share of C4 plants by mixing a C3 and a C4 end member
   (enamel-diet spacing 14.1‰, Cerling & Harris 1999), using enamel formed after the rumen
   transition, with a 95% interval, pre-industrial or modern plant values, and group means.

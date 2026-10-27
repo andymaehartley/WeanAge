@@ -114,6 +114,30 @@ From known-age young animals and their mothers, ideally from the same herds.
       period, to replace the default end members (−27‰ and −11‰, pre-industrial); check whether
       C4 plants (millet, maize, C4 grasses) grew there at all.
 - [ ] **Enamel-diet spacing** for the species sampled (14.1‰ is for large ruminants).
+- [ ] **Local bioavailable ⁸⁷Sr/⁸⁶Sr** (plants, water, snails or small mammals from the region) for
+      the local range, and **Sr reference material** (e.g. NIST SRM 987) values and precision.
+- [ ] **Month of the δ¹⁸O maximum** in local drinking water (or in modern teeth of known birth date).
+- [ ] **Enamel maturation length** (mm of crown) for the teeth sampled, if the smoothing correction
+      is used.
+
+## 8a. Dentine: stress and δ³⁴S
+
+- [ ] **δ³⁴S** reference materials (VCDT) and the collagen %S and C:S, N:S ratios used for QC.
+- [ ] Check the stress thresholds (0.5‰ δ¹⁵N, 0.3‰ δ¹³C) against analytical precision.
+
+## 8b. Kill-off profiles
+
+- [ ] **Ageing method** for each species: Payne (1973) stages are for sheep and goats; cattle and pigs
+      need their own wear stages converted to age ranges (with the source).
+- [ ] Record mandibles that can only be put in two stages as such ("D/E"), rather than guessing one.
+- [ ] Note taphonomy (gnawing, fragmentation) and recovery (sieving), which affect young mandibles most.
+
+## 8c. Diet mixing (`data/diet_sources.json`)
+
+- [ ] **Food values** (mean and SD of δ¹³C, δ¹⁵N, δ³⁴S) from plants, animal bones and fish of the
+      same site and period, converted to the edible part where needed.
+- [ ] **Collagen-diet offsets** for the species studied (humans: δ¹⁵N about 6‰, O'Connell et al. 2012).
+- [ ] Decide which food groups to include; more groups than isotopes + 1 cannot be told apart.
 
 ## 9. Example data assumptions
 

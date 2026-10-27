@@ -136,6 +136,38 @@ maize, many tropical grasses) from the δ¹³C of the enamel formed after the ru
 a 95% interval. Set the plant values for the period in Settings: the defaults are pre-industrial;
 modern animals need modern values. Compare and Plan sampling are not used in this mode. The method is in section 12 of [METHODS.md](METHODS.md).
 
+Optional columns add more. `sr87_86` gives **Mobility**: where ⁸⁷Sr/⁸⁶Sr changes along the crown,
+which suggests a move to other rocks; give a local range in Settings to flag values formed elsewhere.
+The δ¹⁸O cycle places the rumen transition and any strontium shift in a **month** of the year (set the
+month of the δ¹⁸O maximum in Settings; July by default). For birth and weaning months, enter a reference
+tooth with a known birth month in Settings and give `weaning_age_months` for each animal, or run the
+tooth calculation first: its weaning ages are used for teeth with the same specimen ID. *Enamel matures
+over* (mm) undoes part of the smoothing of the δ¹⁸O cycle and the rumen step; leave it at 0 if unsure.
+
+### Kill-off profiles
+
+Choose *Kill-off profiles* for aged mandibles. One row per mandible: `specimen_id`, `site`, `species`
+and either `payne_stage` (A–I, or two stages such as `D/E`, for sheep and goats) or `age_min_months`
+and `age_max_months`. Results show survivorship by group, the share killed before 6 months, at 6–36
+months and the share alive at 4 years (each with a 95% interval), the share killed in each age class,
+and a permutation test between groups. A synthetic sheep/goat example is included. See section 13 of
+[METHODS.md](METHODS.md).
+
+### Diet mixing
+
+Choose *Diet mixing* for bone (or dentine) collagen: `specimen_id`, `site`, `species`, `d13C`, `d15N`
+and, if measured, `d34S`. In Settings, edit the food groups (2–6, each with a mean and SD per isotope)
+and the collagen-diet offsets. The bundled values are placeholders: replace them with plants and
+animals from the same site and period. Results show a δ¹³C–δ¹⁵N plot with the food groups, each group's
+mean diet, and each sample's shares with 95% intervals. With more food groups than isotopes + 1, read
+the intervals rather than the means. See section 14 of [METHODS.md](METHODS.md).
+
+### Stress and δ³⁴S in dentine
+
+In the tooth calculation, Results also lists **stress episodes** (δ¹⁵N above the weaning curve while
+δ¹³C falls below its expected level) and, if a `d34S` column is given, **δ³⁴S shifts**. Their
+thresholds are under Settings → Advanced.
+
 ## 4. Choose the curve models
 
 All five weaning-curve shapes are fitted, so you can see how much the choice of model

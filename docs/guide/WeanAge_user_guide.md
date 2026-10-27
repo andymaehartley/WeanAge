@@ -10,12 +10,14 @@ lang: en-GB
 WeanAge estimates when young mammals were weaned from the nitrogen isotope ratio (δ¹⁵N) of
 their collagen. It works with two kinds of material: thin slices along one tooth, which record
 one animal's childhood, and the bones of many young animals from one site that died at
-different ages. For cattle it also reads enamel δ¹⁸O and δ¹³C along a molar for the season of
-birth and the development of the rumen. It runs as a local app or in a web browser.
+different ages. For cattle it also reads enamel δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr along a molar for the
+season of birth, the development of the rumen, the diet and moves. Two further calculations put
+weaning in context: kill-off profiles from aged mandibles, and the make-up of the diet from bone
+collagen. It runs as a local app or in a web browser.
 
 This guide explains each part of the software, how the parts combine into a weaning age, and
-where each method comes from. Section 1 gives the background, sections 2–8 follow the
-calculations step by step, section 9 shows the app, and section 10 lists what is still provisional. Words in
+where each method comes from. Section 1 gives the background, sections 2–10 follow the
+calculations step by step, section 11 shows the app, and section 12 lists what is still provisional. Words in
 `code font` are column names, settings or files in the software. References are listed at the end.
 
 # 1. Background
@@ -50,12 +52,12 @@ et al. 2001), and the same has been found in sheep (Díez-Canseco & Tornero 2026
 <div class="flow">
 <div><b>Tooth calculation</b><br>slices of one tooth<br>→ position to age (§3)<br>→ quality control (§2)<br>→ curve models (§4)<br>→ uncertainty, averaging (§4)<br>→ one animal's weaning age</div>
 <div><b>Bone calculation</b><br>many young animals + adult females<br>→ quality control (§2)<br>→ diet and bone-turnover model (§5)<br>→ Bayesian fit (§5)<br>→ a site's weaning age</div>
-<div><b>Enamel (cattle)</b><br>δ¹⁸O and δ¹³C up one molar<br>→ yearly δ¹⁸O cycle (§6)<br>→ season-of-birth index<br>→ δ¹³C rise: rumen development (§6)<br>→ share of C4 plants (§6)</div>
-<div><b>Then</b><br>compare sites, species or periods (§7)<br><br><b>Before sampling</b><br>plan how many samples are needed (§8)</div>
+<div><b>Enamel (cattle)</b><br>δ¹⁸O, δ¹³C, ⁸⁷Sr/⁸⁶Sr up one molar<br>→ yearly δ¹⁸O cycle (§6)<br>→ season-of-birth index<br>→ rumen development, C4 share<br>→ moves, and months of the year (§6)</div>
+<div><b>Context</b><br>aged mandibles → kill-off profile (§7)<br>bone collagen → diet make-up (§8)<br><br><b>Then</b><br>compare groups (§9); plan sampling (§10)</div>
 </div>
 
 The app has the same order: **Data → Settings → Results → Compare**, plus **Plan sampling**.
-The Data tab switches between the tooth, bone and enamel calculations.
+The Data tab switches between the tooth, bone, enamel, kill-off and diet-mixing calculations.
 
 # 2. Data and quality control
 
@@ -192,7 +194,15 @@ Warnings appear with each result. Besides those above, WeanAge flags:
 * for cattle, δ¹³C falling by 0.5‰ or more across weaning, because in known-age calves δ¹³C rose
   as δ¹⁵N fell (Balasse et al. 2001), so a fall suggests a different diet change;
 * a yearly cycle in the curve's residuals or in δ¹³C (an F-test for a sine wave, p < 0.05 and at
-  least 0.2‰ or 0.3‰), which may be seasonal diet rather than weaning.
+  least 0.2‰ or 0.3‰), which may be seasonal diet rather than weaning;
+* **stress episodes**: two or more neighbouring slices whose δ¹⁵N is above the fitted weaning curve
+  (by 0.5‰) while δ¹³C is below its expected level (by 0.3‰). Starvation and illness raise δ¹⁵N without
+  raising δ¹³C, whereas a change of food usually moves both the same way (Beaumont & Montgomery 2016).
+  The expected δ¹³C allows for a trend and a step at weaning; the correlation of the two leftovers is
+  also reported;
+* **δ³⁴S shifts**, when a `d34S` column is given: a change of level along the tooth, chosen by BIC
+  among no, one or two shifts and reported if at least 2‰. δ³⁴S follows local geology and sea spray, so
+  a shift suggests a move or a change of diet (Nehlich 2015).
 
 # 5. The bone calculation
 
@@ -268,13 +278,63 @@ and a C4 end member to give the share of C4 plants with a 95% interval. The defa
 lower, because fossil-fuel CO₂ has lowered plant δ¹³C. C3 plants vary by several ‰ with water stress
 and shade (Kohn 2010), so the interval is wide; local plant or herbivore values narrow it.
 
-Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so the signals are
-smoothed: the real δ¹⁸O cycle was larger and the δ¹³C change sharper than recorded. Positions are
-not converted into ages, because enamel formation tables for cattle are not yet available.
+**Mobility (⁸⁷Sr/⁸⁶Sr).** Strontium in enamel follows the rocks and soils where the animal fed
+(Bentley 2006). A change of level along the crown is found as for δ³⁴S above (BIC, at least 0.0005 by
+default); a step blurred over a few samples is reported once, as a gradual shift. Enamel averages
+strontium over months, so the real move was sharper, and may have been earlier, than the shift seen
+(Montgomery et al. 2010). Values outside a local range, if one is given, are flagged.
 
-![Figure 4. Enamel results for a synthetic cattle M2 (simulated data). Top: δ¹⁸O along the crown with the fitted cosine and its maximum. Bottom: δ¹³C with the fitted wave and rumen step, and the transition with its 95% interval. The text above gives the share of C4 plants.](figures/enamel_result.png){width=88%}
+**Months of the year.** With the month of the δ¹⁸O maximum (summer by default), any position can be
+placed in the year: enamel *d* mm below the maximum formed *d*/X of a year later. This dates the rumen
+transition and strontium shifts to a month, with an interval. Birth months need a reference tooth of the
+same type with a known birth month, because the birth index only orders animals: a birth one month
+later lowers the index by 1/12. Adding each animal's weaning age (from its dentine, or entered in
+`weaning_age_months`) then gives the month of weaning.
 
-# 7. Comparing groups
+**Smoothing.** Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so the
+signals are smoothed: the real δ¹⁸O cycle was larger and the δ¹³C change sharper than recorded. If
+the length of crown over which enamel matures is given, WeanAge treats each sample as a moving average
+over that length, divides the δ¹⁸O amplitude by sinc(L/X), and narrows the rumen step accordingly. This
+follows the principle of Passey & Cerling (2002) in a much simplified form, so the corrected values are
+approximate. Positions are not converted into ages, because enamel formation tables for cattle are not
+yet available.
+
+![Figure 4. Enamel results for a synthetic cattle M2 (simulated data). From the top: δ¹⁸O along the crown with the fitted cosine and its maximum; δ¹³C with the fitted wave and rumen step, and the transition with its 95% interval; ⁸⁷Sr/⁸⁶Sr, flat in this animal. The text above gives the share of C4 plants and the month of the rumen transition.](figures/enamel_result.png){width=64%}
+
+# 7. Kill-off profiles
+
+At what ages a herd's animals were killed shows what they were kept for, and it is the backdrop to
+weaning: dairying, for example, may mean early weaning or culling of young (`killoff.py`). Each
+mandible is aged by tooth wear, as a Payne (1973) stage A–I for sheep and goats (A 0–2 months, B 2–6,
+C 6–12, D 1–2 years, E 2–3, F 3–4, G 4–6, H 6–8, I 8–10), or as an age range for any species. A
+mandible that could be in two stages ("D/E") is shared among them in proportion to the mandibles that
+fall in only one, as Payne did. For each site and species the profile gives the share killed in each
+class and the share still alive after it (survivorship), with 95% intervals from resampling the
+mandibles (Efron & Tibshirani 1993). Three summaries follow Payne's models of herds kept for milk
+(many deaths before 6 months), meat (6 months to 3 years) and wool, breeding or traction (many alive
+at 4 years); see Vigne & Helmer (2007) for how these models have been used and debated. A
+permutation test asks whether two groups' profiles differ by more than chance. Young mandibles
+survive burial and excavation less well, so early deaths are often under-counted.
+
+![Figure 5. Survivorship of two synthetic sheep/goat herds (simulated data): Site A with most deaths in stages A–B, Site B in C–D.](figures/killoff_result.png){width=80%}
+
+# 8. Diet mixing
+
+To say what weaned animals and people went on to eat, bone collagen δ¹³C, δ¹⁵N and, if measured,
+δ³⁴S are split into the shares of a few food groups (`mixing.py`). Each isotope's expected value is
+Σ pₛμₛ + Δ, the share-weighted food values plus a collagen-diet offset, with a variance from the spread
+of each food, the offset and the measurement, as in FRUITS (Fernandes et al. 2014) and MixSIAR (Stock
+et al. 2018). Twenty thousand diets are drawn with every mix equally likely beforehand, and each is
+weighted by how well it explains the sample; the weighted draws give each food group's share with a
+95% interval. Two warnings matter most (Phillips et al. 2014): with more food groups than isotopes + 1
+the data cannot fix the shares, so the intervals stay wide; and a sample outside every mix of the food
+groups means a food is missing or a value is wrong. The bundled food values and offsets are rough
+placeholders. For δ¹⁵N, a controlled feeding study found collagen about 6‰ above the human diet
+(O'Connell et al. 2012); food values should come from plants and animals of the same site and period.
+
+![Figure 6. Synthetic human bone collagen from an inland and a coastal site (simulated data), with the placeholder food groups plus offsets (dashed boxes, ±1 SD).](figures/mixing_result.png){width=80%}
+
+# 9. Comparing groups
 
 The Compare tab groups tooth estimates by site, species and/or period (`aggregate.py`,
 `inference.py`, `joint.py`).
@@ -297,7 +357,7 @@ The Compare tab groups tooth estimates by site, species and/or period (`aggregat
 included, the Compare tab reports each model's bias, mean absolute error, root-mean-square error,
 correlation and 95% interval coverage.
 
-# 8. Planning a study
+# 10. Planning a study
 
 Both planners answer "would this sampling design work?" before teeth are cut or bones sampled.
 
@@ -315,13 +375,13 @@ error, the width and coverage of the 95% interval, and how often the nursing sig
 Because the data are simulated with the model that is fitted, it tests the design, not the
 model; with placeholder turnover it shows relative, not absolute, precision.
 
-# 9. Using the app
+# 11. Using the app
 
 ![](figures/app_data.png){width=49%} ![](figures/app_compare.png){width=49%}
 
-*Figure 5. The Data tab with the cattle example loaded (left) and the Compare tab (right).*
+*Figure 7. The Data tab with the cattle example loaded (left) and the Compare tab (right).*
 
-1. **Data.** Choose the tooth, bone or enamel calculation, then drop a file, load an example or type
+1. **Data.** Choose the tooth, bone, enamel, kill-off or diet-mixing calculation, then drop a file, load an example or type
    samples in. Problems are listed with their row numbers.
 2. **Settings.** The main choices are shown; less used ones are under *Advanced settings*. The
    defaults suit a first run.
@@ -337,7 +397,7 @@ Examples from IsoArcH (cattle teeth from Khami and Bornais) and CIMA (Cocozza et
 bone from Wharram Percy, York Fishergate and Newark Bay, and human teeth from Mikulčice) are
 included; their slice positions or tooth age models are partly assumed, as noted when they load.
 
-# 10. Limits and placeholders
+# 12. Limits and placeholders
 
 Values that still need laboratory data are marked **placeholder** in the app and listed in the
 yellow banner at the top. Until they are replaced, results are illustrative. The most important are:
@@ -345,7 +405,8 @@ yellow banner at the top. Until they are replaced, results are illustrative. The
 * crown heights and formation ages along the tooth for cattle, pig and horse, and a checked
   human M1 table;
 * bone collagen turnover rates and nursing-enrichment priors for livestock;
-* collagen quality-control limits and the minimum weaning drop for each laboratory.
+* collagen quality-control limits and the minimum weaning drop for each laboratory;
+* the food groups and collagen-diet offsets of the diet-mixing model.
 
 Other limits: growth layers are treated as straight and the tooth as round in cross-section;
 the one-stage model uses only the logistic curve; and the bone calculation is not yet part of
@@ -371,6 +432,8 @@ Beaumont J, Gledhill A, Lee-Thorp J, Montgomery J (2013) *Archaeometry* 55: 277�
 
 Beaumont J, Montgomery J (2016) *PLoS ONE* 11: e0160065.
 
+Bentley RA (2006) *J. Archaeol. Method Theory* 13: 135–187.
+
 Brown WAB, Christofferson PV, Massler M, Weiss MB (1960) *Am. J. Vet. Res.* 21: 7–34.
 
 Burnham KP, Anderson DR (2002) *Model Selection and Multimodel Inference*, 2nd ed. Springer.
@@ -390,6 +453,8 @@ DerSimonian R, Laird N (1986) *Control. Clin. Trials* 7: 177–188.
 Díez-Canseco, Tornero (2026) *J. Archaeol. Sci.: Reports* 71: 105651.
 
 Efron B, Tibshirani RJ (1993) *An Introduction to the Bootstrap*. Chapman & Hall.
+
+Fernandes R, Millard AR, Brabec M, Nadeau M-J, Grootes P (2014) *PLoS ONE* 9: e87436 (FRUITS).
 
 Fuller BT, Fuller JL, Harris DA, Hedges REM (2006) *Am. J. Phys. Anthropol.* 129: 279–293.
 
@@ -411,17 +476,29 @@ Millard AR (2000) In Goodfriend GA et al. (eds) *Perspectives in Amino Acid and 
 
 Minagawa M, Wada E (1984) *Geochim. Cosmochim. Acta* 48: 1135–1140.
 
+Montgomery J, Evans JA, Horstwood MSA (2010) *Environ. Archaeol.* 15: 32–42.
+
+Nehlich O (2015) *Earth-Sci. Rev.* 142: 1–17.
+
 Newsome SD, Koch PL, Etnier MA, Aurioles-Gamboa D (2006) *Mar. Mamm. Sci.* 22: 556–572.
+
+O'Connell TC, Kneale CJ, Tasevska N, Kuhnle GGC (2012) *Am. J. Phys. Anthropol.* 149: 426–434.
 
 Passey BH, Cerling TE (2002) *Geochim. Cosmochim. Acta* 66: 3225–3234.
 
 Passey BH, Robinson TF, Ayliffe LK, Cerling TE, Sponheimer M, Dearing MD, Roeder BL, Ehleringer JR (2005) *J. Archaeol. Sci.* 32: 1459–1470.
+
+Payne S (1973) *Anatolian Stud.* 23: 281–303.
+
+Phillips DL, Inger R, Bearhop S, Jackson AL, Moore JW, Parnell AC, Semmens BX, Ward EJ (2014) *Can. J. Zool.* 92: 823–835.
 
 Reynard LM, Tuross N (2015) *J. Archaeol. Sci.* 53: 618–625.
 
 Richards MP, Mays S, Fuller BT (2002) *Am. J. Phys. Anthropol.* 119: 205–210.
 
 Sisson SA, Fan Y, Tanaka MM (2007) *Proc. Natl. Acad. Sci. USA* 104: 1760–1765.
+
+Stock BC, Jackson AL, Ward EJ, Parnell AC, Phillips DL, Semmens BX (2018) *PeerJ* 6: e5096 (MixSIAR).
 
 ter Braak CJF (2006) *Stat. Comput.* 16: 239–249.
 
@@ -434,6 +511,8 @@ Tsutaya T, Yoneda M (2013) *PLoS ONE* 8: e72327 (WARN).
 van Klinken GJ (1999) *J. Archaeol. Sci.* 26: 687–695.
 
 Vehtari A, Gelman A, Simpson D, Carpenter B, Bürkner P-C (2021) *Bayesian Anal.* 16: 667–718.
+
+Vigne J-D, Helmer D (2007) *Anthropozoologica* 42: 9–40.
 
 Waters-Rist AL, Katzenberg MA (2010) *Int. J. Osteoarchaeol.* 20: 172–191.
 

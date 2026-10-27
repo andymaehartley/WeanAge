@@ -147,6 +147,19 @@ are left out of group comparisons.
   one-off δ¹³C step at weaning is not mistaken for a season). A warning appears when p < 0.05 and the cycle
   is at least 0.2‰ (residuals) or 0.3‰ (δ¹³C). The test needs at least ¾ of a year of
   data, and its false-alarm rate on pure noise was checked to be about 5 %.
+* Stress episodes (`changes.py`): starvation and illness raise δ¹⁵N without raising δ¹³C, while
+  a change of food usually moves both the same way (Beaumont & Montgomery 2016). δ¹⁵N excess is
+  observed minus the best fit; δ¹³C excess is the residual of δ¹³C regressed on a constant, age and
+  the fitted weaning curve (so the weaning step itself is not counted). An episode is a run of at
+  least two samples with δ¹⁵N excess ≥ `stress_d15N_permil` (0.5‰) and δ¹³C excess ≤ −
+  `stress_d13C_permil` (0.3‰). Needs at least 6 δ¹³C values. The Spearman correlation of the two
+  excesses is reported (negative = opposing covariance).
+* δ³⁴S shifts (`changes.find_shifts`), when a `d34S` column is given (at least 4 values): the series
+  is split into one, two or three flat stretches at the cuts that minimise the residual sum of
+  squares, and the number is chosen by BIC (n·ln(SSE/n) + k·ln n, k = 2 × shifts + 1). Shifts below
+  `d34S_min_shift_permil` (2‰) are not reported. Two steps the same way with at most three samples
+  between them are reported as one gradual shift. δ³⁴S follows bedrock and sea spray, so a shift
+  suggests a move or a change of diet (Nehlich 2015).
 
 ## 7. Comparing groups
 
@@ -424,15 +437,128 @@ share of C4 = (diet δ13C − C3 end member) / (C4 end member − C3 end member)
   flagged (closed forest, the canopy effect, or a different spacing). For modern enamel, Cerling et al.
   (1997) treat values above −8‰ as a conservative sign of C4 plants.
 
+### Mobility (⁸⁷Sr/⁸⁶Sr)
+
+Enamel strontium follows the bioavailable strontium of the rocks and soils where the animal fed
+(Bentley 2006). Shifts in `sr87_86` along the crown are found as for δ³⁴S (section 6), in the order
+the enamel formed (from the cusp down), with a minimum of `sr_min_shift` (0.0005). When the δ¹⁸O cycle
+is known, each shift is given a month (below). With `local_sr_min`/`local_sr_max`, values outside the
+local range are counted and flagged. Enamel averages strontium over months of maturation, so profiles
+are damped and the true move was sharper, and may have been earlier, than the shift seen (Montgomery
+et al. 2010).
+
+### Months of the year
+
+With the month of the δ¹⁸O maximum (`d18O_max_month`, default 7 = July; summer in the northern
+hemisphere, to be checked locally), enamel at position x formed ((x0 − x)/X mod 1) of a year after the
+maximum, so
+
+```
+month(x) = d18O_max_month + 12 · ((x0 − x)/X mod 1)      (wrapped to 1–13)
+```
+
+* Rumen transition month: from xm, with a circular 95% interval from paired draws of (x0, X) and xm.
+* Strontium shift months: from the midpoint between the two samples either side of the shift.
+* Birth month: needs `reference_birth_index` and `reference_birth_month` from a tooth of the same type
+  with a known birth date. A birth one month later moves the δ¹⁸O maximum lower on the crown, lowering
+  the birth index by 1/12, so birth month = reference month + 12·(reference index − index) (mod 12).
+* Weaning month: birth month + `weaning_age_months` (± `weaning_age_sd_months`), from the enamel table
+  or, in the app, from the tooth calculation's model-average age for the same specimen ID.
+* Group summaries give the circular mean month of the rumen transition and the number of teeth with a
+  strontium shift.
+
+### Smoothing correction
+
+Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so the recorded signals
+are smoothed. With `mineralisation_length_mm` = L > 0, each sample is treated as a moving average over
+L mm of crown (a simplification of the maturation geometry modelled by Passey & Cerling 2002):
+
+* a cosine of period X is damped by sinc(L/X) = sin(πL/X)/(πL/X), so the restored amplitude is A /
+  sinc(L/X) (not attempted when sinc < 0.3);
+* a logistic step of width w has variance π²w²/3 and the average adds L²/12, so the restored width is
+  √(w² − L²/(4π²)). The rise's duration is reported as its 10–90% span, 2·ln 9·w, in mm and, with X,
+  in months.
+
+These are first-order corrections, not an inverse model.
+
 ### Limits
 
-Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so the recorded
-signals are smoothed: amplitudes are lower and transitions more gradual than in life. No inverse
-model of mineralisation is applied (cf. Passey & Cerling 2002). Positions are not converted into
-ages, because enamel formation tables for cattle molars are not yet available; the x0/X index and
-crown-growth times avoid needing them. The synthetic example (`scripts/make_enamel_example.py`,
-twelve M2, smoothed over 8 mm) is recovered within 0.05 of each birth index and 3 mm of each rumen
-transition in the tests.
+Positions are not converted into ages, because enamel formation tables for cattle molars are not yet
+available; the x0/X index and crown-growth times avoid needing them. The synthetic example
+(`scripts/make_enamel_example.py`, twelve M2, smoothed over 8 mm) is recovered within 0.05 of each
+birth index, 3 mm of each rumen transition, 0.05 of each C4 share and 3 mm of each strontium shift in
+the tests.
+
+## 13. Kill-off profiles (`killoff.py`)
+
+Mandibles are aged by tooth eruption and wear. For sheep and goats, Payne (1973) stages are converted to
+age ranges: A 0–2 months, B 2–6, C 6–12, D 12–24, E 24–36, F 36–48, G 48–72, H 72–96, I 96–120. A stage
+range ("D/E", "D-E") spans its stages. Other species are entered as `age_min_months`/`age_max_months`
+(a warning appears if Payne stages are given for a species other than sheep or goat).
+
+* **Classes**: `class_bounds_months`, by default the Payne stage boundaries.
+* **Sharing ambiguous mandibles**: a mandible whose range lies in one class counts 1 there. One that
+  spans several is shared among them in proportion to the number of mandibles found in only one of
+  those classes (Payne 1973); if none are, in proportion to how much of each class its range covers.
+  Mandibles outside every class are left out, with a warning.
+* **Profile**: deaths per class (share of the group) and survivorship after each class (1 − cumulative
+  deaths). 95% intervals from `bootstrap_draws` (1000) resamples of the mandibles.
+* **Indicators**, assuming deaths spread evenly within a class: share killed before 6 months, share
+  killed at 6–36 months, and share alive at 48 months. They correspond to Payne's (1973) milk, meat and
+  wool models; see Vigne & Helmer (2007) for their use and limits. Real herds mix aims, and young
+  mandibles are under-represented through differential preservation, so the indicators are not
+  converted into a verdict.
+* **Comparing groups**: for each pair, the statistic is half the summed absolute difference of the
+  death shares (0–1); its p value is the share of `permutations` (1000) random reassignments of
+  mandibles between the two groups giving a statistic at least as large ((hits + 1)/(N + 1)).
+* A warning appears below 30 mandibles.
+
+Tested on a synthetic example (`scripts/make_killoff_example.py`: 2 × 60 mandibles, 20% given as two
+stages), on Payne-style sharing, and on two samples from one herd, which are not called different.
+
+## 14. Diet mixing (`mixing.py`)
+
+Collagen δ¹³C, δ¹⁵N and optionally δ³⁴S are modelled as a mix of 2–6 food groups (`sources`, each with a
+mean and SD per isotope) plus a collagen-diet offset per isotope (mean and SD):
+
+```
+expected_i(p)  = Σ_s p_s·μ_{s,i} + Δ_i
+variance_i(p)  = Σ_s p_s²·σ_{s,i}² + σ_Δi² + σ_measurement²
+```
+
+as in FRUITS (Fernandes et al. 2014) and MixSIAR-style models (Stock et al. 2018), with foods mixed
+by their protein (no concentration dependence). The shares p have a flat Dirichlet(1, …, 1) prior.
+`draws` (20000) diets are drawn from the prior once and, for each sample, weighted by the normal
+likelihood of its values (importance sampling). Reported per sample: the posterior mean of each share
+and its 95% interval (weighted 2.5% and 97.5% quantiles), and the effective number of draws
+(1/Σw²; a warning below 200). Group results are the means of the samples' posterior means.
+
+* δ³⁴S is used only when every food group and the offset have a δ³⁴S value, and for samples that
+  have one.
+* **Outside the mixing space**: if no drawn diet brings every isotope within 2.5 SD of the sample, a
+  food group is missing or a value is wrong.
+* **Underdetermined**: with more food groups than isotopes + 1 the shares are not fixed by the data;
+  the intervals show this and a warning says so (Phillips et al. 2014).
+* **Placeholders**: the food values and offsets in `data/diet_sources.json` are rough round values
+  (C3 plants, C4 plants, terrestrial animals, marine fish; Δ¹³C 4.8 ± 0.5‰, Δ¹⁵N 5.5 ± 0.5‰, Δ³⁴S 0.5 ±
+  1.0‰). Results say when they are in use. A controlled feeding study put the human diet-collagen
+  δ¹⁵N offset at about 6‰ (O'Connell et al. 2012).
+
+Tested on a two-food mix with a known 30% share, on a sample outside the mixing space, and on a
+synthetic example (`scripts/make_mixing_example.py`: an inland and a coastal site of 15 people) whose
+estimated marine shares follow the true ones (r > 0.8).
+
+### References for sections 12–14
+
+* Bentley RA (2006) Strontium isotopes from the earth to the archaeological skeleton: a review. *J. Archaeol. Method Theory* 13: 135–187.
+* Fernandes R, Millard AR, Brabec M, Nadeau M-J, Grootes P (2014) Food reconstruction using isotopic transferred signals (FRUITS): a Bayesian model for diet reconstruction. *PLoS ONE* 9: e87436.
+* Montgomery J, Evans JA, Horstwood MSA (2010) Evidence for long-term averaging of strontium in bovine enamel using TIMS and LA-MC-ICP-MS strontium isotope intra-molar profiles. *Environ. Archaeol.* 15: 32–42.
+* Nehlich O (2015) The application of sulphur isotope analyses in archaeological research: a review. *Earth-Sci. Rev.* 142: 1–17.
+* O'Connell TC, Kneale CJ, Tasevska N, Kuhnle GGC (2012) The diet-body offset in human nitrogen isotopic values: a controlled dietary study. *Am. J. Phys. Anthropol.* 149: 426–434.
+* Payne S (1973) Kill-off patterns in sheep and goats: the mandibles from Aşvan Kale. *Anatolian Stud.* 23: 281–303.
+* Phillips DL, Inger R, Bearhop S, Jackson AL, Moore JW, Parnell AC, Semmens BX, Ward EJ (2014) Best practices for use of stable isotope mixing models in food-web studies. *Can. J. Zool.* 92: 823–835.
+* Stock BC, Jackson AL, Ward EJ, Parnell AC, Phillips DL, Semmens BX (2018) Analyzing mixing systems using a new generation of Bayesian tracer mixing models. *PeerJ* 6: e5096.
+* Vigne J-D, Helmer D (2007) Was milk a "secondary product" in the Old World Neolithisation process? *Anthropozoologica* 42: 9–40.
 
 ## Limitations / future work
 

@@ -8,7 +8,10 @@ from δ¹⁵N measured along a tooth (incremental dentine), or from the bone col
 young individuals who died at different ages (after WARN). It reports weaning ages with
 95% intervals, compares curve models, sites and species, and simulates sampling designs
 before teeth are cut or bones sampled. For cattle it also estimates season of birth (enamel
-δ¹⁸O), rumen development and the share of C3 and C4 plants in the diet (enamel δ¹³C) along a molar.
+δ¹⁸O), rumen development and the share of C3 and C4 plants in the diet (enamel δ¹³C), and moves
+(⁸⁷Sr/⁸⁶Sr) along a molar, placing them in the months of the year. Two further calculations put
+weaning in context: kill-off profiles from aged mandibles (after Payne 1973), and the share of
+each food group in the diet from collagen δ¹³C, δ¹⁵N and δ³⁴S (a Bayesian mixing model).
 
 Browser version (no installation): <https://andymaehartley.github.io/WeanAge/>
 
@@ -70,7 +73,8 @@ are recognised. A blank template is under *Data → Download blank template*.
 | `d15N` | yes | δ¹⁵N, ‰ AIR |
 | `individual_id` | | teeth sharing it (e.g. M1 + M2) are joined into one timeline |
 | `position_reference`, `crown_height_mm` | | set `cervix` if measured from the crown base |
-| `d13C`, `pct_C`, `pct_N`, `cn_ratio`, `collagen_yield_pct` | | collagen QC and the δ¹³C checks |
+| `d13C`, `pct_C`, `pct_N`, `cn_ratio`, `collagen_yield_pct` | | collagen QC, the δ¹³C checks and stress episodes |
+| `d34S` | | δ³⁴S, ‰ VCDT: shifts suggest a move or change of diet |
 | `increment_width_mm` | | slice height if not 1 mm (time averaging) |
 | `sample_index`, `period`, `notes` | | |
 | `known_weaning_age_months` | | known-age reference animals (validation) |
@@ -83,9 +87,13 @@ for cattle, sheep, goat, pig and human (the livestock values are placeholders). 
 [user guide](docs/USER_GUIDE.md#bone-instead-of-teeth).
 
 Enamel data (cattle): one row per enamel sample, with `specimen_id`, `site`, `species`,
-`tooth`, `erj_distance_mm` (distance from the enamel-root junction) and `d18O` and/or `d13C`
-(enamel carbonate, ‰ VPDB). See the
-[user guide](docs/USER_GUIDE.md#season-of-birth-rumen-development-and-diet-enamel).
+`tooth`, `erj_distance_mm` (distance from the enamel-root junction) and any of `d18O`, `d13C`
+(enamel carbonate, ‰ VPDB) and `sr87_86`; optionally `weaning_age_months` for the month of
+weaning. See the [user guide](docs/USER_GUIDE.md#season-of-birth-rumen-development-and-diet-enamel).
+
+Kill-off data: one row per mandible, with `specimen_id`, `site`, `species` and `payne_stage`
+(A–I or e.g. `D/E`) or `age_min_months` + `age_max_months`. Diet-mixing data: one row per
+collagen sample, with `specimen_id`, `site`, `species`, `d13C`, `d15N` and optionally `d34S`.
 
 ## Further documentation
 
@@ -107,7 +115,10 @@ Enamel data (cattle): one row per enamel sample, with `specimen_id`, `site`, `sp
 | δ¹⁵N falls while δ¹³C rises at weaning in known-age calves (Balasse et al. 2001) | δ¹³C weaning check; validation |
 | Modern collagen needs C:N 3.00–3.28 (Guiry & Szpak 2020) | "modern" QC preset |
 | Coarse slices blur and delay the weaning signal (Tsutaya 2020; MDSS) | time averaging |
-| Stress and starvation raise δ¹⁵N (Beaumont & Montgomery 2016) | rising-profile warning |
+| Stress and starvation raise δ¹⁵N (Beaumont & Montgomery 2016) | rising-profile warning; stress episodes |
+| Enamel ⁸⁷Sr/⁸⁶Sr follows local geology (Bentley 2006) | strontium shifts |
+| Mandible wear stages and herding models (Payne 1973) | kill-off profiles |
+| Bayesian diet mixing (FRUITS: Fernandes et al. 2014; Phillips et al. 2014) | diet mixing |
 | Prehistoric cattle calved seasonally (Balasse et al. 2021) | seasonal term and checks |
 | Weaning curves and elbow (WARN: Tsutaya & Yoneda 2013; WEAN: Ganiatsou et al. 2023) | curve models, adult-female baseline, bone calculation |
 
@@ -126,7 +137,10 @@ src/weanage/
   inference.py   group tests and the hierarchical Bayesian model
   joint.py       one-stage Bayesian model
   bone.py        bone calculation (after WARN)
-  enamel.py      season of birth (δ18O), rumen development and C3/C4 diet (δ13C) from enamel
+  enamel.py      season of birth (δ18O), rumen development and C3/C4 diet (δ13C), Sr moves from enamel
+  changes.py     level shifts (87Sr/86Sr, δ34S) and stress episodes (opposing δ15N and δ13C)
+  killoff.py     kill-off profiles from aged mandibles
+  mixing.py      Bayesian diet mixing model for collagen
   simulate.py    tooth sampling planner
   bone_planner.py  bone sampling planner
   calibrate.py   growth tables from known-age reference points
@@ -135,7 +149,7 @@ src/weanage/
   browser.py     the same requests for the browser version
   isoarch.py     converts IsoArcH exports
   cli.py         the `weanage` command
-  data/          growth and bone-turnover tables, priors, QC limits, lab parameters, templates, examples
+  data/          growth and bone-turnover tables, priors, QC limits, lab parameters, diet sources, templates, examples
   web/           the app (HTML, CSS, JavaScript; pyworker.js runs Python in the browser version)
 tests/           pytest suite, including a browser test (needs Playwright)
 packaging/       single-file app (PyInstaller)
