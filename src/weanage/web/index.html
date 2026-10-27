@@ -120,8 +120,9 @@
                   (<a href="https://github.com/andymaehartley/WeanAge/blob/main/docs/BONE_LITERATURE.md" target="_blank" rel="noopener">sources</a>). Livestock bone turnover rates are placeholders.</p>
               </div>
               <p class="hint" data-mode="enamel" hidden>Required columns: <code>specimen_id, site, species, tooth,
-                erj_distance_mm</code> <span data-helpslot="erj"></span>, and <code>d18O</code>, <code>d13C</code> or both
-                (enamel carbonate, ‰ VPDB).</p>
+                erj_distance_mm</code> <span data-helpslot="erj"></span>, and at least one of <code>d18O</code>, <code>d13C</code>
+                (enamel carbonate, ‰ VPDB) and <code>sr87_86</code>. Optional: <code>weaning_age_months</code> and
+                <code>weaning_age_sd_months</code> from the same animal's dentine, for the month of weaning.</p>
               <div data-mode="enamel" hidden>
                 <h3>How the enamel calculation works</h3>
                 <ol class="steps-list">
@@ -129,8 +130,12 @@
                     share of one year's crown growth (x₀/X), compares the season of birth of animals with the same tooth.</li>
                   <li><strong>Rumen.</strong> δ¹³C rises as the rumen starts to work. A rising step plus a seasonal wave is
                     fitted, and kept only if it fits clearly better than the wave alone.</li>
+                  <li><strong>Diet.</strong> δ¹³C formed after the rumen works gives the share of C4 plants.</li>
+                  <li><strong>Mobility.</strong> A change in ⁸⁷Sr/⁸⁶Sr along the crown suggests a move to other rocks.</li>
+                  <li><strong>Calendar.</strong> The δ¹⁸O cycle places the rumen transition and strontium shifts in the year;
+                    with a reference tooth of known birth month, also birth and weaning.</li>
                 </ol>
-                <p class="hint">After Balasse et al. (2012) and Towers et al. (2014); see the user guide for the sources.</p>
+                <p class="hint">After Balasse et al. (2012), Towers et al. (2014) and Bentley (2006); see the user guide for the sources.</p>
               </div>
               <p class="hint" data-mode="tooth">Required columns: <code>specimen_id, site, species, tooth, position_mm, d15N</code>
                   <span data-helpslot="position"></span>. Optional: <code>individual_id</code> (several teeth from one animal),
@@ -323,6 +328,11 @@
                   <input id="opt-innerweight" type="number" min="0.05" max="1" step="0.05">
                 </label>
                 <label>Seasonal cycle length (months)<input id="opt-period" type="number" min="1" step="0.5"></label>
+                <label>Stress: δ¹⁵N above curve (‰) <span data-helpslot="stress"></span>
+                  <input id="opt-stressn" type="number" min="0.1" step="0.1"></label>
+                <label>Stress: δ¹³C below expected (‰)<input id="opt-stressc" type="number" min="0.1" step="0.1"></label>
+                <label>Smallest δ³⁴S shift (‰) <span data-helpslot="sulphur"></span>
+                  <input id="opt-sshift" type="number" min="0.1" step="0.5"></label>
               </div>
               <label class="check"><input id="opt-elbownorm" type="checkbox">
                 Elbow method: rescale both axes first (WEAN uses raw units) <span data-helpslot="elbow"></span></label>
@@ -483,8 +493,32 @@
           </details>
         </article>
         <article class="card">
-          <h2>Uncertainty</h2>
-          <label>Random draws for the 95% intervals<input id="enamel-draws" type="number" min="0" max="20000" step="100"></label>
+          <h2>Calendar <span data-helpslot="calendar"></span></h2>
+          <div class="form-grid">
+            <label>Month of the δ¹⁸O maximum (1 = January)<input id="enamel-d18O_max_month" type="number" min="1" max="12.9" step="0.5"></label>
+          </div>
+          <p class="hint">For birth and weaning months: a reference tooth of the same type with a known birth month.
+            Leave empty if there is none.</p>
+          <div class="form-grid">
+            <label>Reference birth index<input id="enamel-reference_birth_index" type="number" min="0" max="0.99" step="0.01"></label>
+            <label>Its birth month<input id="enamel-reference_birth_month" type="number" min="1" max="12.9" step="0.5"></label>
+          </div>
+        </article>
+        <article class="card">
+          <h2>Mobility (⁸⁷Sr/⁸⁶Sr) <span data-helpslot="strontium"></span></h2>
+          <div class="form-grid">
+            <label>Smallest shift reported<input id="enamel-sr_min_shift" type="number" min="0.0001" step="0.0001"></label>
+            <label>Local range, from<input id="enamel-local_sr_min" type="number" min="0.69" max="0.75" step="0.0001"></label>
+            <label>to<input id="enamel-local_sr_max" type="number" min="0.69" max="0.75" step="0.0001"></label>
+          </div>
+        </article>
+        <article class="card">
+          <h2>Smoothing and uncertainty</h2>
+          <div class="form-grid">
+            <label>Enamel matures over (mm; 0 = no correction) <span data-helpslot="smoothing"></span>
+              <input id="enamel-mineralisation_length_mm" type="number" min="0" max="60" step="1"></label>
+            <label>Random draws for the 95% intervals<input id="enamel-draws" type="number" min="0" max="20000" step="100"></label>
+          </div>
         </article>
       </div>
       <div class="run-bar">
@@ -629,10 +663,11 @@
             </div>
             <div id="enamel-o-chart" class="chart-box"></div>
             <div id="enamel-c-chart" class="chart-box"></div>
+            <div id="enamel-sr-chart" class="chart-box"></div>
             <div class="legend">
               <span><i class="dot"></i> enamel sample</span>
               <span><i class="line solid"></i> fitted curve</span>
-              <span><i class="dash"></i> δ¹⁸O maximum (top) and rumen transition (bottom); bars: 95% intervals</span>
+              <span><i class="dash"></i> δ¹⁸O maximum, rumen transition and strontium shifts; bars: 95% intervals</span>
             </div>
             <details class="advanced" id="enamel-warnings-box">
               <summary id="enamel-warnings-summary">Warnings</summary>
@@ -640,7 +675,7 @@
             </details>
           </article>
           <article class="card">
-            <h2>Season of birth and diet by group</h2>
+            <h2>Season, diet and mobility by group</h2>
             <p class="hint">Birth index (x₀/X) of each tooth; compare only teeth of the same type. The spread × 12 is
               roughly how many months births were spread over.</p>
             <div id="enamel-group-chart" class="chart-box"></div>

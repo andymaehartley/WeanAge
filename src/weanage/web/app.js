@@ -217,6 +217,9 @@ const FIELDS = {
   inner_dentine_weight: ["#opt-innerweight", "number"],
   seasonal_term: ["#opt-seasonal", "tick"],
   season_period_months: ["#opt-period", "number"],
+  stress_d15N_permil: ["#opt-stressn", "number"],
+  stress_d13C_permil: ["#opt-stressc", "number"],
+  d34S_min_shift_permil: ["#opt-sshift", "number"],
   elbow_normalise: ["#opt-elbownorm", "tick"],
   constrain_adult_plateau: ["#opt-constrain", "tick"],
 };
@@ -375,7 +378,14 @@ function renderResults() {
   ].filter(Boolean);
   const carbon = d.d13C_weaning_shift == null ? "" :
     `<p class="muted small">δ¹³C after weaning minus before ${help("carbon")}: ${d.d13C_weaning_shift > 0 ? "+" : ""}${num(d.d13C_weaning_shift)}‰</p>`;
-  $("#res-diagnostics").innerHTML = (checks.length ? `<p class="muted small">Seasonality checks ${help("seasonal")}: ${checks.join(" · ")}</p>` : "") + carbon;
+  const stress = d.stress_episodes == null ? "" :
+    `<p class="muted small">Stress episodes ${help("stress")}: ${d.stress_episodes.length
+      ? d.stress_episodes.map((e) => `${num(e.from_age)}–${num(e.to_age)} months`).join(", ") : "none found"}${
+      d.d15N_d13C_residual_spearman == null ? "" : ` (residual δ¹⁵N–δ¹³C ρ = ${num(d.d15N_d13C_residual_spearman)})`}</p>`;
+  const sulphur = d.d34S_shifts == null ? "" :
+    `<p class="muted small">δ³⁴S shifts ${help("sulphur")}: ${d.d34S_shifts.length
+      ? d.d34S_shifts.map((s) => `${s.size > 0 ? "+" : ""}${num(s.size)}‰ at about ${num(s.position)} months`).join(", ") : "none found"}</p>`;
+  $("#res-diagnostics").innerHTML = (checks.length ? `<p class="muted small">Seasonality checks ${help("seasonal")}: ${checks.join(" · ")}</p>` : "") + carbon + stress + sulphur;
 
   const averageRow = hasAverage ? [{ model: "average", label: "Model average", converged: true, isAverage: true, ...res.model_average }] : [];
   table($("#fit-table"), [

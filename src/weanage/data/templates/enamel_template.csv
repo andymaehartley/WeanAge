@@ -1,1 +1,1 @@
-specimen_id,site,species,tooth,sample_index,erj_distance_mm,d18O,d13C,period,notes
+specimen_id,site,species,tooth,sample_index,erj_distance_mm,d18O,d13C,sr87_86,weaning_age_months,weaning_age_sd_months,period,notes

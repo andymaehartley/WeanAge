@@ -134,6 +134,10 @@ def test_whole_workflow(page):
     summary = page.text_content("#enamel-res-summary")
     assert "birth index" in summary and "Rumen development" in summary and "C3 diet" in summary
     assert "Site B" in page.text_content("#enamel-group-table")
+    assert "rumen transition in" in summary and "no shift in ⁸⁷Sr/⁸⁶Sr" in summary
+    page.click('#enamel-result-list [data-tooth="B01"]')
+    assert "⁸⁷Sr/⁸⁶Sr shifts from 0.712" in page.text_content("#enamel-res-summary")
+    assert page.is_visible("#enamel-sr-chart svg")
     click(page, '.step[data-view="data"]')
     page.click("text=Tooth calculation")
     assert not page.is_disabled('.step[data-view="compare"]') and page.is_visible("#specimens-card")

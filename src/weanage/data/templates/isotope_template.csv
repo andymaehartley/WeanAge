@@ -1,2 +1,2 @@
-specimen_id,individual_id,site,species,tooth,sample_index,position_mm,position_reference,crown_height_mm,d15N,d13C,pct_C,pct_N,cn_ratio,collagen_yield_pct,increment_width_mm,period,notes,known_weaning_age_months,published_weaning_age_months
-TBD-LAB-001,,TBD-LAB site,cattle,M2,1,0.5,apex,,,,,,,,1,,"Replace this row: position_mm = distance from the cusp apex (or set position_reference=cervix and give crown_height_mm)",,
+specimen_id,individual_id,site,species,tooth,sample_index,position_mm,position_reference,crown_height_mm,d15N,d13C,d34S,pct_C,pct_N,cn_ratio,collagen_yield_pct,increment_width_mm,period,notes,known_weaning_age_months,published_weaning_age_months
+TBD-LAB-001,,TBD-LAB site,cattle,M2,1,0.5,apex,,,,,,,,,1,,"Replace this row: position_mm = distance from the cusp apex (or set position_reference=cervix and give crown_height_mm)",,

@@ -56,6 +56,7 @@ class CollagenSample(Sample):
 class IsotopeSample(CollagenSample):
     """One slice of dentine measured in the lab. specimen_id is one tooth."""
 
+    d34S: float | None = Field(default=None, ge=-40, le=40)  # ‰ VCDT; shifts suggest a move or diet change
     individual_id: str | None = None  # teeth with the same animal ID are joined
     tooth: str = Field(min_length=1)
     position_mm: float = Field(ge=0, le=200)
@@ -171,6 +172,10 @@ class AnalysisOptions(BaseModel):
     inner_dentine_weight: float = Field(default=1.0, gt=0, le=1)  # 1 = all dentine in a slice counts equally
     seasonal_term: bool = False  # add a yearly up-and-down cycle to each curve
     season_period_months: float = Field(default=12.0, gt=0)
+    # Stress episodes: δ15N this far above the weaning curve while δ13C is this far below its expected level.
+    stress_d15N_permil: float = Field(default=0.5, gt=0)
+    stress_d13C_permil: float = Field(default=0.3, gt=0)
+    d34S_min_shift_permil: float = Field(default=2.0, gt=0)  # smaller δ34S shifts are not reported
     adult_baselines: dict[str, AdultBaseline] = {}  # "site:species" or "species"
     constrain_adult_plateau: bool = False
     elbow_normalise: bool = True
@@ -290,12 +295,16 @@ class EnamelSample(Sample):
     erj_distance_mm: float = Field(ge=0, le=150)
     d18O: float | None = Field(default=None, ge=-30, le=15)  # ‰ VPDB, enamel carbonate
     d13C: float | None = Field(default=None, ge=-30, le=15)  # ‰ VPDB, enamel carbonate
+    sr87_86: float | None = Field(default=None, ge=0.69, le=0.75)  # 87Sr/86Sr of the enamel
     sample_index: int | None = Field(default=None, ge=0)
+    # Weaning age of the same animal (e.g. from its dentine δ15N), for the season of weaning.
+    weaning_age_months: float | None = Field(default=None, ge=0, le=120)
+    weaning_age_sd_months: float | None = Field(default=None, ge=0, le=60)
 
     @model_validator(mode="after")
     def has_a_value(self):
-        if self.d18O is None and self.d13C is None:
-            raise ValueError("each enamel sample needs d18O, d13C or both")
+        if self.d18O is None and self.d13C is None and self.sr87_86 is None:
+            raise ValueError("each enamel sample needs d18O, d13C or sr87_86")
         return self
 
 
@@ -317,6 +326,19 @@ class EnamelOptions(BaseModel):
     c3_plants_sd: float = Field(default=2.0, gt=0, le=5)
     c4_plants_d13C: float = Field(default=-11.0, ge=-20, le=-5)
     c4_plants_sd: float = Field(default=1.0, gt=0, le=5)
+    # Calendar: the month (1 = January, 7.5 = mid-July) in which enamel δ18O peaks. It places the rumen
+    # transition and strontium shifts in the year. Summer in the northern hemisphere; check locally.
+    d18O_max_month: float = Field(default=7.0, ge=1, lt=13)
+    # Birth month: a reference tooth of the same type with a known birth month and its birth index.
+    # Needed to turn birth indices (and weaning ages) into calendar months; there is no default.
+    reference_birth_index: float | None = Field(default=None, ge=0, lt=1)
+    reference_birth_month: float | None = Field(default=None, ge=1, lt=13)
+    # Mobility: 87Sr/86Sr shifts smaller than this are not reported; optional range of local values.
+    sr_min_shift: float = Field(default=0.0005, gt=0, le=0.05)
+    local_sr_min: float | None = Field(default=None, ge=0.69, le=0.75)
+    local_sr_max: float | None = Field(default=None, ge=0.69, le=0.75)
+    # Undo mineralisation smoothing: crown length over which each sample's enamel matured (0 = off).
+    mineralisation_length_mm: float = Field(default=0.0, ge=0, le=60)
     draws: int = Field(default=1000, ge=0, le=20000)
     random_seed: int | None = 42
 
@@ -326,4 +348,8 @@ class EnamelOptions(BaseModel):
             raise ValueError("period_min_mm must be smaller than period_max_mm")
         if self.c3_plants_d13C >= self.c4_plants_d13C:
             raise ValueError("c3_plants_d13C must be lower than c4_plants_d13C")
+        if (self.reference_birth_index is None) != (self.reference_birth_month is None):
+            raise ValueError("give both reference_birth_index and reference_birth_month, or neither")
+        if self.local_sr_min is not None and self.local_sr_max is not None and self.local_sr_min >= self.local_sr_max:
+            raise ValueError("local_sr_min must be smaller than local_sr_max")
         return self

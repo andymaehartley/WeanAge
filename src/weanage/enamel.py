@@ -16,10 +16,19 @@ in life the enamel formed. Each sample's position is its distance from the ERJ.
 * C3 or C4 diet (δ13C). Enamel δ13C is about 14‰ above the diet's (Cerling & Harris 1999), and C4
   grasses (millet, maize, many tropical grasses) are about 15‰ higher than C3 plants. The share of C4
   plants is found by mixing a C3 and a C4 end member, from the enamel formed after the rumen works.
+* Mobility (87Sr/86Sr). Enamel strontium follows the geology where the animal fed; a shift in level
+  along the crown suggests a move (Bentley 2006), and its position against the δ18O cycle gives its
+  season. Enamel averages strontium over months, so shifts are blurred (Montgomery et al. 2010).
+* Calendar. The δ18O maximum is set to a month (summer by default), so any position can be placed
+  in the year: the enamel x mm below the maximum formed x/X of a year later. Birth months need a
+  reference tooth with a known birth month; with an age at weaning from the same animal's dentine,
+  they give the month of weaning.
 
-Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so both signals are
-smoothed: amplitudes are lower and transitions more gradual than in life. Positions are not
-converted into ages, because enamel formation tables for cattle are not yet available.
+Enamel takes months to mineralise at any one position (Zazzo et al. 2005), so all signals are
+smoothed: amplitudes are lower and transitions more gradual than in life. When the length of crown
+over which enamel matures is given, the cosine amplitude and the width of the rumen step are
+corrected for a moving average of that length (after Passey & Cerling 2002); this is approximate.
+Positions are not converted into ages, because enamel formation tables for cattle are not yet available.
 """
 
 import math
@@ -28,6 +37,7 @@ import warnings
 import numpy as np
 from scipy.optimize import curve_fit
 
+from .changes import find_shifts
 from .ingest import check_rows, column_lookup, issue, match_columns
 from .models import aicc, interval
 from .schema import EnamelOptions, EnamelSample
@@ -37,6 +47,8 @@ ALIASES = {
     "tooth": ["element"],
     "erj_distance_mm": ["erj", "erjdistance", "distancefromerj", "distancefromerjmm", "heightaboveerj", "herj"],
     "d18O": ["δ18o", "delta18o", "d18ovpdb", "d18ocarbonate"],
+    "sr87_86": ["87sr86sr", "sr8786", "srratio", "sr"],
+    "weaning_age_months": ["weaningage", "weaningagemonths"],
     "sample_index": ["sampleno", "sample"],
 }
 LOOKUP = column_lookup(EnamelSample, ALIASES)
@@ -78,6 +90,7 @@ def summarise(samples):
         out.append({"specimen_id": sid, "site": rows[0].site, "species": rows[0].species, "tooth": rows[0].tooth,
                     "period": rows[0].period, "n_samples": len(rows),
                     "n_d18O": sum(r.d18O is not None for r in rows), "n_d13C": sum(r.d13C is not None for r in rows),
+                    "n_sr": sum(r.sr87_86 is not None for r in rows),
                     "span_mm": round(max(x) - min(x), 2)})
     return out
 
@@ -117,9 +130,26 @@ def circular_interval(draws, estimate):
     return (None, None) if low is None else ((estimate + low) % 1, (estimate + high) % 1)
 
 
+def share_after_maximum(position, x0, period):
+    """Share of a year (0–1) from the δ18O maximum to when the enamel at this position formed."""
+    return ((np.asarray(x0) - np.asarray(position)) / np.asarray(period)) % 1
+
+
+def to_month(share, options):
+    """A share of the year after the δ18O maximum as a month number (1 = start of January, up to 13)."""
+    return (options.d18O_max_month - 1 + 12 * np.asarray(share)) % 12 + 1
+
+
+def month_estimate(share, share_draws, options):
+    """Month of a share of the year with its circular 95% interval."""
+    low, high = circular_interval(share_draws, share) if share_draws is not None and len(share_draws) else (None, None)
+    as_month = lambda v: None if v is None else float(to_month(v, options))  # noqa: E731
+    return {"estimate": as_month(share), "ci_low": as_month(low), "ci_high": as_month(high)}
+
+
 def fit_season(x, y, options, rng):
     """Cosine fit of δ18O along the crown. Returns the result, with no birth index when there is no clear cycle."""
-    out = {"n": len(x), "birth_index": None, "message": "", "warnings": [], "curve_x": [], "curve_y": []}
+    out = {"n": len(x), "birth_index": None, "message": "", "warnings": [], "curve_x": [], "curve_y": [], "draws": None}
     if len(x) < MIN_SAMPLES:
         out["message"] = f"Only {len(x)} δ18O values; at least {MIN_SAMPLES} are needed"
         return out
@@ -143,6 +173,14 @@ def fit_season(x, y, options, rng):
     out.update(mean_permil=mean, amplitude_permil=amplitude, period_mm=period, x0_mm=x0 % period,
                rmse=float(np.sqrt(sse / len(x))), delta_aicc_vs_flat=gain, span_mm=span,
                curve_x=[round(float(v), 3) for v in grid], curve_y=[round(float(v), 3) for v in cosine(grid, *p)])
+    if options.mineralisation_length_mm:
+        # A moving average over L mm lowers a cosine of period X by sinc(L/X).
+        kept = float(np.sinc(options.mineralisation_length_mm / period))
+        if kept < 0.3:
+            out["warnings"].append(f"Averaging over {options.mineralisation_length_mm:g} mm leaves too little of a "
+                                   f"{period:.0f} mm cycle to restore its amplitude")
+        else:
+            out["amplitude_restored_permil"] = amplitude / kept
     if span < MIN_CYCLE_SHARE * period:
         out["warnings"].append(f"The samples cover {span:.0f} mm, under 3/4 of the {period:.0f} mm formed in a year: "
                                "the period and the position of the maximum are poorly fixed")
@@ -154,15 +192,16 @@ def fit_season(x, y, options, rng):
     out["birth_index"] = {"estimate": index, "ci_low": None, "ci_high": None}
     if options.draws and np.all(np.isfinite(cov)):
         draws = rng.multivariate_normal(p, cov, size=options.draws, check_valid="ignore")
-        periods = np.clip(draws[:, 2], lo_p, hi_p)
-        low, high = circular_interval((draws[:, 3] % periods) / periods, index)
+        draws[:, 2] = np.clip(draws[:, 2], lo_p, hi_p)
+        low, high = circular_interval((draws[:, 3] % draws[:, 2]) / draws[:, 2], index)
         out["birth_index"].update(ci_low=low, ci_high=high)
+        out["draws"] = draws  # used by analyze_tooth, then dropped
     return out
 
 
 def fit_rumen(x, y, period, tooth, options, rng):
     """Is there a rise in δ13C towards the ERJ beyond the seasonal wave? Compared by AICc."""
-    out = {"n": len(x), "detected": False, "message": "", "warnings": [], "curve_x": [], "curve_y": []}
+    out = {"n": len(x), "detected": False, "message": "", "warnings": [], "curve_x": [], "curve_y": [], "draws": None}
     if len(x) < MIN_SAMPLES + 1:
         out["message"] = f"Only {len(x)} δ13C values; at least {MIN_SAMPLES + 1} are needed"
         return out
@@ -208,10 +247,19 @@ def fit_rumen(x, y, period, tooth, options, rng):
     out["transition_mm"] = {"estimate": middle, "ci_low": None, "ci_high": None}
     if options.draws and np.all(np.isfinite(cov)):
         draws = rng.multivariate_normal(p, cov, size=options.draws, check_valid="ignore")
-        low, high = interval(np.clip(draws[:, -2], x.min(), x.max()))
+        out["draws"] = np.clip(draws[:, -2], x.min(), x.max())
+        low, high = interval(out["draws"])
         out["transition_mm"].update(ci_low=low, ci_high=high)
+    # 10% to 90% of the rise; a moving average over L mm adds L²/12 to the step's variance (π²w²/3).
+    out["width_mm"] = 2 * math.log(9) * width
+    if options.mineralisation_length_mm:
+        restored = math.sqrt(max(width ** 2 - options.mineralisation_length_mm ** 2 / (4 * math.pi ** 2), 0))
+        out["width_restored_mm"] = 2 * math.log(9) * restored
     if period:  # crown growth between the first (highest) sample and the transition
         out["months_after_first_sample"] = (float(x.max()) - middle) / period * 12
+        out["duration_months"] = out["width_mm"] / period * 12
+        if "width_restored_mm" in out:
+            out["duration_restored_months"] = out["width_restored_mm"] / period * 12
     if middle > x.max() - 0.1 * span:
         out["warnings"].append("The rise sits at the top of the sampled crown: it may have begun before the "
                                "first sample formed")
@@ -261,18 +309,89 @@ def diet_c4(x, y, rumen, tooth, options, rng):
     return out
 
 
+def mobility(x, y, season, options):
+    """Shifts in 87Sr/86Sr along the crown, placed in the year when the δ18O cycle is known."""
+    out = {"n": len(x), "mean": float(np.mean(y)), "range": [float(np.min(y)), float(np.max(y))], "shifts": [],
+           "warnings": [], "outside_local": None}
+    if len(x) < 4:
+        out["message"] = f"Only {len(x)} 87Sr/86Sr values; at least 4 are needed to look for shifts"
+        return out
+    for s in find_shifts(-x, y, options.sr_min_shift):  # -x: in the order the enamel formed
+        s["position"], s["between"] = -s["position"], [-v for v in s["between"]]
+        if season:  # the shift happened between the two samples, so take their midpoint
+            s["month"] = month_estimate(float(share_after_maximum(s["position"], season["x0_mm"], season["period_mm"])), None, options)
+        out["shifts"].append(s)
+    if options.local_sr_min is not None and options.local_sr_max is not None:
+        outside = (y < options.local_sr_min) | (y > options.local_sr_max)
+        out["outside_local"] = int(outside.sum())
+        if outside.any():
+            out["warnings"].append(f"{int(outside.sum())} of {len(y)} 87Sr/86Sr values lie outside the local range "
+                                   f"{options.local_sr_min:.4f}–{options.local_sr_max:.4f}: time spent elsewhere")
+    if out["shifts"]:
+        out["warnings"].append("Enamel averages strontium over months, so the true move was sharper, and may have been "
+                               "earlier, than the shift seen (Montgomery et al. 2010)")
+    return out
+
+
+def calendar(season, rumen, rows, options, rng):
+    """Months of rumen development, birth and weaning. Each needs different inputs; missing ones give None."""
+    out = {"rumen_month": None, "birth_month": None, "weaning_month": None, "message": ""}
+    if not season or not season["birth_index"]:
+        out["message"] = "Needs a δ18O cycle"
+        return out
+    draws = season["draws"]
+    if rumen and rumen["detected"]:
+        share = float(share_after_maximum(rumen["transition_mm"]["estimate"], season["x0_mm"], season["period_mm"]))
+        share_draws = None
+        if draws is not None and rumen["draws"] is not None:
+            n = min(len(draws), len(rumen["draws"]))
+            share_draws = share_after_maximum(rumen["draws"][:n], draws[:n, 3] % draws[:n, 2], draws[:n, 2])
+        out["rumen_month"] = month_estimate(share, share_draws, options)
+    if options.reference_birth_index is None or options.reference_birth_month is None:
+        out["message"] = "Birth and weaning months need a reference tooth with a known birth month"
+        return out
+    # A later birth puts the summer maximum lower on the crown, so the birth index falls by 1/12 a month.
+    index = season["birth_index"]["estimate"]
+    index_draws = None if draws is None else (draws[:, 3] % draws[:, 2]) / draws[:, 2]
+    birth = lambda i: (options.reference_birth_month - 1 + 12 * (options.reference_birth_index - np.asarray(i))) % 12  # noqa: E731
+    as_share = lambda m: np.asarray(m) / 12  # noqa: E731
+    shares = None if index_draws is None else as_share(birth(index_draws))
+    calendar_options = options.model_copy(update={"d18O_max_month": 1.0})  # birth() already gives calendar months
+    out["birth_month"] = month_estimate(float(as_share(birth(index))), shares, calendar_options)
+    age = next((r.weaning_age_months for r in rows if r.weaning_age_months is not None), None)
+    if age is None:
+        out["message"] = "The weaning month needs the animal's weaning age (weaning_age_months)"
+        return out
+    sd = next((r.weaning_age_sd_months for r in rows if r.weaning_age_sd_months is not None), 0.0)
+    n = max(options.draws, 1000)
+    birth_draws = birth(index_draws) if index_draws is not None else np.full(n, float(birth(index)))
+    ages = rng.normal(age, sd, len(birth_draws))
+    out["weaning_month"] = month_estimate(float(as_share(birth(index) + age) % 1), as_share(birth_draws + ages) % 1, calendar_options)
+    out["weaning_age_months"] = age
+    return out
+
+
 def analyze_tooth(rows, options, rng):
     rows = sorted(rows, key=lambda r: -r.erj_distance_mm)  # first formed first
     first = rows[0]
-    points = [{"x": r.erj_distance_mm, "d18O": r.d18O, "d13C": r.d13C, "sample_index": r.sample_index} for r in rows]
+    points = [{"x": r.erj_distance_mm, "d18O": r.d18O, "d13C": r.d13C, "sr87_86": r.sr87_86, "sample_index": r.sample_index}
+              for r in rows]
     o = [(r.erj_distance_mm, r.d18O) for r in rows if r.d18O is not None]
     c = [(r.erj_distance_mm, r.d13C) for r in rows if r.d13C is not None]
+    sr = [(r.erj_distance_mm, r.sr87_86) for r in rows if r.sr87_86 is not None]
     season = fit_season(*map(np.array, zip(*o)), options, rng) if o else None
-    period = season.get("period_mm") if season and season["birth_index"] else None
+    dated = season if season and season["birth_index"] else None
+    period = dated["period_mm"] if dated else None
     rumen = fit_rumen(*map(np.array, zip(*c)), period, first.tooth, options, rng) if c else None
     diet = diet_c4(*map(np.array, zip(*c)), rumen, first.tooth, options, rng) if c else None
+    strontium = mobility(*map(np.array, zip(*sr)), dated, options) if sr else None
+    months = calendar(dated, rumen, rows, options, rng)
+    for fit in (season, rumen):
+        if fit:
+            fit.pop("draws")
     return {"specimen_id": first.specimen_id, "site": first.site, "species": first.species, "tooth": first.tooth,
-            "period": first.period, "points": points, "season": season, "rumen": rumen, "diet": diet}
+            "period": first.period, "points": points, "season": season, "rumen": rumen, "diet": diet,
+            "strontium": strontium, "calendar": months}
 
 
 def circular_mean(values):
@@ -304,6 +423,7 @@ def group_summary(results):
         index_of = {r["specimen_id"]: r["season"]["birth_index"]["estimate"] for r in members
                     if r["season"] and r["season"]["birth_index"]}
         shares = [r["diet"]["share_c4"]["estimate"] for r in members if r["diet"] and r["diet"]["share_c4"]]
+        rumen_months = [r["calendar"]["rumen_month"]["estimate"] for r in members if r["calendar"]["rumen_month"]]
         indices = list(index_of.values())
         arc = smallest_arc(indices) if indices else None
         out.append({"group": " · ".join(str(k) for k in (site, species, tooth, period) if k), "site": site,
@@ -311,6 +431,8 @@ def group_summary(results):
                     "mean_index": circular_mean(indices) if indices else None, "spread_index": arc,
                     "spread_months": arc * 12 if arc is not None else None,
                     "mean_share_c4": float(np.mean(shares)) if shares else None, "n_diet": len(shares),
+                    "mean_rumen_month": circular_mean((np.array(rumen_months) - 1) / 12) * 12 + 1 if rumen_months else None,
+                    "n_movers": sum(bool(r["strontium"] and r["strontium"]["shifts"]) for r in members),
                     "teeth": [{"specimen_id": sid, "birth_index": v} for sid, v in index_of.items()]})
     return out
 

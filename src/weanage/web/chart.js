@@ -35,7 +35,7 @@ function scale(d0, d1, p0, p1) {
   return f;
 }
 
-const label = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : String(+v.toFixed(2)));
+const label = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : String(+v.toFixed(4))); // 4 places for 87Sr/86Sr
 
 function marker(shape, x, y, r, attrs, parent) {
   if (shape === "square") return el("rect", { x: x - r, y: y - r, width: 2 * r, height: 2 * r, ...attrs }, parent);

@@ -19,6 +19,7 @@ COMMON_ALIASES = {
     "species": ["taxon"],
     "d15N": ["δ15n", "delta15n", "d15nair"],
     "d13C": ["δ13c", "delta13c", "d13cvpdb"],
+    "d34S": ["δ34s", "delta34s", "d34svcdt"],
     "pct_N": ["n", "percentn"],
     "pct_C": ["c", "percentc"],
     "cn_ratio": ["cn", "atomiccn"],

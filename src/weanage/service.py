@@ -191,7 +191,7 @@ def run_bone_planner(body: SimulateBoneIn, progress=None):
 ENAMEL_EXAMPLES = {
     "synthetic_enamel": ("synthetic_enamel_example.csv", "Synthetic cattle M2 enamel (simulated)",
                          "Loaded SYNTHETIC enamel data (simulated, not real measurements): Site A calved within about "
-                         "a month, Site B over about seven."),
+                         "a month, Site B over about seven; three Site B animals moved as calves (87Sr/86Sr)."),
 }
 
 

@@ -10,6 +10,7 @@ import os
 import numpy as np
 from scipy import stats
 
+from .changes import find_shifts, stress_episodes
 from .config import find_growth_table
 from .growth import position_to_age
 from .models import MILESTONES, compare_fits, fit_model, mark_average_beyond, mark_beyond, model_average, seasonal_test
@@ -127,6 +128,26 @@ def carbon_weaning_check(t, d13c, fit, species):
     return None, shift
 
 
+def stress_check(t, d15n_excess, d13c, weaning_curve, options, diagnostics):
+    """Stress episodes: δ15N above the weaning curve while δ13C is below its expected level.
+
+    The expected δ13C allows for a trend and for a step with weaning (Balasse et al. 2001), so only
+    δ13C left unexplained by those counts. Starvation and illness raise δ15N without raising δ13C
+    (Beaumont & Montgomery 2016).
+    """
+    has_c = np.isfinite(d13c)
+    if has_c.sum() < 6:
+        return []
+    design = np.column_stack([np.ones(has_c.sum()), t[has_c], weaning_curve[has_c]])
+    c = d13c[has_c]
+    c_excess = c - design @ np.linalg.lstsq(design, c, rcond=None)[0]
+    episodes, rho = stress_episodes(t[has_c], d15n_excess[has_c], c_excess, options.stress_d15N_permil, options.stress_d13C_permil)
+    diagnostics["stress_episodes"], diagnostics["d15N_d13C_residual_spearman"] = episodes, rho
+    return [f"Possible stress episode at {e['from_age']:.1f}–{e['to_age']:.1f} months: δ15N {e['d15N_above_permil']:.1f}‰ "
+            f"above the weaning curve while δ13C is {e['d13C_below_permil']:.1f}‰ below its expected level "
+            "(opposing covariance, as in starvation or illness; Beaumont & Montgomery 2016)" for e in episodes]
+
+
 def analyze_specimen(samples, options):
     first = samples[0]
     rows = sorted(samples, key=lambda s: (s.tooth, s.position_mm))
@@ -175,7 +196,7 @@ def analyze_specimen(samples, options):
             "position_mm": row.position_mm, "age_months": round(float(age[0]), 4),
             "age_min": round(float(window[0]), 4) if window is not None else None,
             "age_max": round(float(window[-1]), 4) if window is not None else None,
-            "d15N": row.d15N, "d13C": row.d13C, "tooth": row.tooth, "extrapolated": bool(beyond_table[0]),
+            "d15N": row.d15N, "d13C": row.d13C, "d34S": row.d34S, "tooth": row.tooth, "extrapolated": bool(beyond_table[0]),
             "qc_flags": flags, "used_in_fit": passes_qc(flags) or not options.qc.exclude_failed,
         })
         windows.append(window)
@@ -236,6 +257,16 @@ def analyze_specimen(samples, options):
         carbon_warning, result["diagnostics"]["d13C_weaning_shift"] = carbon_weaning_check(t, d13c, best, first.species)
         if carbon_warning:
             warnings.append(carbon_warning)
+        warnings += stress_check(t, y - fitted, d13c, fitted, options, result["diagnostics"])
+
+    # 5. Level shifts in δ34S along the tooth (a move to other soils or the coast, or a change of diet).
+    s_points = [p for p in used if p["d34S"] is not None]
+    if len(s_points) >= 4:
+        shifts = find_shifts([p["age_months"] for p in s_points], [p["d34S"] for p in s_points], options.d34S_min_shift_permil)
+        result["diagnostics"]["d34S_shifts"] = shifts
+        for s in shifts:
+            warnings.append(f"δ34S shifts by {s['size']:+.1f}‰ at about {s['position']:.1f} months: a move to other "
+                            "soils or the coast, or a change of diet (Nehlich 2015)")
 
     for f in fits:
         del f["_draws"]  # only needed for the model average
