@@ -19,26 +19,38 @@ from .analysis import analyze, estimate_rows
 from .bone import analyze_bones, ingest_bone_dataframe
 from .bone_planner import BoneScenario, BoneSweepParam, run_bone_plan
 from .calibrate import CalibrationPoint, Method, calibrate_growth_table
+from .dental_age import analyze_dental, ingest_dental_dataframe
 from .enamel import analyze_enamel, ingest_enamel_dataframe
+from .hypoplasia import analyze_leh, ingest_leh_dataframe
 from .inference import compare_groups
 from .ingest import ingest_file, ingest_records, read_table
 from .killoff import analyze_killoff, ingest_killoff_dataframe
+from .lifetable import analyze_lifetable, ingest_life_dataframe
 from .mixing import analyze_mixing, ingest_mixing_dataframe
 from .mixing import with_defaults as with_diet_defaults
+from .mobility import analyze_mobility, ingest_mobility_dataframe
 from .models import MODEL_CATALOG
 from .qc import FLAG_DESCRIPTIONS
 from .schema import (
     AnalysisOptions,
     BoneOptions,
     BoneSample,
+    DentalOptions,
+    DentalSample,
     EnamelOptions,
     EnamelSample,
     GrowthTable,
     IsotopeSample,
     KilloffOptions,
     KilloffSample,
+    LehOptions,
+    LehSample,
+    LifeSample,
+    LifeTableOptions,
     MixingOptions,
     MixingSample,
+    MobilityOptions,
+    MobilitySample,
     ModelName,
 )
 from .simulate import SimulationScenario, SweepParam, run_simulation, sweep
@@ -64,7 +76,7 @@ class SimulateBoneIn(BaseModel):
 
 class AggregateIn(BaseModel):
     estimates: list[dict[str, Any]]
-    group_by: list[Literal["site", "species", "period"]] = Field(default=["site", "species"], min_length=1)
+    group_by: list[str] = Field(default=["site", "species"], min_length=1, max_length=4)  # site, species, period or a kept column
     milestone: Literal["onset", "midpoint", "completion"] = "midpoint"
     model: ModelName | Literal["average"] | None = None
     bayes: bool | Literal["two_stage", "one_stage"] = True
@@ -220,6 +232,26 @@ CALCULATIONS = {
                              "Loaded SYNTHETIC collagen values (simulated, not real measurements) from the placeholder "
                              "food sources: an inland and a coastal site."),
     }),
+    "dental": Calculation(DentalSample, DentalOptions, ingest_dental_dataframe, analyze_dental, {
+        "synthetic_dental": ("synthetic_dental_example.csv", "Synthetic children's teeth (simulated)",
+                             "Loaded SYNTHETIC tooth formation stages (simulated) for 24 children; the true ages are "
+                             "in the notes. The formation ages are placeholders."),
+    }),
+    "leh": Calculation(LehSample, LehOptions, ingest_leh_dataframe, analyze_leh, {
+        "synthetic_hypoplasia": ("synthetic_hypoplasia_example.csv", "Synthetic enamel hypoplasia (simulated)",
+                                 "Loaded SYNTHETIC enamel hypoplasia defects (simulated) for 15 people, most formed at "
+                                 "2-4 years."),
+    }),
+    "lifetable": Calculation(LifeSample, LifeTableOptions, ingest_life_dataframe, analyze_lifetable, {
+        "synthetic_cemetery": ("synthetic_cemetery_example.csv", "Synthetic cemeteries (simulated)",
+                               "Loaded SYNTHETIC skeletal ages (simulated) from two cemeteries; Site B lost most of "
+                               "its infant burials."),
+    }),
+    "mobility": Calculation(MobilitySample, MobilityOptions, ingest_mobility_dataframe, analyze_mobility, {
+        "synthetic_mobility": ("synthetic_mobility_example.csv", "Synthetic enamel δ18O and Sr (simulated)",
+                               "Loaded SYNTHETIC enamel values (simulated): 30 people and 12 local animals; five people "
+                               "grew up elsewhere."),
+    }),
 }
 
 
@@ -289,6 +321,10 @@ def run_planner(body: SimulateIn, progress=None):
 
 
 def compare(body: AggregateIn):
+    known = {key for row in body.estimates for key in row}
+    unknown = [g for g in body.group_by if g not in known]
+    if unknown:
+        raise ValueError(f"no estimates have {', '.join(unknown)} to group by")
     return {
         "summary": records(aggregate(body.estimates, body.group_by, body.milestone, body.model)),
         "disagreement": records(model_disagreement(body.estimates, body.milestone)),

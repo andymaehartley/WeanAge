@@ -98,6 +98,10 @@ def species_priors(species):
     return priors.get(species.lower(), priors["default"])
 
 
+def dental_stages():
+    return read_json(DATA_DIR / "dental_stages.json")
+
+
 def diet_sources():
     return read_json(DATA_DIR / "diet_sources.json")
 
@@ -136,6 +140,10 @@ def tbd_items():
         if entry.get("placeholder") and species != "default":
             items.append({"id": f"bone-priors:{species}", "area": "Bone model priors", "label": f"{species} priors",
                           "note": entry.get("tbd_note", ""), "file": "src/weanage/data/bone_priors.json"})
+    dental = dental_stages()
+    if dental.get("placeholder"):
+        items.append({"id": "dental:stages", "area": "Dental age and hypoplasia", "label": "Tooth formation ages",
+                      "note": dental.get("tbd_note", ""), "file": "src/weanage/data/dental_stages.json"})
     diet = diet_sources()
     if diet.get("placeholder"):
         items.append({"id": "diet:sources", "area": "Diet mixing", "label": "Food sources and collagen-diet offsets",

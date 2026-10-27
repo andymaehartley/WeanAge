@@ -1,0 +1,22 @@
+{
+  "_README": "Tooth formation ages (months from birth; negative = before birth) used for dental age estimation and for dating enamel hypoplasia. For each tooth: crown initiation, crown complete (Crc), root length complete (Rc) and apex closed (Ac). Ages of the Moorrees et al. (1963) stages in between are spaced evenly: Ci-Crc over the crown, Ri-Rc over the root, A1/2-Ac over apex closure. PLACEHOLDERS: rounded textbook values for both sexes together, close to widely reproduced charts but not taken from a checked table. Replace them with stage ages from a published standard (e.g. AlQahtani et al. 2010, the London Atlas; Smith 1991 for Moorrees stages) and their SDs (TBD-LAB). cuspal_months: enamel formation time hidden under the cusp, before the first perikymata reach the surface (Reid & Dean 2006); null = not yet set, taken as 0.",
+  "placeholder": true,
+  "tbd_note": "Replace the formation ages with a published dental standard (stage ages and SDs), and add cuspal formation times for the hypoplasia calculation.",
+  "stages": ["Ci", "Cco", "Coc", "Cr1/2", "Cr3/4", "Crc", "Ri", "R1/4", "R1/2", "R3/4", "Rc", "A1/2", "Ac"],
+  "sd": {"fraction": 0.1, "minimum_months": 2.0},
+  "teeth": {
+    "di1": {"label": "deciduous central incisor", "initiation": -5.5, "crown": 1.5, "root": 18, "apex": 20, "cuspal_months": null},
+    "di2": {"label": "deciduous lateral incisor", "initiation": -5, "crown": 2.5, "root": 20, "apex": 22, "cuspal_months": null},
+    "dc": {"label": "deciduous canine", "initiation": -4.5, "crown": 9, "root": 38, "apex": 40, "cuspal_months": null},
+    "dm1": {"label": "first deciduous molar", "initiation": -5, "crown": 6, "root": 30, "apex": 32, "cuspal_months": null},
+    "dm2": {"label": "second deciduous molar", "initiation": -4, "crown": 11, "root": 38, "apex": 40, "cuspal_months": null},
+    "I1": {"label": "permanent central incisor", "initiation": 4, "crown": 54, "root": 114, "apex": 120, "cuspal_months": null},
+    "I2": {"label": "permanent lateral incisor", "initiation": 9, "crown": 60, "root": 126, "apex": 132, "cuspal_months": null},
+    "C": {"label": "permanent canine", "initiation": 5, "crown": 72, "root": 156, "apex": 168, "cuspal_months": null},
+    "PM1": {"label": "first premolar", "initiation": 21, "crown": 72, "root": 150, "apex": 156, "cuspal_months": null},
+    "PM2": {"label": "second premolar", "initiation": 27, "crown": 84, "root": 162, "apex": 168, "cuspal_months": null},
+    "M1": {"label": "first permanent molar", "initiation": 0, "crown": 36, "root": 108, "apex": 114, "cuspal_months": null},
+    "M2": {"label": "second permanent molar", "initiation": 33, "crown": 90, "root": 180, "apex": 186, "cuspal_months": null},
+    "M3": {"label": "third permanent molar", "initiation": 108, "crown": 168, "root": 240, "apex": 252, "cuspal_months": null}
+  }
+}

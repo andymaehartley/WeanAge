@@ -47,7 +47,8 @@ def test_csv_with_errors_and_unknown_columns():
                         b"A1,S,cattle,M2,0.5,8.1,3.2,x\nA1,S,cattle,M2,1.5,oops,3.2,x\n")
     assert len(report["samples"]) == 1
     assert any(i["row"] == 2 and i["field"] == "d15N" for i in report["issues"])
-    assert any("unrecognised column(s): extra" in i["message"] for i in report["issues"])
+    assert any("kept for grouping in Compare: extra" in i["message"] for i in report["issues"])
+    assert report["samples"][0].labels == {"extra": "x"}
     assert "Missing required column" in ingest_file(b"specimen_id,site\nA,B\n")["issues"][0]["message"]
 
 

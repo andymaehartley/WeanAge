@@ -61,7 +61,7 @@ def specimens_from_results(results, group_by, milestone="midpoint", q=0.05, min_
             continue
         chosen.append({
             "specimen_id": r["specimen_id"],
-            "group": " · ".join(str(r.get(g) or "—") for g in group_by),
+            "group": " · ".join(str(r.get(g) or r.get("labels", {}).get(g) or "—") for g in group_by),
             "ages": np.array([p["age_months"] for p in points], dtype=float),
             "d15N": np.array([p["d15N"] for p in points], dtype=float),
             "age_sd": float(r.get("age_sd_months") or 0.0),

@@ -57,6 +57,7 @@ class IsotopeSample(CollagenSample):
     """One slice of dentine measured in the lab. specimen_id is one tooth."""
 
     d34S: float | None = Field(default=None, ge=-40, le=40)  # ‰ VCDT; shifts suggest a move or diet change
+    labels: dict[str, str] = {}  # other columns of the table (e.g. sex, burial type), for grouping in Compare
     individual_id: str | None = None  # teeth with the same animal ID are joined
     tooth: str = Field(min_length=1)
     position_mm: float = Field(ge=0, le=200)
@@ -148,6 +149,18 @@ class AdultBaseline(BaseModel):
 
     mean: float = Field(ge=-10, le=30)
     sd: float = Field(default=0.5, gt=0)
+    d13C_mean: float | None = Field(default=None, ge=-35, le=-5)  # optional, for the milk share
+    d13C_sd: float = Field(default=0.5, gt=0)
+
+
+class WeaningFood(BaseModel):
+    """A weaning food other than the adult diet, as the collagen it would give on its own (‰)."""
+
+    name: str = Field(min_length=1)
+    d15N: float
+    d15N_sd: float = Field(default=0.5, gt=0)
+    d13C: float | None = None
+    d13C_sd: float = Field(default=0.5, gt=0)
 
 
 class AnalysisOptions(BaseModel):
@@ -177,6 +190,12 @@ class AnalysisOptions(BaseModel):
     stress_d13C_permil: float = Field(default=0.3, gt=0)
     d34S_min_shift_permil: float = Field(default=2.0, gt=0)  # smaller δ34S shifts are not reported
     adult_baselines: dict[str, AdultBaseline] = {}  # "site:species" or "species"
+    # Breast-milk share per increment (needs an adult-female baseline). Blank enrichment = the species prior.
+    nursing_enrichment_d15N: float | None = Field(default=None, ge=0, le=6)
+    nursing_enrichment_d15N_sd: float | None = Field(default=None, gt=0, le=3)
+    nursing_enrichment_d13C: float = Field(default=1.0, ge=-1, le=3)  # Fuller et al. 2006
+    nursing_enrichment_d13C_sd: float = Field(default=0.5, gt=0, le=2)
+    weaning_food: WeaningFood | None = None
     constrain_adult_plateau: bool = False
     elbow_normalise: bool = True
 
@@ -438,4 +457,180 @@ class MixingOptions(BaseModel):
     offset_d34S_sd: float | None = Field(default=None, ge=0)
     measurement_sd_permil: float = Field(default=0.2, ge=0, le=2)
     draws: int = Field(default=20000, ge=1000, le=200000)
+    random_seed: int | None = 42
+
+
+# Dental development (humans): Moorrees et al. (1963) stages of each tooth
+MOORREES_STAGES = ["Ci", "Cco", "Coc", "Cr1/2", "Cr3/4", "Crc", "Ri", "R1/4", "R1/2", "R3/4", "Rc", "A1/2", "Ac"]
+TEETH = ["di1", "di2", "dc", "dm1", "dm2", "I1", "I2", "C", "PM1", "PM2", "M1", "M2", "M3"]
+TOOTH_ALIASES = {"p1": "PM1", "p3": "PM1", "pm3": "PM1", "p2": "PM2", "p4": "PM2", "pm4": "PM2", "dm3": "dm1", "dm4": "dm2",
+                 "dp3": "dm1", "dp4": "dm2", "di1": "di1", "di2": "di2", "dc": "dc", "dm1": "dm1", "dm2": "dm2"}
+
+
+def tooth_name(text):
+    """'lower left M1', 'M1', 'dm2' or 'P4' -> a name in TEETH (side and jaw are ignored)."""
+    t = str(text).lower()
+    for word in ("upper", "lower", "left", "right", "maxillary", "mandibular"):
+        t = t.replace(word, "")
+    t = "".join(c for c in t if c.isalnum())
+    if t in TOOTH_ALIASES:
+        return TOOTH_ALIASES[t]
+    match = next((name for name in TEETH if name.lower() == t), None)
+    if match is None:
+        raise ValueError(f"tooth {text!r} is not one of {', '.join(TEETH)} (P3/P4 are read as PM1/PM2)")
+    return match
+
+
+def stage_name(text):
+    """'Cr ½', 'cr1/2', 'Cli' or a number 1-13 -> a Moorrees stage."""
+    t = str(text).strip().lower().replace("½", "1/2").replace("¾", "3/4").replace("¼", "1/4")
+    t = "".join(c for c in t if c.isalnum() or c == "/")
+    if t.isdigit() and 1 <= int(t) <= len(MOORREES_STAGES):
+        return MOORREES_STAGES[int(t) - 1]
+    if t == "cli":  # cleft initiation in molars falls between Crc and R1/4
+        return "Ri"
+    match = next((s for s in MOORREES_STAGES if s.lower() == t), None)
+    if match is None:
+        raise ValueError(f"stage {text!r} is not a Moorrees stage ({', '.join(MOORREES_STAGES)}, or 1-13)")
+    return match
+
+
+class DentalSample(Sample):
+    """One tooth of one individual (specimen_id) and its formation stage."""
+
+    tooth: str
+    stage: str
+
+    @field_validator("tooth", mode="after")
+    @classmethod
+    def known_tooth(cls, value):
+        return tooth_name(value)
+
+    @field_validator("stage", mode="before")
+    @classmethod
+    def known_stage(cls, value):
+        return stage_name(value) if value is not None else value
+
+
+class DentalOptions(BaseModel):
+    """Settings of the dental age estimate. Formation ages come from data/dental_stages.json."""
+
+    interval_z: float = Field(default=1.96, gt=0, le=4)  # age range given to the bone calculation: estimate ± z·SD
+    discordance_z: float = Field(default=2.0, gt=0, le=5)  # teeth further than this many SDs from the estimate are flagged
+    random_seed: int | None = 42
+
+
+class LehSample(Sample):
+    """One linear enamel hypoplasia defect. specimen_id is the individual (as in the tooth calculation).
+
+    defect_mm is measured from the cemento-enamel junction (CEJ) up to the defect; crown_height_mm is
+    the unworn crown height on the same face. Blank crown height: the tooth's height is unknown and the
+    defect cannot be dated.
+    """
+
+    tooth: str
+    defect_mm: float = Field(ge=0, le=30)
+    crown_height_mm: float = Field(gt=0, le=30)
+    defect_id: str | None = None
+
+    @field_validator("tooth", mode="after")
+    @classmethod
+    def known_tooth(cls, value):
+        return tooth_name(value)
+
+    @model_validator(mode="after")
+    def on_the_crown(self):
+        if self.defect_mm > self.crown_height_mm:
+            raise ValueError("defect_mm is larger than crown_height_mm: the defect would be above the cusp")
+        return self
+
+
+class DentineContext(BaseModel):
+    """What the tooth calculation found for one individual, to set defects against."""
+
+    onset: float | None = None
+    completion: float | None = None
+    midpoint: float | None = None
+    stress: list[tuple[float, float]] = []
+
+
+class LehOptions(BaseModel):
+    measurement_sd_mm: float = Field(default=0.2, ge=0, le=3)
+    draws: int = Field(default=2000, ge=100, le=20000)
+    dentine: dict[str, DentineContext] = {}  # specimen_id -> tooth-calculation results
+    random_seed: int | None = 42
+
+
+class LifeSample(Sample):
+    """One skeleton with an age-at-death range. Blank age_max = open-ended (an adult of at least age_min)."""
+
+    age_min_years: float | None = Field(default=None, ge=0, le=110)
+    age_max_years: float | None = Field(default=None, gt=0, le=120)
+    age_min_months: float | None = Field(default=None, ge=0, le=1320)
+    age_max_months: float | None = Field(default=None, gt=0, le=1440)
+    sex: str | None = None
+
+    @model_validator(mode="after")
+    def in_years(self):
+        if self.age_min_years is None and self.age_min_months is not None:
+            self.age_min_years = self.age_min_months / 12
+        if self.age_max_years is None and self.age_max_months is not None:
+            self.age_max_years = self.age_max_months / 12
+        if self.age_min_years is None:
+            raise ValueError("each skeleton needs age_min_years (or age_min_months)")
+        if self.age_max_years is not None and self.age_max_years <= self.age_min_years:
+            raise ValueError("the age range ends before it starts")
+        return self
+
+
+class LifeTableOptions(BaseModel):
+    # Single years up to 5 show deaths around weaning; an open-ended adult age (e.g. 50+) is spread up to the last boundary.
+    class_bounds_years: list[float] = Field(default=[0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50, 60, 80], min_length=3, max_length=30)
+    bootstrap_draws: int = Field(default=1000, ge=0, le=10000)
+    permutations: int = Field(default=1000, ge=0, le=10000)
+    siler: bool = True  # also fit a Siler hazard model to the age ranges
+    random_seed: int | None = 42
+
+    @field_validator("class_bounds_years")
+    @classmethod
+    def rising(cls, bounds):
+        if any(b >= c for b, c in zip(bounds, bounds[1:])) or bounds[0] != 0:
+            raise ValueError("class_bounds_years must start at 0 and rise")
+        return bounds
+
+
+class MobilitySample(Sample):
+    """One bulk enamel sample (or a local baseline: role = baseline, e.g. fauna or plants for strontium).
+
+    d18O is enamel carbonate (‰ VPDB) or phosphate (‰ VSMOW), as d18O_material says.
+    """
+
+    tooth: str | None = None
+    d18O: float | None = Field(default=None, ge=-30, le=30)
+    d18O_material: Literal["carbonate", "phosphate"] = "carbonate"
+    sr87_86: float | None = Field(default=None, ge=0.69, le=0.75)
+    role: Literal["sample", "baseline"] = "sample"
+
+    @field_validator("d18O_material", "role", mode="before")
+    @classmethod
+    def lower(cls, value, info):
+        if value is None:  # a blank cell
+            return {"d18O_material": "carbonate", "role": "sample"}[info.field_name]
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def has_a_value(self):
+        if self.d18O is None and self.sr87_86 is None:
+            raise ValueError("each sample needs d18O, sr87_86 or both")
+        return self
+
+
+class MobilityOptions(BaseModel):
+    # SD of a drinking-water value predicted from enamel (regression error); Pollard et al. 2011 argue it can be larger.
+    drinking_water_sd: float = Field(default=1.0, ge=0, le=5)
+    local_d18O_dw_min: float | None = Field(default=None, ge=-30, le=10)  # local drinking water, ‰ VSMOW
+    local_d18O_dw_max: float | None = Field(default=None, ge=-30, le=10)
+    local_sr_min: float | None = Field(default=None, ge=0.69, le=0.75)  # overrides the baseline samples
+    local_sr_max: float | None = Field(default=None, ge=0.69, le=0.75)
+    baseline_sd_multiplier: float = Field(default=2.0, gt=0, le=4)  # local Sr = baseline mean ± this × SD
     random_seed: int | None = 42

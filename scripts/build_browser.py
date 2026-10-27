@@ -39,7 +39,7 @@ def build():
     # 4. The blank data templates, as plain downloads.
     shutil.copy(PACKAGE / "data" / "templates" / "isotope_template.csv", OUT / "weanage_template.csv")
     shutil.copy(PACKAGE / "data" / "templates" / "bone_template.csv", OUT / "weanage_bone_template.csv")
-    for name in ("enamel", "killoff", "mixing"):
+    for name in ("enamel", "killoff", "mixing", "dental", "leh", "lifetable", "mobility"):
         shutil.copy(PACKAGE / "data" / "templates" / f"{name}_template.csv", OUT / f"weanage_{name}_template.csv")
     # 5. Tell the offline helper (sw.js) which of the app's files to keep copies of.
     files = ["./"] + sorted(p.relative_to(OUT).as_posix() for p in OUT.rglob("*")

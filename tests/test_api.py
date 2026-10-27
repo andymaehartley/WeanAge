@@ -45,7 +45,7 @@ def test_analysis_job_and_comparison():
     assert state["status"] == "done" and state["done"] == state["total"] == 2
     out = client.post("/api/aggregate", json={"estimates": state["result"]["estimates"], "group_by": ["site"]})
     assert out.status_code == 200 and len(out.json()["summary"]) == 2 and "tests" in out.json()
-    assert client.post("/api/aggregate", json={"estimates": [], "group_by": ["bad"]}).status_code == 422
+    assert client.post("/api/aggregate", json={"estimates": [], "group_by": ["bad"]}).status_code == 400  # no such column
 
 
 def test_one_stage_comparison():

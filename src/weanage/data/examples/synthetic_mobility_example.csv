@@ -1,0 +1,43 @@
+specimen_id,site,species,tooth,d18O,d18O_material,sr87_86,role,notes
+F01,Site A,pig,M2,,,0.70811,baseline,SYNTHETIC; local fauna
+F02,Site A,pig,M2,,,0.70796,baseline,SYNTHETIC; local fauna
+F03,Site A,pig,M2,,,0.70801,baseline,SYNTHETIC; local fauna
+F04,Site A,pig,M2,,,0.70802,baseline,SYNTHETIC; local fauna
+F05,Site A,pig,M2,,,0.70772,baseline,SYNTHETIC; local fauna
+F06,Site A,pig,M2,,,0.70873,baseline,SYNTHETIC; local fauna
+F07,Site A,pig,M2,,,0.7088,baseline,SYNTHETIC; local fauna
+F08,Site A,pig,M2,,,0.70808,baseline,SYNTHETIC; local fauna
+F09,Site A,pig,M2,,,0.70852,baseline,SYNTHETIC; local fauna
+F10,Site A,pig,M2,,,0.70774,baseline,SYNTHETIC; local fauna
+F11,Site A,pig,M2,,,0.70792,baseline,SYNTHETIC; local fauna
+F12,Site A,pig,M2,,,0.70832,baseline,SYNTHETIC; local fauna
+P01,Site A,human,M2,-4.4,carbonate,0.70816,sample,SYNTHETIC; local
+P02,Site A,human,M2,-4.3,carbonate,0.70824,sample,SYNTHETIC; local
+P03,Site A,human,M2,-3.86,carbonate,0.70791,sample,SYNTHETIC; local
+P04,Site A,human,M2,-4.13,carbonate,0.70828,sample,SYNTHETIC; local
+P05,Site A,human,M2,-3.95,carbonate,0.70799,sample,SYNTHETIC; local
+P06,Site A,human,M2,-3.78,carbonate,0.70793,sample,SYNTHETIC; local
+P07,Site A,human,M2,-4.26,carbonate,0.70783,sample,SYNTHETIC; local
+P08,Site A,human,M2,-4.12,carbonate,0.70846,sample,SYNTHETIC; local
+P09,Site A,human,M2,-4.05,carbonate,0.70798,sample,SYNTHETIC; local
+P10,Site A,human,M2,-4.03,carbonate,0.70803,sample,SYNTHETIC; local
+P11,Site A,human,M2,-4.04,carbonate,0.70798,sample,SYNTHETIC; local
+P12,Site A,human,M2,-3.85,carbonate,0.70816,sample,SYNTHETIC; local
+P13,Site A,human,M2,-3.98,carbonate,0.70797,sample,SYNTHETIC; local
+P14,Site A,human,M2,-3.97,carbonate,0.70796,sample,SYNTHETIC; local
+P15,Site A,human,M2,-3.55,carbonate,0.70803,sample,SYNTHETIC; local
+P16,Site A,human,M2,-3.69,carbonate,0.70816,sample,SYNTHETIC; local
+P17,Site A,human,M2,-3.88,carbonate,0.70778,sample,SYNTHETIC; local
+P18,Site A,human,M2,-4.26,carbonate,0.70816,sample,SYNTHETIC; local
+P19,Site A,human,M2,-3.67,carbonate,0.70833,sample,SYNTHETIC; local
+P20,Site A,human,M2,-3.5,carbonate,0.70795,sample,SYNTHETIC; local
+P21,Site A,human,M2,-4.02,carbonate,0.70816,sample,SYNTHETIC; local
+P22,Site A,human,M2,-4.26,carbonate,0.70785,sample,SYNTHETIC; local
+P23,Site A,human,M2,-3.4,carbonate,0.70811,sample,SYNTHETIC; local
+P24,Site A,human,M2,-4.1,carbonate,0.70827,sample,SYNTHETIC; local
+P25,Site A,human,M2,-4.04,carbonate,0.70854,sample,SYNTHETIC; local
+P26,Site A,human,M2,-6.15,carbonate,0.71243,sample,SYNTHETIC; raised elsewhere
+P27,Site A,human,M2,-6.48,carbonate,0.71256,sample,SYNTHETIC; raised elsewhere
+P28,Site A,human,M2,-6.63,carbonate,0.71243,sample,SYNTHETIC; raised elsewhere
+P29,Site A,human,M2,-6.64,carbonate,0.71301,sample,SYNTHETIC; raised elsewhere
+P30,Site A,human,M2,-6.72,carbonate,0.71269,sample,SYNTHETIC; raised elsewhere

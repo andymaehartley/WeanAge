@@ -13,6 +13,7 @@ from scipy import stats
 from .changes import find_shifts, stress_episodes
 from .config import find_growth_table
 from .growth import position_to_age
+from .milkshare import milk_share
 from .models import MILESTONES, compare_fits, fit_model, mark_average_beyond, mark_beyond, model_average, seasonal_test
 from .qc import passes_qc, qc_flags
 
@@ -158,7 +159,7 @@ def analyze_specimen(samples, options):
         "points": [], "fits": [], "best_model": None, "model_average": {}, "diagnostics": {}, "warnings": [],
         "known_weaning_age_months": first.known_weaning_age_months,
         "published_weaning_age_months": first.published_weaning_age_months, "adult_baseline": None,
-        "age_sd_months": 0.0,
+        "age_sd_months": 0.0, "labels": first.labels,
     }
     warnings = result["warnings"]
 
@@ -268,6 +269,12 @@ def analyze_specimen(samples, options):
             warnings.append(f"δ34S shifts by {s['size']:+.1f}‰ at about {s['position']:.1f} months: a move to other "
                             "soils or the coast, or a change of diet (Nehlich 2015)")
 
+    # 6. Breast-milk share at each increment, against the adult females.
+    if baseline:
+        result["milk_share"] = milk_share([{"age_months": p["age_months"], "d15N": p["d15N"], "d13C": p["d13C"]} for p in used],
+                                          baseline, first.species, options)
+        warnings += result["milk_share"]["warnings"]
+
     for f in fits:
         del f["_draws"]  # only needed for the model average
     result["fits"] = fits
@@ -324,6 +331,7 @@ def estimate_rows(results):
     for res in results:
         common = {k: res[k] for k in ["specimen_id", "site", "species", "period",
                                       "known_weaning_age_months", "published_weaning_age_months"]}
+        common.update({k: v for k, v in res.get("labels", {}).items() if k not in common})
         sources = [(f["model"], f) for f in res["fits"] if f["converged"]]
         if res["model_average"]:
             sources.append(("average", res["model_average"]))

@@ -116,10 +116,20 @@ def ingest_records(records):
 
 
 def ingest_dataframe(df):
+    """Read a table of slices. Columns WeanAge does not use are kept as labels, to group by in Compare."""
+    df = df.drop(columns=[c for c in df.columns if squash(c) == "labels"])  # a saved table's labels are text, not a dict
+    other = [c for c in df.columns if squash(c) not in LOOKUP and not str(c).startswith("Unnamed")]
+    labels = df[other].astype(object).where(df[other].notna(), None).to_dict(orient="records") if other else None
     df, issues = match_columns(df, LOOKUP, IsotopeSample)
     if df is None:
         return {"samples": [], "issues": issues, "specimens": []}
-    report = ingest_records(df.to_dict(orient="records"))
+    records = df.to_dict(orient="records")
+    if labels:
+        for row, extra in zip(records, labels):
+            row["labels"] = {str(k): str(v) for k, v in extra.items() if v is not None and str(v).strip()}
+        issues = [i for i in issues if not i["message"].startswith("Ignored unrecognised")]
+        issues.append(issue(f"Other column(s) kept for grouping in Compare: {', '.join(map(str, other))}", severity="info"))
+    report = ingest_records(records)
     report["issues"] += issues
     return report
 
