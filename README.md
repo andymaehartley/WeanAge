@@ -1,7 +1,7 @@
 # <img src="src/weanage/web/logo.svg" width="36" alt=""> WeanAge
 
-[![tests](https://github.com/andymaehartley/repotest/actions/workflows/tests.yml/badge.svg)](https://github.com/andymaehartley/repotest/actions/workflows/tests.yml)
-[![browser version](https://github.com/andymaehartley/repotest/actions/workflows/pages.yml/badge.svg)](https://andymaehartley.github.io/repotest/)
+[![tests](https://github.com/andymaehartley/WeanAge/actions/workflows/tests.yml/badge.svg)](https://github.com/andymaehartley/WeanAge/actions/workflows/tests.yml)
+[![browser version](https://github.com/andymaehartley/WeanAge/actions/workflows/pages.yml/badge.svg)](https://andymaehartley.github.io/WeanAge/)
 
 WeanAge estimates age at weaning from δ¹⁵N in archaeological animals and people. It works
 from δ¹⁵N measured along a tooth (incremental dentine), or from the bone collagen of many
@@ -10,7 +10,7 @@ young individuals who died at different ages (after WARN). It reports weaning ag
 before teeth are cut or bones sampled. For cattle it also estimates season of birth (enamel
 δ¹⁸O) and rumen development (enamel δ¹³C) along a molar.
 
-Browser version (no installation): <https://andymaehartley.github.io/repotest/>
+Browser version (no installation): <https://andymaehartley.github.io/WeanAge/>
 
 Status: the tooth growth tables and several method parameters are placeholders, marked
 `TBD-LAB` in the data files and highlighted in the app. Results are illustrative until

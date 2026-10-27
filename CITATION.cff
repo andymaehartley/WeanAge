@@ -6,6 +6,6 @@ authors:
     given-names: Annabelle
 version: 0.2.0
 license: MIT
-repository-code: "https://github.com/andymaehartley/repotest"
+repository-code: "https://github.com/andymaehartley/WeanAge"
 keywords: [zooarchaeology, bioarchaeology, weaning, stable isotopes, nitrogen, dentine, bone collagen, livestock]
 # TBD: add the Zenodo DOI here after the first archived release.

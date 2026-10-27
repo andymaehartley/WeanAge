@@ -17,7 +17,7 @@ are as useful as code.
 ## Working on the code
 
 ```bash
-git clone https://github.com/andymaehartley/repotest.git weanage
+git clone https://github.com/andymaehartley/WeanAge.git weanage
 cd weanage
 pip install -e . pytest httpx playwright ruff mypy pandas-stubs
 pytest -q                      # all tests (the browser test needs Playwright's Chromium)

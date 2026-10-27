@@ -80,7 +80,7 @@ results are illustrative until they are measured. Contributions that would help 
 <img class="qr" src="qr_repository.svg" alt="QR code linking to the WeanAge repository">
 <div>
 
-**Code, guide and documentation:** <https://github.com/andymaehartley/repotest>
+**Code, guide and documentation:** <https://github.com/andymaehartley/WeanAge>
 
 **Cite:** Hartley, A. WeanAge: weaning-age estimation from tooth dentine and bone collagen δ¹⁵N
 (version 0.2). See `CITATION.cff` in the repository.

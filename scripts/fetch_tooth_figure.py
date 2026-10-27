@@ -19,7 +19,7 @@ FILE = "File:Tooth_Section.svg"
 WIDTH = 708  # pixels; the label positions below are in % so any width works
 OUT = Path(__file__).resolve().parents[1] / "src" / "weanage" / "web" / "figures"
 API = "https://commons.wikimedia.org/w/api.php"
-HEADERS = {"User-Agent": "WeanAge/0.2 (https://github.com/andymaehartley/repotest)"}
+HEADERS = {"User-Agent": "WeanAge/0.2 (https://github.com/andymaehartley/WeanAge)"}
 ALLOWED = ("public domain", "pd", "cc0", "cc by")  # also matches "cc by-sa"
 
 # WeanAge terms drawn over the figure: x and y in % of the image; `to` draws a line to a point.

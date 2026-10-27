@@ -26,11 +26,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://andymaehartley.github.io/repotest/"
-Repository = "https://github.com/andymaehartley/repotest"
-Documentation = "https://github.com/andymaehartley/repotest/tree/main/docs"
-Issues = "https://github.com/andymaehartley/repotest/issues"
-Changelog = "https://github.com/andymaehartley/repotest/blob/main/CHANGELOG.md"
+Homepage = "https://andymaehartley.github.io/WeanAge/"
+Repository = "https://github.com/andymaehartley/WeanAge"
+Documentation = "https://github.com/andymaehartley/WeanAge/tree/main/docs"
+Issues = "https://github.com/andymaehartley/WeanAge/issues"
+Changelog = "https://github.com/andymaehartley/WeanAge/blob/main/CHANGELOG.md"
 
 [project.scripts]
 weanage = "weanage.cli:main"

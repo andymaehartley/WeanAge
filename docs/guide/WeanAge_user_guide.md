@@ -1,7 +1,7 @@
 ---
 title: WeanAge user guide
 subtitle: Estimating weaning age from δ¹⁵N in tooth dentine and bone collagen
-author: Version 0.2 · October 2026 · https://github.com/andymaehartley/repotest
+author: Version 0.2 · October 2026 · https://github.com/andymaehartley/WeanAge
 lang: en-GB
 ---
 
