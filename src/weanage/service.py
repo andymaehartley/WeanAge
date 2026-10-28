@@ -163,9 +163,8 @@ def check_records(rows):
 
 
 # The example datasets offered in the app: file name, menu label and the message shown on loading.
+# Only published data: the simulated test datasets are in tests/data.
 EXAMPLES = {
-    "synthetic": ("synthetic_example.csv", "Synthetic example (simulated)",
-                  "Loaded SYNTHETIC example data (simulated, not real measurements)."),
     "isoarch_cattle": ("isoarch_cattle_khami_bornais.csv", "Real cattle: Khami & Bornais (IsoArcH)",
                        "Loaded real cattle data from IsoArcH (CC-BY 4.0; Dyvart et al. 2018; Griffith & Mulville "
                        "2020). Slice positions are ASSUMED: see each sample's notes."),
@@ -176,7 +175,8 @@ EXAMPLES = {
 }
 
 
-def example_dataset(name="synthetic"):
+def example_dataset(name=None):
+    name = name or next(iter(EXAMPLES))
     if name not in EXAMPLES:
         raise ValueError(f"unknown example {name!r}")
     return {**report_json(ingest_file(config.DATA_DIR / "examples" / EXAMPLES[name][0])), "message": EXAMPLES[name][2]}
@@ -184,9 +184,6 @@ def example_dataset(name="synthetic"):
 
 # Bone data: many animals that died at different ages
 BONE_EXAMPLES = {
-    "synthetic_bone": ("synthetic_bone_example.csv", "Synthetic cattle bones (simulated)",
-                       "Loaded SYNTHETIC bone data (simulated, not real measurements): Site A weans at "
-                       "3–9 months, Site B at 1–4 months."),
     "cima_wharram_percy": ("cima_bone_wharram_percy.csv", "Real human bones: Wharram Percy (CIMA)",
                            "Loaded medieval rib collagen from Wharram Percy, England (Richards, Mays & Fuller 2002, via CIMA, "
                            "CC BY-SA). The authors placed the end of weaning at about 2 years."),
@@ -212,7 +209,8 @@ def check_bone_records(rows):
     return report_json(ingest_bone_dataframe(pd.DataFrame(rows)))
 
 
-def bone_example(name="synthetic_bone"):
+def bone_example(name=None):
+    name = name or next(iter(BONE_EXAMPLES))
     if name not in BONE_EXAMPLES:
         raise ValueError(f"unknown bone example {name!r}")
     table = read_table(config.DATA_DIR / "examples" / BONE_EXAMPLES[name][0])
@@ -243,14 +241,14 @@ CALCULATIONS = {
                              "about a month, Site B over about seven; three Site B animals moved as calves (87Sr/86Sr)."),
     }),
     "killoff": Calculation(KilloffSample, KilloffOptions, ingest_killoff_dataframe, analyze_killoff, {
-        "synthetic_killoff": ("synthetic_killoff_example.csv", "Synthetic sheep/goat mandibles (simulated)",
-                              "Loaded SYNTHETIC mandibles (simulated, not real data): Site A was drawn with most deaths "
-                              "in stages A–B, Site B in C–D."),
+        "marj_rabba": ("marj_rabba_killoff.csv", "Real sheep/goat mandibles: Marj Rabba (zooaRch)",
+                       "Loaded 42 sheep/goat mandibles from Chalcolithic Marj Rabba, Israel, in Payne's (1973) stages "
+                       "(Price et al. 2013, via the zooaRch R package, GPL)."),
     }),
     "mixing": Calculation(MixingSample, MixingOptions, ingest_mixing_dataframe, analyze_mixing, {
-        "synthetic_mixing": ("synthetic_mixing_example.csv", "Synthetic human bone collagen (simulated)",
-                             "Loaded SYNTHETIC collagen values (simulated, not real measurements) from the placeholder "
-                             "food sources: an inland and a coastal site."),
+        "cima_wales_man": ("cima_mixing_wales_man.csv", "Real human bone collagen: early medieval Wales and Man (CIMA)",
+                           "Loaded adult bone collagen δ13C, δ15N and δ34S from six early medieval sites in Wales and the "
+                           "Isle of Man (Hemer et al. 2017, via CIMA, CC BY-SA). The food groups are still placeholders."),
     }),
     "dental": Calculation(DentalSample, DentalOptions, ingest_dental_dataframe, analyze_dental, {
         "synthetic_dental": ("synthetic_dental_example.csv", "Synthetic children's teeth (simulated)",
@@ -263,14 +261,16 @@ CALCULATIONS = {
                                  "2-4 years."),
     }),
     "lifetable": Calculation(LifeSample, LifeTableOptions, ingest_life_dataframe, analyze_lifetable, {
-        "synthetic_cemetery": ("synthetic_cemetery_example.csv", "Synthetic cemeteries (simulated)",
-                               "Loaded SYNTHETIC skeletal ages (simulated) from two cemeteries; Site B lost most of "
-                               "its infant burials."),
+        "muensingen": ("muensingen_lifetable.csv", "Real burials: Münsingen-Rain (mortAAR)",
+                       "Loaded ages at death of 71 Late Iron Age burials from Münsingen-Rain, Switzerland "
+                       "(Moghaddam et al. 2016, via the mortAAR R package, GPL-3). These are the individuals sampled "
+                       "for isotopes, not the whole cemetery."),
     }),
     "mobility": Calculation(MobilitySample, MobilityOptions, ingest_mobility_dataframe, analyze_mobility, {
-        "synthetic_mobility": ("synthetic_mobility_example.csv", "Synthetic enamel δ18O and Sr (simulated)",
-                               "Loaded SYNTHETIC enamel values (simulated): 30 people and 12 local animals; five people "
-                               "grew up elsewhere."),
+        "cima_bamburgh": ("cima_mobility_bamburgh.csv", "Real enamel: Bamburgh, 7th-9th c. (CIMA)",
+                          "Loaded enamel phosphate δ18O and 87Sr/86Sr of 86 teeth from early medieval Bamburgh, "
+                          "Northumberland (Groves et al. 2013, via CIMA, CC BY-SA). No local baseline samples are "
+                          "included, so the local range comes from the people themselves."),
     }),
 }
 

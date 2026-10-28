@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "src" / "weanage" / "data" / "examples" / "synthetic_example.csv"
+OUT = ROOT / "tests" / "data" / "synthetic_example.csv"
 
 
 def logistic(t_mid, scale, post, drop):

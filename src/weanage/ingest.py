@@ -115,20 +115,31 @@ def ingest_records(records):
     return {"samples": samples, "issues": issues, "specimens": summarise(samples)}
 
 
-def ingest_dataframe(df):
-    """Read a table of slices. Columns WeanAge does not use are kept as labels, to group by in Compare."""
+def records_with_labels(df, lookup, model, where="Compare"):
+    """Match the columns, keeping the ones WeanAge does not use as each row's labels (to group by).
+
+    Returns the row dictionaries (None if a required column is missing) and the issues found.
+    """
     df = df.drop(columns=[c for c in df.columns if squash(c) == "labels"])  # a saved table's labels are text, not a dict
-    other = [c for c in df.columns if squash(c) not in LOOKUP and not str(c).startswith("Unnamed")]
+    other = [c for c in df.columns if squash(c) not in lookup and not str(c).startswith("Unnamed")]
     labels = df[other].astype(object).where(df[other].notna(), None).to_dict(orient="records") if other else None
-    df, issues = match_columns(df, LOOKUP, IsotopeSample)
+    df, issues = match_columns(df, lookup, model)
     if df is None:
-        return {"samples": [], "issues": issues, "specimens": []}
+        return None, issues
     records = df.to_dict(orient="records")
     if labels:
         for row, extra in zip(records, labels):
             row["labels"] = {str(k): str(v) for k, v in extra.items() if v is not None and str(v).strip()}
         issues = [i for i in issues if not i["message"].startswith("Ignored unrecognised")]
-        issues.append(issue(f"Other column(s) kept for grouping in Compare: {', '.join(map(str, other))}", severity="info"))
+        issues.append(issue(f"Other column(s) kept for grouping in {where}: {', '.join(map(str, other))}", severity="info"))
+    return records, issues
+
+
+def ingest_dataframe(df):
+    """Read a table of slices. Columns WeanAge does not use are kept as labels, to group by in Compare."""
+    records, issues = records_with_labels(df, LOOKUP, IsotopeSample)
+    if records is None:
+        return {"samples": [], "issues": issues, "specimens": []}
     report = ingest_records(records)
     report["issues"] += issues
     return report

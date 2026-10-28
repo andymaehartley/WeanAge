@@ -1,5 +1,7 @@
 """The bone (cross-sectional, WARN-style) weaning model."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -61,8 +63,7 @@ def test_ingest_aliases_and_checks():
 
 def test_recovers_the_synthetic_weaning_ages():
     """The example was simulated with Site A weaning 3–9 months and Site B 1–4 months."""
-    data = service.bone_example()
-    samples = [BoneSample(**s) for s in data["samples"]]
+    samples = ingest_bone_dataframe(pd.read_csv(Path(__file__).parent / "data" / "synthetic_bone_example.csv"))["samples"]
     results = {r["site"]: r for r in analyze_bones(samples, QUICK)}
     truth = {"Site A": (3, 9), "Site B": (1, 4)}
     for site, (t1, t2) in truth.items():

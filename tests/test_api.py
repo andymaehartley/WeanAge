@@ -1,12 +1,20 @@
 """The web API, called the same way the browser calls it."""
 
 import time
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from weanage.api import app
 
 client = TestClient(app)
+SYNTHETIC = (Path(__file__).parent / "data" / "synthetic_example.csv").read_bytes()
+
+
+def synthetic(ids):
+    """Teeth from the simulated test dataset, read through the upload address."""
+    samples = client.post("/api/ingest/file", files={"file": ("synthetic.csv", SYNTHETIC)}).json()["samples"]
+    return [s for s in samples if s["specimen_id"] in ids]
 
 
 def wait_for(job):
@@ -26,7 +34,7 @@ def test_config():
 
 def test_examples():
     names = [e["name"] for e in client.get("/api/config").json()["examples"]]
-    assert names == ["synthetic", "isoarch_cattle", "cima_teeth_mikulcice"]
+    assert names == ["isoarch_cattle", "cima_teeth_mikulcice"]  # published data only
     real = client.get("/api/example?name=isoarch_cattle").json()
     assert len(real["samples"]) == 158 and "ASSUMED" in real["message"]
     assert client.get("/api/example?name=nope").status_code == 400
@@ -39,7 +47,7 @@ def test_upload_and_records():
 
 
 def test_analysis_job_and_comparison():
-    samples = [s for s in client.get("/api/example").json()["samples"] if s["specimen_id"] in {"SYN-C01", "SYN-C04"}]
+    samples = synthetic({"SYN-C01", "SYN-C04"})
     job = client.post("/api/jobs/analyze", json={"samples": samples, "options": {"monte_carlo_draws": 50}}).json()
     state = wait_for(job)
     assert state["status"] == "done" and state["done"] == state["total"] == 2
@@ -49,8 +57,7 @@ def test_analysis_job_and_comparison():
 
 
 def test_one_stage_comparison():
-    wanted = {"SYN-C01", "SYN-C03", "SYN-C04", "SYN-C05"}
-    samples = [s for s in client.get("/api/example").json()["samples"] if s["specimen_id"] in wanted]
+    samples = synthetic({"SYN-C01", "SYN-C03", "SYN-C04", "SYN-C05"})
     job = client.post("/api/jobs/analyze", json={"samples": samples, "options": {"models": ["logistic"], "monte_carlo_draws": 50}})
     result = wait_for(job.json())["result"]
     body = {"estimates": result["estimates"], "group_by": ["site"], "bayes": "one_stage", "results": result["results"]}
@@ -72,15 +79,15 @@ def test_frontend_is_served():
 
 def test_bone_requests():
     body = client.get("/api/config").json()
-    assert body["bone_examples"][0]["name"] == "synthetic_bone" and body["bone_defaults"]["max_weaning_age_months"] is None
+    assert body["bone_examples"][0]["name"] == "cima_wharram_percy" and body["bone_defaults"]["max_weaning_age_months"] is None
     assert body["bone_priors"]["cattle"]["max_weaning_age_months"] == 24  # blank settings use the species priors
     assert any(item["id"] == "turnover:cattle" for item in body["tbd"])
     example = client.get("/api/bone/example").json()
-    assert len(example["samples"]) > 100 and "SYNTHETIC" in example["message"]
+    assert len(example["samples"]) == 60 and "Wharram Percy" in example["message"]
     assert client.get("/api/bone/template.csv").text.startswith("specimen_id,site,species")
     upload = client.post("/api/bone/ingest/file", files={"file": ("b.csv", b"specimen_id,site,species,age_months,d15N\na,S,cattle,2,8\n")})
     assert upload.json()["samples"][0]["age_months"] == 2
-    samples = [s for s in example["samples"] if s["site"] == "Site B"]
+    samples = example["samples"]
     job = client.post("/api/jobs/bone", json={"samples": samples, "options": {"warmup": 500, "keep": 500}}).json()
     state = wait_for(job)
     for _ in range(10):

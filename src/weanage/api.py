@@ -83,7 +83,7 @@ def validate_records(body: dict):
 
 
 @app.get("/api/example")
-def example_dataset(name: str = "synthetic"):
+def example_dataset(name: str | None = None):
     return checked(service.example_dataset, name)
 
 
@@ -108,7 +108,7 @@ def check_bone_records(body: dict):
 
 
 @app.get("/api/bone/example")
-def bone_example(name: str = "synthetic_bone"):
+def bone_example(name: str | None = None):
     return checked(service.bone_example, name)
 
 

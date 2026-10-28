@@ -13,7 +13,7 @@ import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 
-EXAMPLES = Path(__file__).parents[1] / "src" / "weanage" / "data" / "examples"
+TEST_DATA = Path(__file__).parent / "data"
 
 
 @pytest.fixture(scope="module")
@@ -78,7 +78,7 @@ def test_whole_workflow(page):
     assert "Cusp apex" in page.text_content("#tooth-dialog")
     page.keyboard.press("Escape")
     # Drop a file: the calculations it can feed are offered, and ticked ones get its rows.
-    page.set_input_files("#csv-input", str(EXAMPLES / "synthetic_example.csv"))
+    page.set_input_files("#csv-input", str(TEST_DATA / "synthetic_example.csv"))
     page.wait_for_selector("#file-status:not([hidden])")
     assert page.is_enabled('input[name="calc"][value="tooth"]') and page.is_disabled('input[name="calc"][value="dental"]')
     assert "Not with this file" in page.text_content("#calc-list")
@@ -105,10 +105,10 @@ def test_whole_workflow(page):
 
     # The bone calculation: its own data, settings and results; the tooth results are kept.
     click(page, '.step[data-view="data"]')
-    load_example(page, "bone:synthetic_bone", "#bone-groups-card")
+    load_example(page, "bone:cima_wharram_percy", "#bone-groups-card")
     assert page.is_hidden("#manual-form")
     assert page.is_hidden("#specimens-card")  # the tooth table does not show under the bone data
-    assert "Site A" in page.text_content("#bone-group-table")
+    assert "Wharram Percy" in page.text_content("#bone-group-table")
     click(page, "#btn-next-settings")
     assert page.evaluate("document.querySelector('#qc-card').closest('section').id") == "view-bone-settings"
     page.click("#view-bone-settings details.advanced > summary")  # the sampler settings are under Advanced
@@ -157,7 +157,7 @@ def test_whole_workflow(page):
     assert "⁸⁷Sr/⁸⁶Sr shifts from 0.712" in page.text_content("#enamel-res-summary")
     assert page.is_visible("#enamel-sr-chart svg")
     # The one-table calculations, each with its example.
-    for mode, card, run_text in [("killoff", "#killoff-groups-card", "Site A"), ("mixing", "#mixing-samples-card", "Marine fish"),
+    for mode, card, run_text in [("killoff", "#killoff-groups-card", "Marj Rabba"), ("mixing", "#mixing-samples-card", "Marine fish"),
                                  ("dental", "#dental-card", "C24"), ("leh", "#leh-card", "H15"),
                                  ("lifetable", "#lifetable-card", "Juvenility"), ("mobility", "#mobility-card", "non-local")]:
         click(page, '.step[data-view="data"]')
@@ -205,7 +205,7 @@ def test_browser_version():
             page.wait_for_selector("#view-results.active", timeout=600000)
             assert "Best-supported model" in page.text_content("#res-summary")
             ids = page.eval_on_selector_all("#result-list [data-specimen]", "els => els.map(e => e.dataset.specimen)")
-            assert ids[0] == "SYN-C01" and len(ids) == 11  # every specimen, in the original order
+            assert ids[0] == "BO01" and len(ids) == 11  # every animal of the IsoArcH example, in the original order
 
         page.goto(url)
         run_example()

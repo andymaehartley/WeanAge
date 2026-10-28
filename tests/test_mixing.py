@@ -1,13 +1,14 @@
 """The collagen diet mixing model."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-from weanage import config
 from weanage.mixing import analyze_mixing, ingest_mixing_dataframe
 from weanage.schema import DietSource, MixingOptions, MixingSample
 
-EXAMPLE = config.DATA_DIR / "examples" / "synthetic_mixing_example.csv"
+EXAMPLE = Path(__file__).parent / "data" / "synthetic_mixing_example.csv"
 TWO_FOODS = MixingOptions(sources=[DietSource(name="plants", d13C=-25, d13C_sd=0.3, d15N=3, d15N_sd=0.3),
                                    DietSource(name="fish", d13C=-13, d13C_sd=0.3, d15N=13, d15N_sd=0.3)],
                           offset_d13C=1, offset_d13C_sd=0.1, offset_d15N=4, offset_d15N_sd=0.1, draws=20000)

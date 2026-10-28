@@ -15,7 +15,7 @@ import numpy as np
 
 from weanage import config
 
-OUT = Path(__file__).resolve().parents[1] / "src" / "weanage" / "data" / "examples" / "synthetic_mixing_example.csv"
+OUT = Path(__file__).resolve().parents[1] / "tests" / "data" / "synthetic_mixing_example.csv"
 SITES = {"Inland": [0.70, 0.0, 0.30, 0.0], "Coast": [0.40, 0.0, 0.20, 0.40]}  # C3, C4, terrestrial, marine
 N, CONCENTRATION, NOISE = 15, 60, 0.2
 

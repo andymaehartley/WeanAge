@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-OUT = Path(__file__).resolve().parents[1] / "src" / "weanage" / "data" / "examples" / "synthetic_killoff_example.csv"
+OUT = Path(__file__).resolve().parents[1] / "tests" / "data" / "synthetic_killoff_example.csv"
 STAGES = "ABCDEFGHI"
 DEATHS = {  # share of the herd dying in each stage
     "Site A": [0.25, 0.30, 0.10, 0.08, 0.07, 0.06, 0.07, 0.05, 0.02],

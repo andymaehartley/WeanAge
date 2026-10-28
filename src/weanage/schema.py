@@ -569,6 +569,7 @@ class LifeSample(Sample):
     age_min_months: float | None = Field(default=None, ge=0, le=1320)
     age_max_months: float | None = Field(default=None, gt=0, le=1440)
     sex: str | None = None
+    labels: dict[str, str] = {}  # other columns of the table (e.g. grave goods), to group by
 
     @model_validator(mode="after")
     def in_years(self):
@@ -589,6 +590,7 @@ class LifeTableOptions(BaseModel):
     bootstrap_draws: int = Field(default=1000, ge=0, le=10000)
     permutations: int = Field(default=1000, ge=0, le=10000)
     siler: bool = True  # also fit a Siler hazard model to the age ranges
+    group_by: list[str] = Field(default=["site", "period"], min_length=1, max_length=3)  # site, period, sex or a kept column
     random_seed: int | None = 42
 
     @field_validator("class_bounds_years")

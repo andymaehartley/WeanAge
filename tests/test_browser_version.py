@@ -17,7 +17,8 @@ def ask(name, request=None, **extra):
 
 def test_requests_give_the_same_answers_as_the_server():
     assert ask("config")["result"]["models"]
-    samples = ask("example")["result"]["samples"]
+    synthetic = (ROOT / "tests" / "data" / "synthetic_example.csv").read_bytes()
+    samples = ask("upload", {"filename": "synthetic.csv"}, content=synthetic)["result"]["samples"]
     cattle = [s for s in samples if s["specimen_id"] in {"SYN-C01", "SYN-C04"}]
     steps = []
     options = {"models": ["logistic"], "monte_carlo_draws": 50}

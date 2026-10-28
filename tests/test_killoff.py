@@ -1,15 +1,16 @@
 """Kill-off profiles from aged mandibles."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from weanage import config
 from weanage.killoff import allocate, analyze_killoff, ingest_killoff_dataframe
 from weanage.schema import PAYNE_BOUNDS, KilloffSample
 
-EXAMPLE = config.DATA_DIR / "examples" / "synthetic_killoff_example.csv"
+EXAMPLE = Path(__file__).parent / "data" / "synthetic_killoff_example.csv"
 
 
 def test_stages_and_ranges():

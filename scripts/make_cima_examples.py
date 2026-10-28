@@ -6,7 +6,7 @@ CIMA (Cocozza et al. 2022, Scientific Data; doi:10.48493/s9nf-1q80) collects pub
 measurements from medieval Europe. It is shared under CC BY-SA, so the files this script writes
 are CC BY-SA too: cite CIMA and the original studies (in each row's notes) when you use them.
 
-Four examples are taken from the human data, each from a single published study:
+Six examples are taken from the human data, each from a single published study:
 
 * Bone calculation (bone collagen of children of known age, plus adult women for the mothers):
     Wharram Percy, England      Richards, Mays & Fuller 2002
@@ -14,6 +14,10 @@ Four examples are taken from the human data, each from a single published study:
     Newark Bay, Orkney          Richards, Fuller & Molleson 2006
 * Tooth calculation (dentine sections of first molars):
     Mikulčice, Czechia          Kaupová et al. 2024
+* Mobility (enamel phosphate δ18O and 87Sr/86Sr):
+    Bamburgh, Northumberland    Groves et al. 2013
+* Diet mixing (adult bone collagen δ13C, δ15N, δ34S):
+    early medieval Wales and the Isle of Man   Hemer et al. 2017
 
 CIMA's animal data were checked too, but hold no usable weaning series: the few young animals
 with ages are older than one year and were sampled as whole teeth (see the examples README).
@@ -43,9 +47,17 @@ def number(series):
     return pd.to_numeric(series, errors="coerce")
 
 
-def read_cima(path):
-    data = pd.read_excel(path)
-    data = data[data["Excluded Entry?"].isna() & data["δ15N Collagen"].notna()].copy()
+MOBILITY_STUDY = ("Bamburgh", "Groves, S.E.", "Groves et al. 2013")
+MIXING_STUDY = ("Hemer, K.A., Lamb", "Hemer et al. 2017")
+
+
+def read_all(path):
+    data = pd.read_pickle(path) if str(path).endswith(".pkl") else pd.read_excel(path)
+    return data[data["Excluded Entry?"].isna()].copy()
+
+
+def read_cima(data):
+    data = data[data["δ15N Collagen"].notna()].copy()
     data["min_years"] = number(data["Min. Age (yrs)"])
     data["max_years"] = number(data["Max. Age (yrs)"])
     data["d13C"] = number(data["IRMS δ13C Collagen"]).fillna(number(data["AMS δ13C Collagen"]))
@@ -108,11 +120,43 @@ def tooth_example(data):
     return pd.DataFrame(out)
 
 
+def mobility_example(everything):
+    site, reference, citation = MOBILITY_STUDY
+    rows = everything[(everything["Site Name"] == site) & everything["Reference"].str.startswith(reference, na=False)
+                      & everything["87Sr/86Sr"].notna()]
+    out = []
+    for _, r in rows.iterrows():
+        tooth = str(r["Sampled Element"]).strip()
+        phosphate = number(pd.Series([r["δ18O Phosphate (VSMOW)"]]))[0]
+        out.append({
+            "specimen_id": f"{r['Individual ID']} {tooth}", "site": site, "species": "human",
+            "tooth": {"dM1": "dm1", "dM2": "dm2", "dC": "dc", "P1": "PM1", "P2": "PM2"}.get(tooth, tooth),
+            "d18O": None if pd.isna(phosphate) else phosphate, "d18O_material": "phosphate",
+            "sr87_86": r["87Sr/86Sr"], "role": "sample", "period": "7th-9th c. AD",
+            "notes": f"{r['Age Category']}; " + notes(r, citation),
+        })
+    return pd.DataFrame(out)
+
+
+def mixing_example(data):
+    reference, citation = MIXING_STUDY
+    rows = data[data["Reference"].str.startswith(reference, na=False) & data["δ34S Collagen"].notna()
+                & data["d13C"].notna() & (data["min_years"] >= ADULT_MIN_YEARS)]
+    out = [{"specimen_id": r["Individual ID"], "site": r["Site Name"], "species": "human",
+            "d13C": r["d13C"], "d15N": r["δ15N Collagen"], "d34S": r["δ34S Collagen"],
+            "period": "early medieval",  # each individual's own date range is in the notes
+            "notes": f"{r['Sampled Element']}; {r['Modern Country']}; AD {r['Min. Year (95%)']}-{r['Max. Year (95%)']}; "
+                     + notes(r, citation)}
+           for _, r in rows.iterrows()]
+    return pd.DataFrame(out)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("humans", help="CIMA human data (.xlsx)")
+    parser.add_argument("humans", help="CIMA human data (.xlsx, or a pickled copy)")
     args = parser.parse_args()
-    data = read_cima(args.humans)
+    everything = read_all(args.humans)
+    data = read_cima(everything)
     for name, (site, reference, citation) in BONE_SITES.items():
         table = bone_example(data, site, reference, citation)
         table.to_csv(OUT / name, index=False)
@@ -122,6 +166,12 @@ def main():
     teeth = tooth_example(data)
     teeth.to_csv(OUT / "cima_teeth_mikulcice.csv", index=False)
     print(f"cima_teeth_mikulcice.csv: {teeth['specimen_id'].nunique()} first molars, {len(teeth)} sections")
+    enamel = mobility_example(everything)
+    enamel.to_csv(OUT / "cima_mobility_bamburgh.csv", index=False)
+    print(f"cima_mobility_bamburgh.csv: {len(enamel)} teeth")
+    collagen = mixing_example(data)
+    collagen.to_csv(OUT / "cima_mixing_wales_man.csv", index=False)
+    print(f"cima_mixing_wales_man.csv: {len(collagen)} adults from {collagen['site'].nunique()} sites")
 
 
 if __name__ == "__main__":

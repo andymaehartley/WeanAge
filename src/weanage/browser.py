@@ -33,7 +33,7 @@ def clean(value):
 # Analyses run on one core: a web page cannot start extra Python processes.
 REQUESTS = {
     "config": lambda r, progress: {**service.get_config(), "user_tables_path": "this browser's storage"},
-    "example": lambda r, progress: service.example_dataset(r.get("name", "synthetic")),
+    "example": lambda r, progress: service.example_dataset(r.get("name")),
     "upload": lambda r, progress: service.read_upload(r["filename"], bytes(r["content"])),
     "records": lambda r, progress: service.check_records(r["records"]),
     "analyze": lambda r, progress: service.run_analysis(AnalyzeIn(**r), progress, workers=1),
@@ -42,7 +42,7 @@ REQUESTS = {
     "save_table": lambda r, progress: service.save_table(GrowthTable(**r)),
     "delete_table": lambda r, progress: service.delete_table(r["species"], r["tooth"]),
     "calibrate": lambda r, progress: service.calibrate(CalibrateIn(**r)),
-    "bone_example": lambda r, progress: service.bone_example(r.get("name", "synthetic_bone")),
+    "bone_example": lambda r, progress: service.bone_example(r.get("name")),
     "bone_records": lambda r, progress: service.check_bone_records(r["records"]),
     "bone_upload": lambda r, progress: service.read_bone_upload(r["filename"], bytes(r["content"])),
     "bone_analyze": lambda r, progress: service.run_bone_analysis(BoneAnalyzeIn(**r), progress),

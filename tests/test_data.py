@@ -1,6 +1,7 @@
 """Reading and checking data, quality control, growth tables and calibration."""
 
 import io
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -68,7 +69,7 @@ def test_dataset_checks():
 
 
 def test_bundled_example_is_valid():
-    report = ingest_file(config.DATA_DIR / "examples" / "synthetic_example.csv")
+    report = ingest_file(Path(__file__).parent / "data" / "synthetic_example.csv")
     assert not [i for i in report["issues"] if i["severity"] == "error"] and len(report["specimens"]) >= 10
 
 

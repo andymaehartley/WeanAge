@@ -5,10 +5,12 @@ is noticed and can be justified (and these values updated on purpose).
 Values: best model, logistic completion age (months), logistic δ15N drop (‰).
 """
 
+from pathlib import Path
+
 import pytest
 
 from weanage.analysis import analyze
-from weanage.config import DATA_DIR, default_options
+from weanage.config import default_options
 from weanage.ingest import ingest_file
 
 EXPECTED = {
@@ -29,7 +31,7 @@ EXPECTED = {
 @pytest.fixture(scope="module")
 def results():
     options = default_options().model_copy(update={"monte_carlo_draws": 200})
-    samples = ingest_file(DATA_DIR / "examples" / "synthetic_example.csv")["samples"]
+    samples = ingest_file(Path(__file__).parent / "data" / "synthetic_example.csv")["samples"]
     return {r["specimen_id"]: r for r in analyze(samples, options, workers=1)}
 
 

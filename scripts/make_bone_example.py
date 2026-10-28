@@ -16,7 +16,7 @@ import numpy as np
 from weanage import config
 from weanage.bone import STEP, bone_curve, renewal
 
-OUT = Path(__file__).resolve().parents[1] / "src" / "weanage" / "data" / "examples" / "synthetic_bone_example.csv"
+OUT = Path(__file__).resolve().parents[1] / "tests" / "data" / "synthetic_bone_example.csv"
 SITES = {"Site A": (3.0, 9.0), "Site B": (1.0, 4.0)}  # true weaning start and end (months)
 FEMALE_MEAN, ENRICHMENT, WEANING_FOOD, SCATTER = 6.0, 2.8, 5.6, 0.35  # weaning follows WARN's parabolic form
 NEWBORN_OFFSET = 0.8  # newborn bone above the mothers' mean

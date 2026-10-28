@@ -17,11 +17,13 @@ from weanage.dental_age import stage_ages
 from weanage.lifetable import survival
 from weanage.schema import MOORREES_STAGES
 
-EXAMPLES = Path(__file__).resolve().parents[1] / "src" / "weanage" / "data" / "examples"
+ROOT = Path(__file__).resolve().parents[1]
+EXAMPLES = ROOT / "src" / "weanage" / "data" / "examples"  # bundled: no published data of this kind found
+TEST_DATA = ROOT / "tests" / "data"  # published examples exist; these simulated ones check the methods
 
 
-def write(name, rows):
-    with (EXAMPLES / name).open("w", newline="") as f:
+def write(name, rows, folder=EXAMPLES):
+    with (folder / name).open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
@@ -85,7 +87,7 @@ def cemetery(rng):
             rows.append({"specimen_id": f"{site[-1]}{k:03d}", "site": site, "species": "human",
                          "age_min_years": round(low, 1), "age_max_years": "" if high is None else round(high, 1),
                          "sex": "", "notes": f"SYNTHETIC; true age {age:.1f} years"})
-    write("synthetic_cemetery_example.csv", rows)
+    write("synthetic_cemetery_example.csv", rows, TEST_DATA)
 
 
 def mobility(rng):
@@ -104,7 +106,7 @@ def mobility(rng):
                      "d18O": round(carbonate + rng.normal(0, 0.1), 2), "d18O_material": "carbonate",
                      "sr87_86": round(rng.normal(0.7125 if incomer else 0.7081, 0.0002), 5), "role": "sample",
                      "notes": "SYNTHETIC; " + ("raised elsewhere" if incomer else "local")})
-    write("synthetic_mobility_example.csv", rows)
+    write("synthetic_mobility_example.csv", rows, TEST_DATA)
 
 
 def main():

@@ -37,7 +37,7 @@ async function waitForJob(job, onProgress) {
 
 const server = {
   config: () => request("/api/config"),
-  example: (name = "synthetic") => request(`/api/example?name=${encodeURIComponent(name)}`),
+  example: (name) => request(`/api/example${name ? `?name=${encodeURIComponent(name)}` : ""}`),
   uploadFile(file) {
     const form = new FormData();
     form.append("file", file);
@@ -59,7 +59,7 @@ const server = {
   calibrate: (body) => request("/api/growth-tables/calibrate", json(body)),
   templateUrl: "/api/template.csv",
   // Bone calculation
-  boneExample: (name = "synthetic_bone") => request(`/api/bone/example?name=${encodeURIComponent(name)}`),
+  boneExample: (name) => request(`/api/bone/example${name ? `?name=${encodeURIComponent(name)}` : ""}`),
   boneUpload(file) {
     const form = new FormData();
     form.append("file", file);
@@ -173,7 +173,7 @@ async function analyzeInParallel(samples, options, onProgress) {
 
 const browser = {
   config: () => python("config"),
-  example: (name = "synthetic") => python("example", { name }),
+  example: (name) => python("example", { name }),
   uploadFile: async (file) => python("upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
   validateRecords: (records) => python("records", { records }),
   analyze: analyzeInParallel,
@@ -183,7 +183,7 @@ const browser = {
   deleteTable: (species, tooth) => python("delete_table", { species, tooth }),
   calibrate: (body) => python("calibrate", body),
   templateUrl: "weanage_template.csv",
-  boneExample: (name = "synthetic_bone") => python("bone_example", { name }),
+  boneExample: (name) => python("bone_example", { name }),
   boneUpload: async (file) => python("bone_upload", { filename: file.name }, null, new Uint8Array(await file.arrayBuffer())),
   boneAnalyze: (samples, options, onProgress) => python("bone_analyze", { samples, options }, onProgress),
   boneRecords: (records) => python("bone_records", { records }),

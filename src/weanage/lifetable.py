@@ -26,7 +26,7 @@ import warnings
 import numpy as np
 from scipy.optimize import minimize
 
-from .ingest import check_rows, column_lookup, match_columns
+from .ingest import check_rows, column_lookup, records_with_labels
 from .killoff import compare
 from .models import interval
 from .schema import LifeSample, LifeTableOptions
@@ -40,18 +40,21 @@ LOOKUP = column_lookup(LifeSample, ALIASES)
 
 
 def ingest_life_dataframe(df):
-    df, issues = match_columns(df, LOOKUP, LifeSample)
-    if df is None:
+    records, issues = records_with_labels(df, LOOKUP, LifeSample, "the life tables")
+    if records is None:
         return {"samples": [], "issues": issues, "groups": []}
-    samples, row_issues = check_rows(LifeSample, df.to_dict(orient="records"))
+    samples, row_issues = check_rows(LifeSample, records)
     groups: dict[str, int] = {}
     for s in samples:
         groups[group_name(s)] = groups.get(group_name(s), 0) + 1
-    return {"samples": samples, "issues": row_issues + issues, "groups": [{"group": g, "n": n} for g, n in groups.items()]}
+    columns = sorted({k for s in samples for k in s.labels})
+    return {"samples": samples, "issues": row_issues + issues, "columns": columns,
+            "groups": [{"group": g, "n": n} for g, n in groups.items()]}
 
 
-def group_name(s):
-    return " · ".join(str(k) for k in (s.site, s.period) if k)
+def group_name(s, group_by=("site", "period")):
+    """The group a skeleton belongs to: its values of the group_by columns (site, period, sex or a kept column)."""
+    return " · ".join(str(v) for v in (getattr(s, k, None) or s.labels.get(k) for k in group_by) if v) or "all"
 
 
 def spread(ranges, bounds):
@@ -164,7 +167,7 @@ def analyze_lifetable(samples, options=None, progress=None):
     rng = np.random.default_rng(options.random_seed)
     groups: dict[str, list] = {}
     for s in samples:
-        groups.setdefault(group_name(s), []).append(s)
+        groups.setdefault(group_name(s, options.group_by), []).append(s)
     results = []
     for i, (name, members) in enumerate(groups.items()):
         results.append(analyze_group(name, members, options, rng))

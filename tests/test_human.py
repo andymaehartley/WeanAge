@@ -1,5 +1,7 @@
 """Human calculations: dental age, enamel hypoplasia, milk share, life tables, mobility, grouping."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -26,6 +28,14 @@ from weanage.schema import (
 )
 
 EXAMPLES = config.DATA_DIR / "examples"
+TEST_DATA = Path(__file__).parent / "data"
+
+
+def from_file(name, path):
+    """Run a calculation on a table, as the app does after a file is dropped."""
+    report = service.CALCULATIONS[name].ingest(pd.read_csv(path))
+    assert not [i for i in report["issues"] if i["severity"] == "error"]
+    return service.run_calculation(name, {"samples": [s.model_dump() for s in report["samples"]], "options": {"bootstrap_draws": 200}})
 
 
 def truth(notes, unit):
@@ -114,8 +124,7 @@ def test_life_table_arithmetic_and_siler():
 
 
 def test_cemetery_example():
-    ex = service.calculation_example("lifetable")
-    out = service.run_calculation("lifetable", {"samples": ex["samples"], "options": {"bootstrap_draws": 200}})
+    out = from_file("lifetable", TEST_DATA / "synthetic_cemetery_example.csv")
     a, b = out["results"]
     true_e0 = float(np.sum(survival(np.linspace(0, 100, 20001), 0.25, 1.0, 0.01, 0.0004, 0.09)) * 100 / 20000)
     assert abs(a["siler"]["e0"] - true_e0) < 6 and abs(a["summary"]["e0"]["estimate"] - true_e0) < 6
@@ -133,10 +142,8 @@ def test_drinking_water_equations():
 
 
 def test_mobility_example_finds_the_incomers():
-    df = pd.read_csv(EXAMPLES / "synthetic_mobility_example.csv")
-    ex = service.calculation_example("mobility")
-    assert not ex["issues"]
-    out = service.run_calculation("mobility", {"samples": ex["samples"], "options": {}})
+    df = pd.read_csv(TEST_DATA / "synthetic_mobility_example.csv")
+    out = from_file("mobility", TEST_DATA / "synthetic_mobility_example.csv")
     found = {r["specimen_id"] for r in out["results"] if r["non_local"]}
     assert found == set(df[df.notes.str.contains("elsewhere")].specimen_id)
     assert out["sites"][0]["sr_range_from"] == "12 baseline samples"
@@ -145,7 +152,7 @@ def test_mobility_example_finds_the_incomers():
 def test_group_by_kept_columns():
     from weanage.ingest import ingest_dataframe
 
-    df = pd.read_csv(EXAMPLES / "synthetic_example.csv")
+    df = pd.read_csv(TEST_DATA / "synthetic_example.csv")
     df["burial"] = np.where(df.specimen_id.str[-1].isin(list("13579")), "crouched", "extended")
     report = ingest_dataframe(df)
     assert all("burial" in s.labels for s in report["samples"])
@@ -161,9 +168,17 @@ def test_detect_offers_only_the_calculations_a_table_can_feed():
 
     from weanage.api import app
 
-    content = (EXAMPLES / "synthetic_mobility_example.csv").read_bytes()
+    content = (TEST_DATA / "synthetic_mobility_example.csv").read_bytes()
     found = service.detect("m.csv", content)["calculations"]
     assert [name for name, d in found.items() if d["rows"]] == ["mobility"]
     assert "d15N" in found["tooth"]["problem"]
-    tooth = TestClient(app).post("/api/detect", files={"file": ("t.csv", (EXAMPLES / "synthetic_example.csv").read_bytes())}).json()
+    tooth = TestClient(app).post("/api/detect", files={"file": ("t.csv", (TEST_DATA / "synthetic_example.csv").read_bytes())}).json()
     assert {name for name, d in tooth["calculations"].items() if d["rows"]} == {"tooth", "mixing"}
+
+
+@pytest.mark.parametrize("name", ["lifetable", "killoff", "mixing", "mobility"])
+def test_published_examples_run(name):
+    example = service.calculation_example(name)
+    assert example["samples"] and not [i for i in example["issues"] if i["severity"] == "error"]
+    out = service.run_calculation(name, {"samples": example["samples"], "options": {}})
+    assert out["results"]
