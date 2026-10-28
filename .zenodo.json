@@ -1,6 +1,6 @@
 {
   "title": "WeanAge: weaning-age estimation from tooth dentine and bone collagen δ15N",
-  "description": "Open-source software that estimates age at weaning from nitrogen isotope data: sequentially sampled tooth dentine of one individual, or the bone collagen of many young individuals (after WARN), for archaeological livestock (cattle, sheep, goats, pigs, horses) and people. It compares curve models and sites, reports honest uncertainty and helps plan sampling.",
+  "description": "Open-source software that estimates age at weaning from nitrogen isotope data: sequentially sampled tooth dentine of one individual, or the bone collagen of many young individuals (after WARN), for archaeological livestock and people. It compares curve models and sites, reports honest uncertainty and helps plan sampling. Around weaning it adds kill-off profiles, Bayesian diet mixing, season of birth and rumen development from enamel, and for people breast-milk share, dental age, enamel hypoplasia timing, life tables and mobility, with a per-individual timeline and a methods-text writer.",
   "creators": [
     {
       "name": "Hartley, Annabelle"
@@ -15,6 +15,11 @@
     "stable isotopes",
     "dentine",
     "bone collagen",
-    "livestock"
-  ]
+    "livestock",
+    "life tables",
+    "mobility",
+    "diet mixing",
+    "kill-off profiles"
+  ],
+  "version": "0.3.0"
 }

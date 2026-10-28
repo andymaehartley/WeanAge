@@ -14,7 +14,10 @@ weaning in context: kill-off profiles from aged mandibles (after Payne 1973), an
 each food group in the diet from collagen δ¹³C, δ¹⁵N and δ³⁴S (a Bayesian mixing model). For
 people it also gives the share of breast milk at each dentine increment, age at death from
 dental development, the timing of enamel hypoplasia, life tables, and mobility from enamel δ¹⁸O
-and ⁸⁷Sr/⁸⁶Sr. Drop one table and WeanAge shows which calculations it can be used for.
+and ⁸⁷Sr/⁸⁶Sr, with the places a non-local person may have come from. Drop one table and WeanAge
+shows which calculations it can be used for; an *Individuals* page puts everything found for one
+person or animal on one timeline, *Methods text* drafts the methods paragraph with references, and
+every chart downloads as a publication figure (SVG or PNG, with caption).
 
 Browser version (no installation): <https://andymaehartley.github.io/WeanAge/>
 
@@ -36,15 +39,18 @@ weanage analyze my_data.csv -o estimates.csv      # CSV or .xlsx
 weanage validate reference.csv                    # accuracy on known-age animals
 weanage isoarch export.xlsx                       # list sequential dentine series in an IsoArcH export
 weanage isoarch export.xlsx --site Khami -o khami.csv   # ... and convert them to WeanAge input
+weanage detect table.csv                          # which calculations a table can be used for
+weanage run lifetable table.csv -o results.json --methods methods.md   # any calculation, with its methods text
 weanage --host 0.0.0.0 --no-browser               # shared server on a lab machine
 ```
 
-The app has five tabs (Data, Settings, Results, Compare, Plan sampling). The
-[user guide](docs/USER_GUIDE.md) walks through them, and [`docs/METHODS.md`](docs/METHODS.md)
-gives the models, equations and checks. Examples bundled with the app: a synthetic tooth
-dataset, a synthetic bone dataset, cattle dentine from Khami and Bornais (IsoArcH), and
-human bone and dentine from Wharram Percy, York Fishergate House, Newark Bay and Mikulčice
-(CIMA).
+The app's tabs (Data, Settings, Results, Compare, Plan sampling, Individuals) follow the order
+you work in. The [user guide](docs/USER_GUIDE.md) walks through them, and
+[`docs/METHODS.md`](docs/METHODS.md) gives the models, equations and checks. Every calculation has a
+published example dataset, except enamel, dental age and hypoplasia, for which no openly licensed
+data were found (these are simulated): cattle dentine from Khami and Bornais (IsoArcH); human bone,
+dentine, enamel and collagen from Wharram Percy, York, Newark Bay, Mikulčice, Bamburgh and early
+medieval Wales (CIMA); mandibles from Marj Rabba (zooaRch) and burials from Münsingen-Rain (mortAAR).
 
 ### Browser version
 
@@ -127,7 +133,8 @@ collagen sample, with `specimen_id`, `site`, `species`, `d13C`, `d15N` and optio
 | Enamel ⁸⁷Sr/⁸⁶Sr follows local geology (Bentley 2006) | strontium shifts |
 | Mandible wear stages and herding models (Payne 1973) | kill-off profiles |
 | Bayesian diet mixing (FRUITS: Fernandes et al. 2014; Phillips et al. 2014) | diet mixing |
-| Formation stages (Moorrees et al. 1963); enamel formation (Reid & Dean 2006) | dental age; hypoplasia timing |
+| Formation stages (Moorrees et al. 1963); transition analysis (Boldsen et al. 2002); enamel formation (Reid & Dean 2006) | dental age; hypoplasia timing |
+| Concentration-dependent mixing (Phillips & Koch 2002) | diet mixing |
 | Juvenility index (Bocquet-Appel & Masset 1977); Siler (1979) hazard | life tables |
 | Carbonate-to-drinking-water δ¹⁸O (Chenery et al. 2012) | mobility |
 | Prehistoric cattle calved seasonally (Balasse et al. 2021) | seasonal term and checks |
@@ -164,10 +171,12 @@ src/weanage/
   api.py         local web server and background jobs
   browser.py     the same requests for the browser version
   isoarch.py     converts IsoArcH exports
+  methods.py     the methods paragraph and its references
   cli.py         the `weanage` command
   data/          growth and bone-turnover tables, priors, QC limits, lab parameters, diet sources, templates, examples
   web/           the app (HTML, CSS, JavaScript; pyworker.js runs Python in the browser version)
-tests/           pytest suite, including a browser test (needs Playwright)
+tests/           pytest suite, including a browser test (needs Playwright); tests/js: unit tests of the app's
+                 JavaScript (node --test); tests/data: simulated tables with known answers
 packaging/       single-file app (PyInstaller)
 paper/           JOSS paper draft
 ```
@@ -177,13 +186,14 @@ paper/           JOSS paper draft
 ```bash
 pip install -e . pytest httpx ruff mypy
 pytest                       # add `pip install playwright && playwright install chromium` for the browser test
-ruff check src tests && mypy src
-python scripts/make_synthetic_example.py      # regenerate the example data
+node --test "tests/js/*.test.mjs"
+ruff check src tests scripts && mypy src
+python scripts/make_cima_examples.py cima.xlsx   # rebuild the CIMA examples (see the examples README)
 python scripts/build_browser.py               # browser version in dist/browser/
 pyinstaller packaging/weanage.spec            # single-file app in dist/
 ```
 
-GitHub Actions runs the tests on every push. A version tag (e.g. `v0.2.0`) builds the
+GitHub Actions runs the tests on every push. A version tag (e.g. `v0.3.0`) builds the
 single-file apps for Linux, Windows and macOS and publishes the package to PyPI.
 
 ## Citing
@@ -194,7 +204,7 @@ software paper is in [`paper/`](paper/).
 ## Licence
 
 The code is MIT-licensed ([`LICENSE`](LICENSE)). The bundled example data keep their own
-licences (IsoArcH: CC BY 4.0; CIMA: CC BY-SA); see
+licences (IsoArcH: CC BY 4.0; CIMA: CC BY-SA; the mortAAR and zooaRch data: GPL); see
 [`src/weanage/data/examples/README.md`](src/weanage/data/examples/README.md).
 
 ## Contributing

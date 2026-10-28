@@ -1,15 +1,20 @@
 # Example datasets
 
-## `synthetic_example.csv`
+Every calculation has a published dataset as its example, except three for which no usable
+published data could be found (see *Still simulated* below). Simulated tables used by the tests are
+in `tests/data/`.
 
-Simulated teeth made by `scripts/make_synthetic_example.py`. **Not real measurements.**
-
-## `synthetic_bone_example.csv`
-
-Simulated bone collagen δ¹⁵N for young and adult cattle at two invented sites, made by
-`scripts/make_bone_example.py` with the bone model itself. Site A weans at 3–9 months and
-Site B at 1–4 months; ages at death are ranges, as tooth wear gives them. **Not real
-measurements.**
+| calculation | example | real or simulated |
+|---|---|---|
+| tooth (dentine δ¹⁵N) | `isoarch_cattle_khami_bornais.csv`, `cima_teeth_mikulcice.csv` | real |
+| bone | `cima_bone_*.csv` (Wharram Percy, York, Newark Bay) | real |
+| kill-off profiles | `marj_rabba_killoff.csv` | real |
+| diet mixing | `cima_mixing_wales_man.csv` | real (food groups still placeholders) |
+| life tables | `muensingen_lifetable.csv` | real |
+| mobility | `cima_mobility_bamburgh.csv`, `cima_mobility_mikulcice.csv` | real |
+| enamel (cattle) | `synthetic_enamel_example.csv` | **simulated** |
+| dental age | `synthetic_dental_example.csv` | **simulated** |
+| enamel hypoplasia | `synthetic_hypoplasia_example.csv` | **simulated** |
 
 ## `isoarch_cattle_khami_bornais.csv`
 
@@ -85,3 +90,48 @@ dentine data, and the few young animals with ages are at least 0.8 years old (pi
 Prague, sampled as whole third molars), well after piglets are weaned, with at most five young
 animals of one species at any site. That cannot show a weaning signal.
 
+
+## More CIMA examples: mobility and diet mixing
+
+Made by the same script (`scripts/make_cima_examples.py`), under the same CC BY-SA licence.
+
+| file | calculation | site and date | from | what is in it |
+|---|---|---|---|---|
+| `cima_mobility_bamburgh.csv` | mobility | Bamburgh, Northumberland, 7th–9th c. AD | Groves et al. 2013, *Am. J. Phys. Anthropol.* 151: 462–476 | 86 teeth: enamel ⁸⁷Sr/⁸⁶Sr and (84) phosphate δ¹⁸O |
+| `cima_mobility_mikulcice.csv` | mobility | Mikulčice-Valy, Czechia, 9th–10th c. AD | Vytlačil et al. 2021, *Archaeol. Anthropol. Sci.* 13, doi:10.1007/s12520-020-01247-3 | 123 adults: enamel ⁸⁷Sr/⁸⁶Sr only |
+| `cima_mixing_wales_man.csv` | diet mixing | six early medieval sites in Wales and the Isle of Man | Hemer et al. 2017, *Am. J. Phys. Anthropol.* 162: 423–440 | 61 adults: bone collagen δ¹³C, δ¹⁵N and δ³⁴S |
+
+**Assumptions.** Neither mobility file has local baseline samples (fauna, plants or water), so the
+local range comes from the people themselves (Tukey fences) unless one is typed in under Settings.
+Mikulčice IDs are written `MIK` + grave number (`/` becomes `_`), as in the Mikulčice dentine example;
+five burials appear in both, which shows the Individuals page. That the two studies' grave numbers
+refer to the same people is an assumption. In the mixing example, `period` is "early medieval" for
+all; each person's own date range is in the notes. The food groups and offsets used to mix them are
+still placeholders (`data/diet_sources.json`).
+
+## Examples from R packages: life tables and kill-off
+
+Made by `scripts/make_r_package_examples.py` from data shipped with two R packages. **Licence: GPL**,
+like the packages; cite the original studies and the packages.
+
+| file | calculation | from | what is in it |
+|---|---|---|---|
+| `muensingen_lifetable.csv` | life tables | mortAAR (Müller-Scheeßel et al., GPL-3), data from Moghaddam et al. 2016, *Archaeol. Anthropol. Sci.* 8: 149–160 | ages at death, sex, La Tène phase and grave goods of 71 Late Iron Age burials from Münsingen-Rain, Switzerland |
+| `marj_rabba_killoff.csv` | kill-off profiles | zooaRch (Otárola-Castillo, Wolfhagen & Price, GPL ≥ 2), data from Price et al. 2013, *Paléorient* 39(2): 183–200 | Payne (1973) age classes A–I of 42 sheep/goat mandibles from Chalcolithic Marj Rabba, Israel |
+
+**Assumptions.** Münsingen ages are converted from the published text ("25-35", ">60", "10+/-1"); an
+open-ended age stays open, and the original text is in the notes. The 71 burials are those sampled
+for isotopes, not the whole cemetery, so the life table is not the cemetery's. Marj Rabba's numbered
+age classes 1–9 are written as Payne's letters A–I.
+
+## Still simulated
+
+No published, openly licensed dataset could be found for these, so their examples are simulated
+(made by the `scripts/make_*` scripts; **not real measurements**):
+
+* `synthetic_enamel_example.csv`: sequential cattle enamel δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr. Published series
+  (e.g. Balasse et al. 2012) are in papers' supplements, not in an openly licensed database.
+* `synthetic_dental_example.csv`: tooth formation stages of children, with the true ages in the notes.
+* `synthetic_hypoplasia_example.csv`: enamel hypoplasia defect heights.
+
+Please send published, shareable data for these and they will replace the simulated examples.

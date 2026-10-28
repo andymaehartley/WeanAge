@@ -326,9 +326,11 @@ mandibles (Efron & Tibshirani 1993). Three summaries follow Payne's models of he
 (many deaths before 6 months), meat (6 months to 3 years) and wool, breeding or traction (many alive
 at 4 years); see Vigne & Helmer (2007) for how these models have been used and debated. A
 permutation test asks whether two groups' profiles differ by more than chance. Young mandibles
-survive burial and excavation less well, so early deaths are often under-counted.
+survive burial and excavation less well, so early deaths are often under-counted. Cattle and pigs are
+aged with other wear-stage systems (for example Grant 1982); their stages are read with a table of
+stage ages typed in from the study followed, since published age equivalents differ.
 
-![Figure 5. Survivorship of two synthetic sheep/goat herds (simulated data): Site A with most deaths in stages A–B, Site B in C–D.](figures/killoff_result.png){width=80%}
+![Figure 5. Survivorship of 42 sheep/goat mandibles from Chalcolithic Marj Rabba, Israel (Price et al. 2013, via the zooaRch R package), aged in Payne's stages.](figures/killoff_result.png){width=80%}
 
 # 8. Diet mixing
 
@@ -336,23 +338,28 @@ To say what weaned animals and people went on to eat, bone collagen δ¹³C, δ�
 δ³⁴S are split into the shares of a few food groups (`mixing.py`). Each isotope's expected value is
 Σ pₛμₛ + Δ, the share-weighted food values plus a collagen-diet offset, with a variance from the spread
 of each food, the offset and the measurement, as in FRUITS (Fernandes et al. 2014) and MixSIAR (Stock
-et al. 2018). Twenty thousand diets are drawn with every mix equally likely beforehand, and each is
-weighted by how well it explains the sample; the weighted draws give each food group's share with a
+et al. 2018). Foods rich in an element supply more of it: meat gives far more nitrogen than the same
+amount of cereal. When the carbon, nitrogen or sulphur content of each food is given, each isotope is
+mixed by the share of the element each food supplies (Phillips & Koch 2002). Twenty thousand diets are
+drawn, by default with every mix equally likely beforehand (prior weights can favour foods that other
+evidence points to), and each is weighted by how well it explains the sample; the weighted draws give each food group's share with a
 95% interval. Two warnings matter most (Phillips et al. 2014): with more food groups than isotopes + 1
 the data cannot fix the shares, so the intervals stay wide; and a sample outside every mix of the food
 groups means a food is missing or a value is wrong. The bundled food values and offsets are rough
 placeholders. For δ¹⁵N, a controlled feeding study found collagen about 6‰ above the human diet
 (O'Connell et al. 2012); food values should come from plants and animals of the same site and period.
 
-![Figure 6. Synthetic human bone collagen from an inland and a coastal site (simulated data), with the placeholder food groups plus offsets (dashed boxes, ±1 SD).](figures/mixing_result.png){width=80%}
+![Figure 6. Bone collagen of 61 adults from six early medieval sites in Wales and the Isle of Man (Hemer et al. 2017, via CIMA), with the placeholder food groups plus offsets (dashed boxes, ±1 SD).](figures/mixing_result.png){width=80%}
 
 # 9. People: dental age, hypoplasia, life tables and mobility
 
 **Dental age** (`dental_age.py`). Children's teeth are scored in the formation stages of Moorrees et al.
-(1963), from crown initiation (Ci) to apex closed (Ac). A tooth in a stage lies between the ages at which
-it reached that stage and the next, so its age is the middle of that span. The teeth of a child are
-averaged, weighted by their precision; because they develop together, the combined uncertainty is that
-of a typical tooth. Teeth that disagree are flagged. The ages can be passed on as ages at death to the
+(1963), from crown initiation (Ci) to apex closed (Ac). By default the age is found by transition
+analysis (Boldsen et al. 2002): children reach each stage at varying ages, so for every age WeanAge works
+out the chance that a tooth would be in the stage observed, multiplies these chances over the child's
+teeth, and reports the most central age and a 95% range. A child whose teeth are all complete gets only a
+minimum age. The older midpoint method (the middle of the span between reaching a stage and the next,
+averaged over the teeth) is also available. Teeth that disagree are flagged. The ages can be passed on as ages at death to the
 bone calculation and the life tables. The formation ages are placeholders until a published standard
 (AlQahtani et al. 2010; Smith 1991) is entered, so these ages are illustrative.
 
@@ -370,17 +377,23 @@ and the juvenility index D5–14/D20+ (Bocquet-Appel & Masset 1977). A Siler (19
 directly to the age ranges. Single years up to 5 show whether deaths cluster around weaning. A cemetery
 is not a living population: selective mortality and hidden frailty (the osteological paradox, Wood et al.
 1992) and missing infant burials (Bocquet-Appel & Masset 1982) are flagged or stated with every result.
+If infants are probably missing, an expected share of infant deaths (from a comparable population) adds
+them back, and the corrected life expectancy is shown beside the original, to show how much it matters.
+Groups can be formed from any columns, such as sex or grave goods.
 
-![Figure 8. Survivorship in two simulated cemeteries, with Siler fits (dashed). Site B lost most of its infant burials.](figures/lifetable_result.png){width=72%}
+![Figure 8. Survivorship of 71 Late Iron Age burials from Münsingen-Rain, Switzerland (Moghaddam et al. 2016, via the mortAAR R package), with a Siler fit (dashed). These are the people sampled for isotopes, not the whole cemetery.](figures/lifetable_result.png){width=72%}
 
 **Mobility** (`mobility.py`). Bulk enamel δ¹⁸O is converted to drinking water (carbonate: Chenery et al.
 2012, after Coplen et al. 1983 for the scale; phosphate: Daux et al. 2008), with an SD of 1‰ for the
 conversion (Pollard et al. 2011). ⁸⁷Sr/⁸⁶Sr is compared with a local range from local fauna or plants
 (mean ± 2 SD; Price et al. 2002), or failing that with Tukey fences among the people (Lightfoot &
 O'Connell 2016). First molars and deciduous teeth may carry a breastfeeding signal in δ¹⁸O (Wright &
-Schwarcz 1998).
+Schwarcz 1998). For each person outside the local range, candidate places (typed in from isoscapes or
+published baselines, and the other sites in the file) are ranked by how well they match both isotopes.
+The probabilities only compare the places offered, so a place must also *fit* (no isotope more than 2.5
+SD away), and many regions share similar values (Bentley 2006).
 
-![Figure 9. Drinking-water δ¹⁸O and ⁸⁷Sr/⁸⁶Sr of 30 simulated people, with the local range; five grew up elsewhere.](figures/mobility_result.png){width=72%}
+![Figure 9. Drinking-water δ¹⁸O and ⁸⁷Sr/⁸⁶Sr of people buried at early medieval Bamburgh, Northumberland (Groves et al. 2013, via CIMA), with the local range estimated from the people themselves.](figures/mobility_result.png){width=72%}
 
 # 10. Comparing groups
 
@@ -438,12 +451,22 @@ model; with placeholder turnover it shows relative, not absolute, precision.
    as CSV, JSON or SVG, and the whole run as an HTML report.
 4. **Compare** (tooth data) tests differences between groups.
 5. **Plan sampling** runs the planners.
+6. **Individuals** puts everything found for one specimen ID, in any calculation, on one timeline:
+   weaning, stress episodes, defects, age at death, mobility and diet. IDs must match across tables.
+
+**Methods text** writes a methods paragraph, with references, for every calculation run, from the
+settings used, and lists the placeholders still in use: a draft to check and edit. Every chart has
+*Figure* links for an SVG or PNG on white with its caption. Every calculation can also be run from
+the command line (`weanage run <calculation> table.csv`).
 
 *Save* writes the data, settings and results to a project file; work is also kept in the
 browser. *Ages in years* switches every result to years. Every **?** opens a short explanation.
-Examples from IsoArcH (cattle teeth from Khami and Bornais) and CIMA (Cocozza et al. 2022; human
-bone from Wharram Percy, York Fishergate and Newark Bay, and human teeth from Mikulčice) are
-included; their slice positions or tooth age models are partly assumed, as noted when they load.
+Every calculation has an example, most of them published data: IsoArcH (cattle teeth from Khami and
+Bornais), CIMA (Cocozza et al. 2022; human bone, teeth and enamel from Wharram Percy, York, Newark Bay,
+Mikulčice, Bamburgh, and early medieval Wales and the Isle of Man), and two R packages (Münsingen-Rain
+burials and Marj Rabba mandibles). Assumptions, such as slice positions, are noted when they load. No
+openly licensed data were found for cattle enamel series, dental stages or hypoplasia, so those
+examples are simulated.
 
 # 13. Limits and placeholders
 
@@ -489,6 +512,8 @@ Bocquet-Appel J-P, Masset C (1977) *L'Homme* 17(4): 65–90.
 
 Bocquet-Appel J-P, Masset C (1982) *J. Hum. Evol.* 11: 321–333.
 
+Boldsen JL, Milner GR, Konigsberg LW, Wood JW (2002) In Hoppa RD, Vaupel JW (eds) *Paleodemography*, 73–106. Cambridge University Press.
+
 Brown WAB, Christofferson PV, Massler M, Weiss MB (1960) *Am. J. Vet. Res.* 21: 7–34.
 
 Burnham KP, Anderson DR (2002) *Model Selection and Multimodel Inference*, 2nd ed. Springer.
@@ -527,7 +552,13 @@ Gelman A (2006) *Bayesian Anal.* 1: 515–534.
 
 Goodman AH, Rose JC (1990) *Yearb. Phys. Anthropol.* 33: 59–110.
 
+Grant A (1982) In Wilson B, Grigson C, Payne S (eds) *Ageing and Sexing Animal Bones from Archaeological Sites*, BAR British Series 109, 91–108.
+
+Groves SE, Roberts CA, Lucy S, Pearson G, Gröcke DR, Nowell G, Macpherson CG, Young G (2013) *Am. J. Phys. Anthropol.* 151: 462–476.
+
 Guiry EJ, Szpak P (2020) *Methods Ecol. Evol.* 11: 1049–1060.
+
+Hemer KA, Lamb AL, Chenery CA, Evans JA (2017) *Am. J. Phys. Anthropol.* 162: 423–440.
 
 Holm S (1979) *Scand. J. Stat.* 6: 65–70.
 
@@ -542,6 +573,8 @@ Lightfoot E, O'Connell TC (2016) *PLoS ONE* 11: e0153850.
 Millard AR (2000) In Goodfriend GA et al. (eds) *Perspectives in Amino Acid and Protein Geochemistry*. Oxford University Press.
 
 Minagawa M, Wada E (1984) *Geochim. Cosmochim. Acta* 48: 1135–1140.
+
+Moghaddam N, Müller F, Hafner A, Lösch S (2016) *Archaeol. Anthropol. Sci.* 8: 149–160.
 
 Montgomery J, Evans JA, Horstwood MSA (2010) *Environ. Archaeol.* 15: 32–42.
 
@@ -561,7 +594,11 @@ Payne S (1973) *Anatolian Stud.* 23: 281–303.
 
 Phillips DL, Inger R, Bearhop S, Jackson AL, Moore JW, Parnell AC, Semmens BX, Ward EJ (2014) *Can. J. Zool.* 92: 823–835.
 
+Phillips DL, Koch PL (2002) *Oecologia* 130: 114–125.
+
 Pollard AM, Pellegrini M, Lee-Thorp JA (2011) *Am. J. Phys. Anthropol.* 145: 499–504.
+
+Price MD, Buckley M, Rowan YM, Kersel M (2013) *Paléorient* 39(2): 183–200.
 
 Price TD, Burton JH, Bentley RA (2002) *Archaeometry* 44: 117–135.
 

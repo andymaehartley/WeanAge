@@ -1,8 +1,9 @@
 # WeanAge user guide
 
 A walk through one full session: opening the app, loading isotope data, running the curve
-models, reading the weaning age, comparing groups and planning a sampling protocol. The
-screenshots show the bundled synthetic example, not real measurements.
+models, reading the weaning age, comparing groups and planning a sampling protocol. Some
+screenshots show a simulated example, not real measurements; the app's examples are now published
+datasets for every calculation except enamel, dental age and hypoplasia.
 
 Tooth growth tables and several lab parameters are placeholders, marked `TBD-LAB`, so the
 weaning ages are illustrative until those values are supplied (see
@@ -28,6 +29,10 @@ Contents:
 13. [Plan sampling](#13-plan-your-sampling-before-cutting-teeth)
 14. [Save, report and export](#14-save-report-and-export)
 15. [Dark, light and larger text](#15-dark-light-and-larger-text)
+16. [Everything about one individual](#16-everything-about-one-individual)
+17. [Methods text](#17-methods-text)
+18. [Figures for publication](#18-figures-for-publication)
+19. [Command line](#19-command-line)
 
 ## 0. Open the app
 
@@ -43,9 +48,10 @@ Both work the same way.
 
 ## 1. Take the tour
 
-On the first visit an eight-step tour points out each part of the screen. Press *Next*,
+On the first visit a short tour points out each part of the screen: loading a file, choosing
+calculations, the examples, settings, the Individuals page, Methods text and saving. Press *Next*,
 or *Skip tour*. The *Help* menu in the top bar restarts it and links to the PDF user guide. The numbered tabs (Data, Settings,
-Results, Compare, Plan sampling) follow the order you will work in.
+Results, Compare) follow the order you will work in; *Plan sampling* and *Individuals* sit beside them.
 
 ![The opening screen with the guided tour](guide/01_tour.png)
 
@@ -62,7 +68,8 @@ real, it leaves the list.
 First drop a CSV or Excel file on the dashed box (common spellings such as `δ15N (‰)`, `C:N`
 or `Animal` are recognised). WeanAge checks the table against every calculation and lists them
 below the box: those it can feed show how many rows they can use; the others say what is missing
-(for example "Missing required column(s): stage"). Tick the calculations to run. One table can
+(for example "Missing required column(s): stage"). Those the file can't feed are folded away under
+*N other calculations can't use this file*; open it to see why. Tick the calculations to run. One table can
 feed several: tooth slices with δ¹³C and δ¹⁵N can go to both the tooth calculation and diet
 mixing. Each ticked calculation keeps its own data, settings and results, and the buttons at the
 top of the page (*Showing: …*) switch between them.
@@ -77,10 +84,10 @@ file you can also:
 * *Download blank template* to start a spreadsheet with the right columns,
 * *Add samples by hand* with the form on the right, or
 * choose an example from the list (every calculation has one; loading it ticks its
-  calculation): the simulated dataset, real archaeological cattle from Khami
+  calculation). For the tooth calculation: real archaeological cattle from Khami
   (Zimbabwe) and Bornais (Outer Hebrides) from the IsoArcH database, or human first molars
-  from Mikulčice (CIMA). In the IsoArcH example the slice positions are assumed (see
-  `src/weanage/data/examples/README.md`).
+  from Mikulčice (CIMA). In both, slice positions are assumed. Each example's source,
+  licence and assumptions are in `src/weanage/data/examples/README.md`.
 
 The *Tooth terms and how positions are measured* link in the instructions opens a labelled tooth diagram ("Tooth Section" by Sam Fentress,
 Wikimedia Commons, CC BY-SA 2.0) with every term the app uses.
@@ -161,8 +168,13 @@ Tick *Kill-off profiles* for aged mandibles. One row per mandible: `specimen_id`
 and either `payne_stage` (A–I, or two stages such as `D/E`, for sheep and goats) or `age_min_months`
 and `age_max_months`. Results show survivorship by group, the share killed before 6 months, at 6–36
 months and the share alive at 4 years (each with a 95% interval), the share killed in each age class,
-and a permutation test between groups. A synthetic sheep/goat example is included. See section 13 of
-[METHODS.md](METHODS.md).
+and a permutation test between groups. The example is 42 sheep/goat mandibles from Chalcolithic Marj
+Rabba, Israel (Price et al. 2013).
+
+For cattle, pigs or other stage systems (for example Grant's mandible wear stages), use a `wear_stage`
+column and type the age of each stage under Settings → *Another wear-stage system*, one per line
+(`C: 8-18`), with the source of those ages. WeanAge does not supply these ages, because published equivalents vary.
+See section 13 of [METHODS.md](METHODS.md).
 
 ### Diet mixing
 
@@ -171,7 +183,13 @@ and, if measured, `d34S`. In Settings, edit the food groups (2–6, each with a 
 and the collagen-diet offsets. The bundled values are placeholders: replace them with plants and
 animals from the same site and period. Results show a δ¹³C–δ¹⁵N plot with the food groups, each group's
 mean diet, and each sample's shares with 95% intervals. With more food groups than isotopes + 1, read
-the intervals rather than the means. See section 14 of [METHODS.md](METHODS.md).
+the intervals rather than the means.
+
+Optional columns in the food-group table refine the model. *% C*, *% N* and *% S* (element concentration of each food)
+mixes each isotope by how much of the element each food supplies (meat gives far more nitrogen than the
+same amount of cereal); fill them for every food or leave them empty. *Prior weight* values
+favour foods that other evidence says were eaten; *Prior weight* 1 means no preference. The example is 61 adults from early medieval Wales and
+the Isle of Man (Hemer et al. 2017). See section 14 of [METHODS.md](METHODS.md).
 
 ### Dental age
 
@@ -179,8 +197,10 @@ Tick *Dental age* for children's teeth scored in Moorrees et al. (1963) formatio
 per tooth, with `specimen_id` (the individual), `site`, `species`, `tooth` (di1–dm2, I1–M3; P3/P4
 are read as PM1/PM2) and `stage` (Ci … Ac, or 1–13). Results give each child's age at death with
 the range passed on, and two buttons set these as the ages at death of the same specimen IDs in the
-bone calculation or the life tables. The formation ages are placeholders until a published standard
-is entered in `data/dental_stages.json`. See section 16 of [METHODS.md](METHODS.md).
+bone calculation or the life tables. Under Settings, *Method* is transition analysis (the default:
+each stage's chance at every age, combined over the teeth) or the older midpoint method. The formation
+ages are placeholders until a published standard is entered in `data/dental_stages.json`. See section 16
+of [METHODS.md](METHODS.md).
 
 ### Enamel hypoplasia timing
 
@@ -194,14 +214,23 @@ individual's weaning interval and stress episodes. Section 17 of [METHODS.md](ME
 Tick *Life tables* for skeletal ages at death: `age_min_years` and `age_max_years` (blank for an
 open-ended adult age such as 50+). Results give survivorship, life expectancy, the share of infants
 and under-fives, the juvenility index and a full life table for each site, an optional Siler hazard
-fit and a permutation test between sites. Section 18 of [METHODS.md](METHODS.md).
+fit and a permutation test between groups. *Group by site and* period, sex or nothing else chooses the groups
+(in a settings file or on the command line, `group_by` can name any columns, such as grave goods). If
+infant burials are probably missing, *Missing infants* → *Expected share of deaths under 1 year* adds infant deaths up to that share and shows the
+corrected life expectancy next to the original. The example is 71 Late Iron Age burials from
+Münsingen-Rain (Switzerland). Section 18 of [METHODS.md](METHODS.md).
 
 ### Mobility (bulk enamel)
 
 Tick *Mobility* for bulk enamel δ¹⁸O and/or ⁸⁷Sr/⁸⁶Sr. Carbonate δ¹⁸O (‰ VPDB, the default) or
 phosphate (‰ VSMOW, `d18O_material` = phosphate) is converted to drinking water; mark local fauna or
-plants measured for strontium with `role` = baseline. Give local ranges in Settings if known. Section
-19 of [METHODS.md](METHODS.md).
+plants measured for strontium with `role` = baseline. Give local ranges in Settings if known.
+
+For people outside the local range, WeanAge compares them with candidate places: those typed
+into the *Possible origins* table in Settings (⁸⁷Sr/⁸⁶Sr and drinking-water δ¹⁸O with SDs) and the other sites in
+the file. The table of results gives the most likely places with their probabilities, or says that none
+fits. The probabilities only compare the places offered. Examples: Bamburgh (Groves et al. 2013) and
+Mikulčice (Vytlačil et al. 2021). Section 19 of [METHODS.md](METHODS.md).
 
 ### Breast-milk share
 
@@ -354,12 +383,51 @@ An estimate beyond the simulated tooth counts as not dated.
 * *Report* downloads a web page with every setting, chart, table, warning and reference;
   print it to PDF. Reports always use light colours.
 * Under the model table: estimates (CSV), full results (JSON) and the chart (SVG).
+* Every chart also has *Figure: SVG · PNG · copy caption* under it (section 18).
 
 ![The downloaded report](guide/21_report.png)
 
 ## 15. Dark, light and larger text
 
-WeanAge opens in a high-contrast dark theme. *Light mode* and *Larger text* in the
-header change it, and the choice is remembered. All text meets WCAG AAA contrast.
+WeanAge opens in a high-contrast dark theme. *Light mode*, *Larger text* and *Ages in years* are
+in the *View* menu, and the choice is remembered. All text meets WCAG AAA contrast.
 
 ![Light mode](guide/22_light.png)
+
+## 16. Everything about one individual
+
+Once a calculation has run, *Individuals* lists every specimen ID found in any of them, those found
+in most calculations first. Choose one (or type part of its ID) to see a timeline of what happened at
+what age: weaning in the dentine, stress episodes, when milk fell below half the diet, defects in the
+enamel and the age at death. Below it, each calculation's findings (mobility and likely origin, diet
+shares, wear stage) with an *open* link to that calculation's result. IDs must be written the same way
+in every table; a tooth ID such as `04/293 C` counts as part of individual `04/293`.
+
+![The Individuals page](screenshots/31_individuals.png)
+
+## 17. Methods text
+
+*Methods text* in the header writes a methods paragraph for every calculation that has results,
+using the settings you ran it with, followed by the references and a list of any placeholder values
+still in use. *Copy* or *Download (.md)*, then check and edit it: it is a draft.
+
+![The methods text](screenshots/32_methods_text.png)
+
+## 18. Figures for publication
+
+Under every chart, *Figure* offers an SVG (for editing in Inkscape or Illustrator) and a PNG at
+four times screen size (about 3000 pixels wide), both redrawn in light colours on white with the
+caption underneath, and *copy caption* for the figure legend.
+
+## 19. Command line
+
+Every calculation also runs without the app:
+
+```bash
+weanage detect skeletons.csv                       # which calculations can use this table
+weanage run lifetable skeletons.csv -o results.json --methods methods.md
+weanage run mobility enamel.csv --settings settings.json
+```
+
+`--settings` takes a JSON file of settings (as in a saved project); `--methods` writes the methods
+paragraph.

@@ -1,6 +1,6 @@
 [project]
 name = "weanage"
-version = "0.2.0"
+version = "0.3.0"
 description = "Open-source weaning-age estimation from tooth dentine and bone collagen δ15N, for zooarchaeology and bioarchaeology."
 readme = "README.md"
 license = "MIT"

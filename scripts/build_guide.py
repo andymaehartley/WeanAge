@@ -85,7 +85,7 @@ def app_screenshots():
         page.add_init_script("localStorage.setItem('weanage-tour-done', '1'); localStorage.setItem('weanage-theme', 'light')")
         page.goto(f"http://127.0.0.1:{port}/app/")
         page.wait_for_selector("#model-options input", state="attached")
-        page.add_style_tag(content=".statusbar { display: none; } .topbar { position: static; }")  # not over tall figures
+        page.add_style_tag(content=".statusbar, .figure-tools { display: none; } .topbar { position: static; }")  # not over tall figures
         page.select_option("#example-choice", "tooth:isoarch_cattle")
         click(page, "#btn-example")
         page.wait_for_selector("#specimens-card:not([hidden])")

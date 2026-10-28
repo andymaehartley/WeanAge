@@ -496,6 +496,12 @@ age ranges: A 0–2 months, B 2–6, C 6–12, D 12–24, E 24–36, F 36–48, 
 range ("D/E", "D-E") spans its stages. Other species are entered as `age_min_months`/`age_max_months`
 (a warning appears if Payne stages are given for a species other than sheep or goat).
 
+* **Other wear-stage systems** (cattle and pigs, e.g. Grant 1982 mandible wear stages or Halstead
+  1985 cattle stages): a `wear_stage` column is read with the stage table in Settings, one line per stage
+  (`stage: from–to` in months). WeanAge ships no such table, because published age equivalents for these
+  systems differ between studies and populations; the source of the table typed in (`stage_source`) is
+  written into the methods text. A stage range ("3/4") spans its stages; a stage missing from the table
+  is an error that names the mandible.
 * **Classes**: `class_bounds_months`, by default the Payne stage boundaries.
 * **Sharing ambiguous mandibles**: a mandible whose range lies in one class counts 1 there. One that
   spans several is shared among them in proportion to the number of mandibles found in only one of
@@ -526,8 +532,16 @@ expected_i(p)  = Σ_s p_s·μ_{s,i} + Δ_i
 variance_i(p)  = Σ_s p_s²·σ_{s,i}² + σ_Δi² + σ_measurement²
 ```
 
-as in FRUITS (Fernandes et al. 2014) and MixSIAR-style models (Stock et al. 2018), with foods mixed
-by their protein (no concentration dependence). The shares p have a flat Dirichlet(1, …, 1) prior.
+as in FRUITS (Fernandes et al. 2014) and MixSIAR-style models (Stock et al. 2018).
+
+* **Concentration dependence** (Phillips & Koch 2002): when every food group has an element
+  concentration for an isotope (`conc_C`, `conc_N`, `conc_S`, e.g. % of dry weight), that isotope is
+  mixed by the share of the element each food supplies, w_s = p_s·c_s / Σ p·c, in place of p_s in both
+  equations above. Without concentrations, foods are mixed by their shares directly (as by protein).
+  The shares reported are always food shares p.
+* **Prior**: Dirichlet(α₁, …, α_k), with α the food groups' `prior` weights (1 each by default, a flat
+  prior). A weight above 1 favours that food a priori, for example from faunal or archaeobotanical
+  evidence; the weights used are reported and written into the methods text.
 `draws` (20000) diets are drawn from the prior once and, for each sample, weighted by the normal
 likelihood of its values (importance sampling). Reported per sample: the posterior mean of each share
 and its 95% interval (weighted 2.5% and 97.5% quantiles), and the effective number of draws
@@ -596,6 +610,19 @@ then R¼–Rc over the root; A½ and Ac over apex closure). **These are rounded 
 checked standard; they should be replaced with stage ages from a published atlas (e.g. AlQahtani et al.
 2010; Smith 1991).
 
+**Transition analysis (default).** Following Boldsen et al. (2002), each stage attainment age is the
+mean of a normal distribution of the ages at which children reach it, with SD = spread (below). The
+probability that a tooth is in stage k at age t is P(reached k by t) − P(reached k+1 by t); for the last
+stage it is P(reached it by t). For a child, these probabilities are multiplied over the teeth
+(`teeth = "independent"`) on a grid of ages from −9 to 300 months in steps of 0.25 month, with a flat
+prior over the grid (Konigsberg & Frankenberg 1992). The estimate is the posterior median and the range
+passed on its central 95% interval (from `interval_z`). If the upper bound reaches the end of the grid,
+only a minimum age is reported. With `teeth = "dependent"` the summed log-likelihood is divided by the
+number of teeth, as if the child had one tooth's worth of information: much wider intervals, for when
+teeth of one child are thought to be strongly correlated.
+
+**Midpoint method** (`method = "midpoint"`, the earlier approach):
+
 * A tooth in a stage is between the attainment of that stage and of the next: its age is the midpoint,
   with SD² = width²/12 (uniform) + spread², spread = max(10% of the age, 2 months) (placeholder).
 * A tooth at Ac gives only a minimum age.
@@ -607,9 +634,11 @@ checked standard; they should be replaced with stage ages from a published atlas
   into the bone calculation (`age_min_months`/`age_max_months` of non-adults with the same specimen ID)
   or the life tables.
 
+Discordant teeth (more than `discordance_z` SD from the midpoint estimate) are flagged under both methods.
+
 Tested on 24 simulated children (stages drawn from the same table with 8% developmental variation): mean
-absolute error under 6 months and coverage of the range above 85%. This checks the arithmetic, not the
-formation ages.
+absolute error under 6 months, and coverage of the range above 85% (midpoint method) and 90% (transition
+analysis, both tooth settings); the stage probabilities sum to one at every age once the tooth has begun. This checks the arithmetic, not the formation ages.
 
 ## 17. Enamel hypoplasia timing (`hypoplasia.py`)
 
@@ -646,13 +675,22 @@ Dx deaths, dx = Dx/N, lx = 1 − Σ earlier dx, qx = dx/lx, Lx = n·(lx + lx+n)/
   interval-censored (an open range runs to 1.2 × the last boundary), with parameters bounded to plausible
   values (b₁ 0.05–10, b₃ 0.01–0.2 per year). Its e₀ is the area under the survival curve. With open-ended
   adult ages the senescent part is poorly fixed.
+* **Missing infants** (optional, `expected_infant_share`): infant burials are often missing (poor
+  preservation, burial elsewhere, excavation). Given an expected share of deaths in the first year (from a model life
+  table or historical records for a comparable population; the choice is the user's), infant deaths
+  spread evenly over the first year are added until infants make up that share, and the table and
+  summaries are recomputed. Both tables are shown; the corrected one shows how sensitive e₀ and the
+  other summaries are to the missing infants, not what the true values were.
+* **Groups**: by `site` and `period` by default; `group_by` can name any columns of the table (for
+  example `sex` or `grave_goods`), which are kept as labels on each skeleton.
 * Groups are compared with the permutation test of section 13 on the shares of deaths by class.
 * Warnings: fewer than 30 skeletons; infants under 10% of the dead (pre-modern populations usually lost
   far more, so infant burials are probably missing; Bocquet-Appel & Masset 1982). Always: a life table
   describes a living population only if it was stationary and the dead are a fair sample (the
   osteological paradox, Wood et al. 1992).
 
-Tested on a hand-checked ten-skeleton table and on two simulated cemeteries (Siler hazards, adult ages in
+Tested on a hand-checked ten-skeleton table, on the infant correction (the corrected infant share equals
+the target, and e₀ falls), and on two simulated cemeteries (Siler hazards, adult ages in
 14-year ranges and 50+): e₀ within 6 years of the truth, and the cemetery that lost infant burials is
 flagged.
 
@@ -672,9 +710,20 @@ flagged.
   Outside means "not from here", not "from there".
 * First molars and deciduous teeth form partly during breastfeeding, which raises δ¹⁸O (Wright & Schwarcz
   1998); they are noted.
+* **Where from?** For each non-local person, candidate places are compared: places typed into Settings
+  (name, ⁸⁷Sr/⁸⁶Sr mean and SD, drinking-water δ¹⁸O mean and SD, e.g. from an isoscape or published
+  baseline) and, unless turned off, the other sites in the table (mean and SD of their local people, with
+  at least 3 values; SD at least 0.0002 for ⁸⁷Sr/⁸⁶Sr and 0.3‰ for δ¹⁸O). The person's own site is left
+  out. Each place's likelihood is the product of normal densities for the isotopes both have (the δ¹⁸O SD
+  combines the place's SD and the conversion SD); with equal priors these give each place's probability.
+  A place *fits* if no isotope is more than 2.5 SD away; if none fits, the result says so. The five best
+  are listed. Probabilities are relative to the places offered: a person from somewhere not in the list
+  is still given probabilities, which is why the fit test matters. Several regions often share the same
+  ⁸⁷Sr/⁸⁶Sr, so this narrows down, rather than identifies, an origin (Bentley 2006).
 
 Tested on the conversion equations (Chenery's worked value: −4.0‰ VPDB carbonate ≈ −6.0‰ drinking water)
-and on a simulated site where exactly the five incomers are found.
+and on a simulated site where exactly the five incomers are found; on origins, every incomer of that
+site is given the place it came from as the most probable of two, and locals get no origin.
 
 ## 20. Choosing calculations and grouping by other columns
 
@@ -683,20 +732,49 @@ reports the rows each would accept and, if none, the first problem. Ticked calcu
 In the tooth calculation, columns that are not used are kept as labels on each sample and passed into the
 estimates, so Compare can group by them (any label with 2–20 values).
 
-### References for sections 15–20
+## 21. Individuals
+
+The Individuals page gathers every calculation's results for one specimen ID. A record belongs to an
+individual if its ID is the individual's ID, or starts with it followed by a space (a tooth "04/293 C" of
+individual "04/293"). Ages are put on one timeline in months: the dentine weaning interval and midpoint,
+stress episodes and the age milk fell below half the diet (tooth); ages at death from bone data, dental
+age and the life-table data; and hypoplasia defects. Other results (mobility, origin, diet shares, wear
+stage, enamel signals) are listed. Matching is by ID only: IDs must be written the same way in every
+table, and whether two studies' IDs refer to the same person is for the user to check.
+
+## 22. Methods text
+
+*Methods text* writes a paragraph for each calculation that has results, from the settings actually used
+(models, priors, intervals, number of draws, placeholders still in use) and the number of specimens, with
+a reference list (`methods.py`). Placeholders in use are listed separately, so they can be replaced or
+declared. The text is a draft to be checked and edited, not a finished section.
+
+## 23. Command line
+
+`weanage detect table.csv` lists the calculations a table can be used for. `weanage run <calculation>
+table.csv --settings settings.json -o results.json --methods methods.md` runs any calculation as the app
+does (settings as saved in a project file) and can write the methods paragraph. The older `weanage
+analyze` (tooth estimates as CSV) and `weanage validate` remain.
+
+### References for sections 15–23
 
 * AlQahtani SJ, Hector MP, Liversidge HM (2010) Brief communication: the London atlas of human tooth development and eruption. *Am. J. Phys. Anthropol.* 142: 481–490.
 * Beaumont J, Montgomery J, Buckberry J, Jay M (2015) Infant mortality and isotopic complexity: new approaches to stress, maternal health, and weaning. *Am. J. Phys. Anthropol.* 157: 441–457.
 * Bocquet-Appel J-P, Masset C (1977) Estimateurs en paléodémographie. *L'Homme* 17(4): 65–90.
 * Bocquet-Appel J-P, Masset C (1982) Farewell to paleodemography. *J. Hum. Evol.* 11: 321–333.
+* Boldsen JL, Milner GR, Konigsberg LW, Wood JW (2002) Transition analysis: a new method for estimating age from skeletons. In Hoppa RD, Vaupel JW (eds) *Paleodemography: Age Distributions from Skeletal Samples*, pp. 73–106. Cambridge University Press.
 * Chamberlain AT (2006) *Demography in Archaeology*. Cambridge University Press.
 * Chenery CA, Pashley V, Lamb AL, Sloane HJ, Evans JA (2012) The oxygen isotope relationship between the phosphate and structural carbonate fractions of human bioapatite. *Rapid Commun. Mass Spectrom.* 26: 309–319.
 * Coplen TB, Kendall C, Hopple J (1983) Comparison of stable isotope reference samples. *Nature* 302: 236–238.
 * Daux V et al. (2008) Oxygen isotope fractionation between human phosphate and water revisited. *J. Hum. Evol.* 55: 1138–1147.
 * Fuller BT, Fuller JL, Harris DA, Hedges REM (2006) Detection of breastfeeding and weaning in modern human infants with carbon and nitrogen stable isotope ratios. *Am. J. Phys. Anthropol.* 129: 279–293.
 * Goodman AH, Rose JC (1990) Assessment of systemic physiological perturbations from dental enamel hypoplasias and associated histological structures. *Yearb. Phys. Anthropol.* 33: 59–110.
+* Grant A (1982) The use of tooth wear as a guide to the age of domestic ungulates. In Wilson B, Grigson C, Payne S (eds) *Ageing and Sexing Animal Bones from Archaeological Sites*, BAR British Series 109, pp. 91–108.
+* Halstead P (1985) A study of mandibular teeth from Romano-British contexts at Maxey. In Pryor F, French C (eds) *Archaeology and Environment in the Lower Welland Valley*, East Anglian Archaeology 27, pp. 219–224.
+* Konigsberg LW, Frankenberg SR (1992) Estimation of age structure in anthropological demography. *Am. J. Phys. Anthropol.* 89: 235–256.
 * Lightfoot E, O'Connell TC (2016) On the use of biomineral oxygen isotope data to identify human migrants in the archaeological record. *PLoS ONE* 11: e0153850.
 * Moorrees CFA, Fanning EA, Hunt EE (1963) Age variation of formation stages for ten permanent teeth. *J. Dent. Res.* 42: 1490–1502.
+* Phillips DL, Koch PL (2002) Incorporating concentration dependence in stable isotope mixing models. *Oecologia* 130: 114–125.
 * Pollard AM, Pellegrini M, Lee-Thorp JA (2011) Technical note: some observations on the conversion of dental enamel δ18Op values to δ18Ow to determine human mobility. *Am. J. Phys. Anthropol.* 145: 499–504.
 * Price TD, Burton JH, Bentley RA (2002) The characterization of biologically available strontium isotope ratios for the study of prehistoric migration. *Archaeometry* 44: 117–135.
 * Reid DJ, Dean MC (2006) Variation in modern human enamel formation times. *J. Hum. Evol.* 50: 329–346.

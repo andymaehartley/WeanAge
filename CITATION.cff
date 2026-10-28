@@ -4,8 +4,9 @@ title: "WeanAge: weaning-age estimation from tooth dentine and bone collagen δ1
 authors:
   - family-names: Hartley
     given-names: Annabelle
-version: 0.2.0
+version: 0.3.0
+date-released: 2026-10-28
 license: MIT
 repository-code: "https://github.com/andymaehartley/WeanAge"
-keywords: [zooarchaeology, bioarchaeology, weaning, stable isotopes, nitrogen, dentine, bone collagen, livestock]
+keywords: [zooarchaeology, bioarchaeology, weaning, stable isotopes, nitrogen, dentine, bone collagen, livestock, life tables, mobility, diet mixing]
 # TBD: add the Zenodo DOI here after the first archived release.

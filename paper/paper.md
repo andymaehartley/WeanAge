@@ -1,6 +1,6 @@
 ---
-title: 'WeanAge: weaning-age estimation for livestock from incremental dentine nitrogen isotopes'
-tags: [Python, zooarchaeology, stable isotopes, weaning, livestock, Bayesian statistics]
+title: 'WeanAge: weaning ages and life histories of archaeological animals and people from stable isotopes'
+tags: [Python, zooarchaeology, bioarchaeology, stable isotopes, weaning, livestock, Bayesian statistics]
 authors:
   - name: Annabelle Hartley
     affiliation: 1
@@ -26,9 +26,12 @@ records this fall month by month [@balasse2001; @beaumont2013].
 WeanAge turns such a series into a weaning age with an honest uncertainty. It converts each
 slice's position on the tooth into an age, checks collagen quality, fits five candidate
 shapes of weaning curve, compares and averages them, corrects for the blurring caused by
-slicing, and compares weaning ages between sites, species and periods. A simulation-based
-planner shows, before any tooth is cut, how sampling choices affect accuracy. It runs as a
-local web app, from the command line, or entirely inside a web browser.
+slicing, and compares weaning ages between sites, species and periods. It also estimates the end
+of suckling from the bone collagen of many young individuals who died at different ages (after
+WARN, @tsutaya2013). Simulation-based planners show, before any tooth is cut or bone sampled, how
+sampling choices affect accuracy. Around weaning it offers the calculations that usually go with
+it in a study (below), all from the same table. It runs as a local web app, from the command line,
+or entirely inside a web browser.
 
 # Statement of need
 
@@ -59,6 +62,22 @@ WeanAge provides one documented and tested method for livestock:
   with half-Cauchy priors [@gelman2006] and split-R̂ convergence checks [@vehtari2021].
 * **Validation** against known-age animals or published estimates [@balasse2001; @balasse2002].
 * A **browser version** built on Pyodide [@pyodide], so nothing has to be installed.
+
+Weaning ages are rarely interpreted alone, so WeanAge also provides, from the same data table:
+kill-off profiles from aged mandibles [@payne1973]; a Bayesian diet-mixing model for collagen δ¹³C,
+δ¹⁵N and δ³⁴S in the style of FRUITS [@fernandes2014], with concentration dependence
+[@phillips2002]; for cattle, season of birth and rumen development from sequential enamel δ¹⁸O and
+δ¹³C; and for people, the breast-milk share at each dentine increment, age at death from tooth
+formation stages [@moorrees1963] by transition analysis [@boldsen2002], the timing of enamel
+hypoplasia, life tables with a Siler hazard [@siler1979], and mobility from enamel δ¹⁸O
+[@chenery2012] and ⁸⁷Sr/⁸⁶Sr with likely places of origin. A dropped table is checked against every
+calculation; an *Individuals* page puts each person's or animal's results on one timeline; and a
+methods paragraph with references is written from the settings used, so that analyses are reported
+consistently. Every calculation ships with an example; most are published data from IsoArcH
+[@salesse2018], CIMA [@cocozza2022] and two R packages, with their sources and assumptions documented.
+
+WeanAge is tested with pytest (unit, known-answer and simulation tests, and a browser test of the
+whole app with Playwright) and with Node's test runner for the interface's own logic.
 
 # Acknowledgements
 

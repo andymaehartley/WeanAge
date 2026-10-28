@@ -128,7 +128,9 @@ From known-age young animals and their mothers, ideally from the same herds.
 ## 8b. Kill-off profiles
 
 - [ ] **Ageing method** for each species: Payne (1973) stages are for sheep and goats; cattle and pigs
-      need their own wear stages converted to age ranges (with the source).
+      need their own wear stages converted to age ranges (with the source). Enter these under Settings →
+      *Another wear-stage system* (e.g. Grant 1982 mandible wear stages with the age equivalents of a
+      published study); WeanAge does not supply them.
 - [ ] Record mandibles that can only be put in two stages as such ("D/E"), rather than guessing one.
 - [ ] Note taphonomy (gnawing, fragmentation) and recovery (sieving), which affect young mandibles most.
 
@@ -138,6 +140,10 @@ From known-age young animals and their mothers, ideally from the same herds.
       same site and period, converted to the edible part where needed.
 - [ ] **Collagen-diet offsets** for the species studied (humans: δ¹⁵N about 6‰, O'Connell et al. 2012).
 - [ ] Decide which food groups to include; more groups than isotopes + 1 cannot be told apart.
+- [ ] If foods differ much in protein (e.g. cereals and meat), their **C, N and S concentrations** (% of
+      dry weight of the edible part), for concentration-dependent mixing.
+- [ ] Any **prior evidence** for the share of a food (faunal, archaeobotanical, residue), if prior weights
+      other than 1 are used; record why.
 
 ## 8d. People (`data/dental_stages.json` and Settings)
 
@@ -156,6 +162,12 @@ From known-age young animals and their mothers, ideally from the same herds.
       **local drinking-water δ¹⁸O** range, and **local bioavailable ⁸⁷Sr/⁸⁶Sr** (fauna, plants, snails).
 - [ ] Prefer **later-forming teeth** (PM2, M2, M3) for mobility: M1 and deciduous teeth may carry a
       breastfeeding δ¹⁸O signal.
+- [ ] For *possible origins*: published ⁸⁷Sr/⁸⁶Sr and drinking-water δ¹⁸O (mean and SD) of the candidate
+      regions, from isoscapes or local baselines, with sources.
+- [ ] For the life-table infant correction: the **expected share of infant deaths** for a comparable
+      population (model life table or historical records), with the source.
+- [ ] Use the **same specimen IDs** in every table (tooth, bone, dental, mobility, life table), so the
+      Individuals page and the dental-age hand-offs can match them.
 
 ## 9. Example data assumptions
 
@@ -167,6 +179,11 @@ publications or the authors before they are used in a thesis or paper.
 - [ ] **Mikulčice human teeth** (CIMA): section positions (ten equal sections over 21 mm were
       assumed).
 - [ ] **CIMA human bone sites**: age-at-death ranges and sex of the adults, as recorded in CIMA.
+- [ ] **Mikulčice mobility and dentine** (CIMA): that the grave numbers of Vytlačil et al. (2021) and
+      Kaupová et al. (2024) refer to the same burials.
+- [ ] **Münsingen-Rain** (mortAAR): the conversion of the published age text to ranges; these 71 are the
+      individuals sampled for isotopes, not the whole cemetery.
+- [ ] **Marj Rabba** (zooaRch): that age classes 1–9 are Payne's A–I.
 
 ## When an item is done
 

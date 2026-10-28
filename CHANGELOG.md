@@ -1,8 +1,34 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-28)
 
 ### Added
+* Individuals page: everything the calculations found for one specimen ID (weaning, stress episodes,
+  milk share, ages at death, hypoplasia, mobility and origin, diet shares, wear stage) on one timeline.
+* Methods text: a methods paragraph for every calculation run, from the settings used, with references
+  and a list of the placeholders still in use (`methods.py`; *Methods text* in the header, or
+  `weanage run … --methods`).
+* Publication figures: every chart downloads as SVG or PNG (4× size), redrawn in light colours on white
+  with a caption, and the caption can be copied.
+* `weanage detect` and `weanage run <calculation>` run every calculation from the command line, with a
+  settings file, JSON results and the methods paragraph.
+* Dental age by transition analysis (Boldsen et al. 2002), now the default: the chance of each stage at
+  every age, combined over the teeth, with the posterior median and 95% interval; teeth can be treated as
+  dependent. The midpoint method remains.
+* Diet mixing: concentration dependence (Phillips & Koch 2002) from %C, %N and %S of each food, and
+  Dirichlet prior weights per food.
+* Mobility: possible origins of non-local people, from places typed into Settings and the other sites in
+  the table, with probabilities and a fit test.
+* Life tables: an optional correction for missing infant burials (expected share of infant deaths),
+  shown next to the original; group by any columns (`group_by`).
+* Kill-off profiles: other wear-stage systems (e.g. Grant 1982 for cattle and pigs) through a stage-age
+  table typed in Settings, with its source.
+* Published example datasets for kill-off (Marj Rabba, zooaRch), diet mixing (early medieval Wales and
+  Man, CIMA), life tables (Münsingen-Rain, mortAAR) and mobility (Bamburgh and Mikulčice, CIMA). The
+  synthetic tooth, bone, kill-off, mixing, cemetery and mobility tables moved to `tests/data/`. Enamel,
+  dental age and hypoplasia keep simulated examples: no openly licensed data were found.
+* JavaScript unit tests (`node --test "tests/js/*.test.mjs"`) for the individual pages, the dental-age
+  hand-offs, wear-stage tables and the methods inputs, run in CI.
 * Data tab: drop a table first; WeanAge lists every calculation with the rows it can use or what is
   missing, and any number can be ticked and run from the same file. Buttons at the top switch
   between the ticked calculations. Examples of every calculation are in one list.
@@ -43,6 +69,10 @@
   part of the calculation works and where it comes from, with references.
 
 ### Changed
+* Data tab: calculations a loaded file can't feed are folded away, with the reason.
+* The guided tour covers the new Data flow, other calculations' settings, Individuals and Methods text.
+* Light mode, larger text and the age unit are in a *View* menu.
+* The Compare page's code moved from `app.js` into `compare.js`.
 * One Next: settings button, in the Load isotope data box.
 * Accessibility (WCAG 2.2 AA, checked with axe-core on every page in both themes): result lists
   and scrollable tables work with screen readers and the keyboard; 24 px help buttons and larger
@@ -67,7 +97,7 @@
 ### Removed
 * The `/api/ingest/csv` alias and the blocking `/api/analyze` route. Use `/api/jobs/analyze`.
 
-## 0.2.0 (not yet released)
+## 0.2.0 (not released separately; its changes are in 0.3.0)
 
 ### Added
 * Bone calculation after WARN (Tsutaya & Yoneda 2013): weaning ages from the bone collagen

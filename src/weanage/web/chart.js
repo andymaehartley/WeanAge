@@ -316,16 +316,17 @@ export function biplotChart(box, { points, sources, title, xLabel = "Collagen δ
   }
   const groups = [...new Set(points.map((p) => p.group))];
   const groupColor = (i) => color(["logistic", "piecewise", "exponential", "two_phase"][i % 4], palette);
+  const groupShape = (i) => SHAPES[(i + Math.floor(i / 4)) % 4]; // with the colour, unique for up to 16 groups
   for (const p of points) {
     const i = groups.indexOf(p.group);
-    hover(box, marker(SHAPES[i % 4], xs(p.x), ys(p.y), 5, { fill: groupColor(i), class: "pt-group" }, svg), p.label);
+    hover(box, marker(groupShape(i), xs(p.x), ys(p.y), 5, { fill: groupColor(i), class: "pt-group" }, svg), p.label);
   }
   for (const s of sources) { // names last, so points do not cover them
     el("text", { x: xs(s.x), y: ys(s.y + s.sdy) - 6, "text-anchor": "middle", fill: muted, class: "marker-label" }, svg).textContent = s.name;
   }
   groups.forEach((g, i) => {
     const y = area.top + 12 + i * 18;
-    marker(SHAPES[i % 4], area.left + 16, y, 5, { fill: groupColor(i) }, svg);
+    marker(groupShape(i), area.left + 16, y, 5, { fill: groupColor(i) }, svg);
     el("text", { x: area.left + 28, y: y + 4, class: "legend-text" }, svg).textContent = g;
   });
   return svg;
@@ -335,7 +336,8 @@ export function biplotChart(box, { points, sources, title, xLabel = "Collagen δ
 export function lineChart(box, series, { xLabel, yLabel, title, yMin } = {}) {
   const desc = series.map((s) => `${s.name}: ${s.points.map((p) => `${label(p.x)} → ${num(p.y)}`).join(", ")}`).join("; ");
   const legend = series.length > 1; // one line needs no legend: the axis title names it
-  const { svg, area } = newChart(box, 760, 360, { l: 64, r: legend ? 130 : 24, t: 16, b: 56 }, title, desc);
+  const legendWidth = Math.min(300, 52 + 7.5 * Math.max(...series.map((s) => s.name.length))); // room for the longest name
+  const { svg, area } = newChart(box, 760, 360, { l: 64, r: legend ? legendWidth : 24, t: 16, b: 56 }, title, desc);
   const hasValue = (p) => p.y != null && isFinite(p.y);
   const pts = series.flatMap((s) => s.points).filter(hasValue);
   if (!pts.length) return svg;
