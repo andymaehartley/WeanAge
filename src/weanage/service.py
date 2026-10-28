@@ -26,6 +26,7 @@ from .inference import compare_groups
 from .ingest import ingest_dataframe, ingest_file, ingest_records, read_table
 from .killoff import analyze_killoff, ingest_killoff_dataframe
 from .lifetable import analyze_lifetable, ingest_life_dataframe
+from .methods import write_methods
 from .mixing import analyze_mixing, ingest_mixing_dataframe
 from .mixing import with_defaults as with_diet_defaults
 from .mobility import analyze_mobility, ingest_mobility_dataframe
@@ -271,6 +272,10 @@ CALCULATIONS = {
                           "Loaded enamel phosphate δ18O and 87Sr/86Sr of 86 teeth from early medieval Bamburgh, "
                           "Northumberland (Groves et al. 2013, via CIMA, CC BY-SA). No local baseline samples are "
                           "included, so the local range comes from the people themselves."),
+        "cima_mikulcice": ("cima_mobility_mikulcice.csv", "Real enamel 87Sr/86Sr: Mikulčice, 9th-10th c. (CIMA)",
+                           "Loaded enamel 87Sr/86Sr of 123 adults from Mikulčice (Vytlačil et al. 2021, via CIMA, CC BY-SA). "
+                           "Grave numbers are written as in the Mikulčice dentine example (MIK216 = grave 216), so the "
+                           "five burials in both can be seen together on the Individuals page."),
     }),
 }
 
@@ -310,6 +315,14 @@ def run_calculation(name, body: dict, progress=None):
     if not samples:
         raise ValueError("no samples to analyse")
     return calc.analyze(samples, calc.options(**(body.get("options") or {})), progress)
+
+
+class MethodsIn(BaseModel):
+    runs: dict[str, dict[str, Any]] = Field(min_length=1)
+
+
+def methods(body: MethodsIn):
+    return write_methods(body.runs)
 
 
 def save_table(table: GrowthTable):

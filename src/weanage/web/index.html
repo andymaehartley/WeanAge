@@ -29,16 +29,22 @@
       <button class="step" data-view="results" disabled><span aria-hidden="true">3</span> Results</button>
       <button class="step" data-view="compare" disabled><span aria-hidden="true">4</span> Compare</button>
       <button class="step aside" data-view="plan">Plan sampling</button>
+      <button class="step aside" data-view="individuals" disabled>Individuals</button>
     </nav>
     <div class="actions">
       <label class="button ghost" title="Open a saved project file">Open<input id="project-input" type="file" accept=".json,.weanage" hidden></label>
       <button id="btn-save" class="ghost" title="Save data, settings and results to a file">Save</button>
       <button id="btn-report" class="ghost" disabled title="Download a reproducible HTML report">Report</button>
+      <button id="btn-methods" class="ghost" disabled title="A methods paragraph, with references, for the calculations run">Methods text</button>
       <span class="divider" aria-hidden="true"></span>
-      <button id="btn-theme" class="ghost" aria-pressed="false">Light mode</button>
-      <button id="btn-text" class="ghost" aria-pressed="false">Larger text</button>
-      <button id="btn-units" class="ghost" aria-pressed="false" title="Show results in months or in years">Ages in years</button>
-      <span class="divider" aria-hidden="true"></span>
+      <div class="menu-wrap">
+        <button id="btn-view" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="view-menu">View <span aria-hidden="true">▾</span></button>
+        <ul id="view-menu" class="menu" hidden>
+          <li><button type="button" id="btn-theme" aria-pressed="false">Light mode</button></li>
+          <li><button type="button" id="btn-text" aria-pressed="false">Larger text</button></li>
+          <li><button type="button" id="btn-units" aria-pressed="false" title="Show results in months or in years">Ages in years</button></li>
+        </ul>
+      </div>
       <div class="menu-wrap">
         <button id="btn-help" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="help-menu">Help <span aria-hidden="true">▾</span></button>
         <ul id="help-menu" class="menu" hidden>
@@ -1137,6 +1143,27 @@
       </article>
     </section>
 
+    <!-- individuals: everything about one specimen ID -->
+    <section id="view-individuals" class="view" aria-labelledby="h-individuals">
+      <h2 id="h-individuals" class="sr-only">Individuals</h2>
+      <div class="results-layout">
+        <section class="card specimen-list" aria-labelledby="h-individual-list">
+          <h2 id="h-individual-list">Individuals <span id="individual-count" class="muted small"></span></h2>
+          <label class="small">Find<input id="individual-filter" type="search" placeholder="ID"></label>
+          <ul id="individual-list" role="listbox" aria-label="Choose an individual"></ul>
+        </section>
+        <article class="card" id="individual-main">
+          <h2 id="individual-title"></h2>
+          <p id="individual-meta" class="muted small"></p>
+          <div id="individual-chart" class="chart-box"></div>
+          <p class="hint">Bars are age ranges (weaning, stress episodes, ages at death); dots are single ages. Records are matched
+            by specimen ID across the calculations, so use the same IDs in every table.</p>
+          <h3>What each calculation found <span data-helpslot="individuals"></span></h3>
+          <dl id="individual-findings" class="terms"></dl>
+        </article>
+      </div>
+    </section>
+
     <!-- 4. compare -->
     <section id="view-compare" class="view" aria-labelledby="h-compare">
       <h2 id="h-compare" class="sr-only">Compare</h2>
@@ -1346,6 +1373,22 @@
 
 
   <!-- About: citation, licences and acknowledgements. -->
+  <dialog id="methods-dialog" class="dialog wide" aria-labelledby="methods-title">
+    <form method="dialog" class="dialog-head">
+      <h2 id="methods-title">Methods text</h2>
+      <button class="ghost tiny" value="close">Close</button>
+    </form>
+    <p class="hint">Written from the settings of every calculation you have run. Check it, adapt it to your study, and
+      give the version of WeanAge you used.</p>
+    <p id="methods-placeholders" class="warn-text small">Some values used are still placeholders (listed at the end of the
+      text): replace them, or report them, before publishing.</p>
+    <div id="methods-body" class="methods-body"></div>
+    <div class="row gap wrap">
+      <button id="btn-methods-copy" class="secondary tiny" type="button">Copy</button>
+      <button id="btn-methods-download" class="secondary tiny" type="button">Download (.md)</button>
+    </div>
+  </dialog>
+
   <dialog id="about-dialog" class="dialog" aria-labelledby="about-title">
     <form method="dialog" class="dialog-head">
       <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="currentColor"><rect x="2" y="5" width="4" height="23" rx="1"/><rect x="8" y="6" width="4" height="22" rx="1"/><rect x="14" y="13" width="4" height="15" rx="1"/><rect x="20" y="20" width="4" height="8" rx="1"/><rect x="26" y="21" width="4" height="7" rx="1"/></g></svg>

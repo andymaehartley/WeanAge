@@ -26,6 +26,7 @@ export const GLOSSARY = {
   infant_correction: ["Missing infants", "Infant burials are often missing (shallow graves, fragile bones, burial elsewhere). Given the share of deaths expected in the first year, from a comparable population or a model life table, WeanAge adds infant deaths to a second, corrected table until they reach that share, and reports its life expectancy. The correction is only as good as the share you give."],
   wear_stages: ["Other wear-stage systems", "Mandibles of cattle, pigs or other species scored in another system (for example Grant's mandible wear stages, or Halstead's cattle stages) are given in a wear_stage column. Enter the age range of each stage, in months, from the publication you follow, one per line as 'stage: from-to'. A mandible that could be in two stages is written 'C/D'. WeanAge does not bundle these tables, because their ages differ between studies."],
   origins: ["Possible origins", "For each non-local person, each place's expected ⁸⁷Sr/⁸⁶Sr and drinking-water δ¹⁸O (mean and SD) is compared with the person's values. The places are given equal prior weight and the probabilities shown sum to 100% over the places compared; a place counts only if it lies within 2.5 SD in every isotope. The other sites of the table can be used too, described by their local people. Many places share the same values, so this narrows the possibilities; it does not find a birthplace."],
+  individuals: ["Individuals", "Everything WeanAge knows about one person or animal, from every calculation that has a record with this specimen ID: weaning and stress episodes from the dentine, age at death from the teeth, bone data or skeleton, enamel hypoplasia, mobility and diet. 'open' shows that calculation's own result. Teeth in the mobility table are matched to their individual when the ID starts with the individual's ID followed by a space (for example '04/293 C')."],
   killoff: ["Kill-off profiles", "Each mandible is aged by its tooth wear (Payne 1973 stages A–I for sheep and goats) or given an age range. Mandibles that could belong to two stages are shared among them in proportion to the mandibles that fall in only one, as Payne did. The profile is the share killed in each age class; survivorship is the share still alive after each. Payne modelled herds kept for milk (most young males killed before about 6 months), meat (killed at 6 months to about 3 years, near full weight) and wool (many kept for years). Real herds mix aims, and young mandibles are lost to dogs, trampling and excavation more often, so read profiles alongside other evidence (Vigne & Helmer 2007)."],
   killoff_difference: ["Difference between profiles", "Half the summed absolute difference between the two groups' shares in each class: 0% for identical profiles, 100% when they share no class. The p value is the share of random reshufflings of mandibles between the two groups that differ at least this much."],
   mixing: ["Diet mixing model", "Collagen δ values are a mix of the foods eaten, shifted by a collagen-diet offset. Many possible diets are drawn (all mixes equally likely beforehand) and each is weighted by how well it explains the sample, giving each food group's share with a 95% interval, as in FRUITS (Fernandes et al. 2014). Foods are mixed by their protein; with more food groups than isotopes + 1, several diets fit equally well and the intervals stay wide (Phillips et al. 2014). The answer is only as good as the food values, which should come from the same site and period."],
@@ -192,9 +193,8 @@ export function tourSeen() {
 // The Help menu: the tour, and the PDF user guide
 const GUIDE_PDF = "guide/WeanAge_user_guide.pdf";
 
-export function initHelpMenu(show, mode) {
-  const button = $("#btn-help");
-  const menu = $("#help-menu");
+/** A drop-down menu opened by `button`: arrow keys move, Escape closes, choosing an item closes it. */
+export function bindMenu(button, menu) {
   const items = () => [...menu.querySelectorAll("button, a[href]")];
   const close = (refocus) => {
     menu.hidden = true;
@@ -207,11 +207,7 @@ export function initHelpMenu(show, mode) {
     items()[0].focus();
   };
   button.addEventListener("click", () => (menu.hidden ? open() : close(false)));
-  $("#menu-tour").addEventListener("click", () => {
-    close(false);
-    startTour(show, mode());
-  });
-  $("#menu-guide").addEventListener("click", () => close(false));
+  menu.addEventListener("click", (e) => { if (e.target.closest("button, a[href]")) close(false); });
   menu.addEventListener("keydown", (e) => {
     const list = items();
     const at = list.indexOf(document.activeElement);
@@ -221,8 +217,14 @@ export function initHelpMenu(show, mode) {
     if (["ArrowDown", "ArrowUp"].includes(e.key)) e.preventDefault();
   });
   document.addEventListener("click", (e) => {
-    if (!menu.hidden && !e.target.closest(".menu-wrap")) close(false);
+    if (!menu.hidden && !button.parentElement.contains(e.target)) close(false);
   });
+}
+
+export function initHelpMenu(show, mode) {
+  bindMenu($("#btn-help"), $("#help-menu"));
+  bindMenu($("#btn-view"), $("#view-menu"));
+  $("#menu-tour").addEventListener("click", () => startTour(show, mode()));
   markGuideIfMissing();
 }
 

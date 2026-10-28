@@ -14,8 +14,11 @@ Six examples are taken from the human data, each from a single published study:
     Newark Bay, Orkney          Richards, Fuller & Molleson 2006
 * Tooth calculation (dentine sections of first molars):
     Mikulčice, Czechia          Kaupová et al. 2024
-* Mobility (enamel phosphate δ18O and 87Sr/86Sr):
+* Mobility (enamel phosphate δ18O and 87Sr/86Sr; enamel 87Sr/86Sr):
     Bamburgh, Northumberland    Groves et al. 2013
+    Mikulčice, Czechia          Vytlačil et al. 2021 (grave numbers written as in the dentine example,
+                                MIK216 for grave 216, so that the burials in both studies can be linked;
+                                the two studies are assumed to use the same grave numbering)
 * Diet mixing (adult bone collagen δ13C, δ15N, δ34S):
     early medieval Wales and the Isle of Man   Hemer et al. 2017
 
@@ -138,6 +141,17 @@ def mobility_example(everything):
     return pd.DataFrame(out)
 
 
+def mikulcice_mobility(everything):
+    rows = everything[(everything["Site Name"] == "Mikulčice") & everything["Reference"].str.startswith("Vytlačil", na=False)
+                      & everything["87Sr/86Sr"].notna()]
+    out = [{"specimen_id": "MIK" + str(r["Individual ID"]).replace("/", "_"), "site": "Mikulčice", "species": "human",
+            "tooth": "", "d18O": None, "d18O_material": "carbonate", "sr87_86": r["87Sr/86Sr"], "role": "sample",
+            "period": "9th-10th c. AD",
+            "notes": f"grave {r['Individual ID']}; {r['Age Category']}; Vytlačil et al. 2021; CIMA entry {r['CIMA Entry ID']}; {LICENCE}"}
+           for _, r in rows.iterrows()]
+    return pd.DataFrame(out)
+
+
 def mixing_example(data):
     reference, citation = MIXING_STUDY
     rows = data[data["Reference"].str.startswith(reference, na=False) & data["δ34S Collagen"].notna()
@@ -169,6 +183,9 @@ def main():
     enamel = mobility_example(everything)
     enamel.to_csv(OUT / "cima_mobility_bamburgh.csv", index=False)
     print(f"cima_mobility_bamburgh.csv: {len(enamel)} teeth")
+    moravia = mikulcice_mobility(everything)
+    moravia.to_csv(OUT / "cima_mobility_mikulcice.csv", index=False)
+    print(f"cima_mobility_mikulcice.csv: {len(moravia)} teeth")
     collagen = mixing_example(data)
     collagen.to_csv(OUT / "cima_mixing_wales_man.csv", index=False)
     print(f"cima_mixing_wales_man.csv: {len(collagen)} adults from {collagen['site'].nunique()} sites")

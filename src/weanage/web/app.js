@@ -13,6 +13,8 @@ import { api, inBrowser, onEngineStatus } from "./api.js";
 import { curveChart, curveOptions, forestChart, lineChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
+import { hasIndividuals, initIndividuals, renderIndividuals } from "./individuals.js";
+import { initMethods } from "./methods.js";
 import { initPlanner, renderPlan } from "./planner.js";
 import { buildReport, offscreen } from "./report.js";
 import { $, $$, ageNum, ageText, ageValue, ci, color, download, esc, getAgeUnit, help, labelScrollBoxes, MILESTONES, num, plural, progressBar, pIs, percent, pval, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, setAgeUnit, swatch, table, tbdBadge, toast, toCsv, toUnit, unitShort, unitWord } from "./util.js";
@@ -81,6 +83,7 @@ function show(view) {
     renderGroupChoices();
     refreshCompare();
   }
+  if (view === "individuals") renderIndividuals();
   window.scrollTo({ top: 0 });
 }
 
@@ -95,6 +98,20 @@ function enableResults() {
   const plan = $('.step[data-view="plan"]');
   plan.disabled = Boolean(oneTable());
   plan.title = oneTable() ? "Tooth and bone calculations only" : "";
+  $('.step[data-view="individuals"]').disabled = !hasIndividuals(state);
+  $("#btn-methods").disabled = !(state.results || state.bone?.results || Object.values(CALCS).some((c) => c.hasResults()));
+}
+
+/** From the Individuals page: show one calculation's result for this individual. */
+function openIndividual(calc, id) {
+  if (!state.chosen.includes(calc)) state.chosen.push(calc);
+  switchCalc(calc);
+  if (calc === "tooth" && state.results?.some((r) => r.specimen_id === id)) state.current = id;
+  if (CALCS[calc]?.own().output?.results?.some((r) => r.specimen_id === id)) CALCS[calc].own().current = id;
+  const hasResults = calc === "tooth" ? state.results : calc === "bone" ? state.bone.results : CALCS[calc].hasResults();
+  if (calc === "tooth" && hasResults) renderResults();
+  else if (CALCS[calc]) CALCS[calc].renderResults();
+  show(hasResults ? "results" : "data");
 }
 
 /** Show one calculation; each keeps its own data and results. */
@@ -999,6 +1016,8 @@ async function init() {
   initSettings();
   initBone(state, { show, autosave, refreshNav: enableResults, qc: () => settings().qc });
   for (const calc of Object.values(CALCS)) calc.init(state, { show, autosave, refreshNav: enableResults });
+  initIndividuals(state, { open: openIndividual });
+  initMethods(state, CALCS);
   fillExampleChoice();
   setMode("tooth", false);
   initAbout(state.config);

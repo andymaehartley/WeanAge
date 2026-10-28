@@ -372,3 +372,8 @@ td.num, th.num, .age, .readout, .pill { font-variant-numeric: tabular-nums; }
 .edit-table td { padding: 4px; }
 .edit-table input { width: 100%; min-width: 5.5rem; }
 .edit-table input[type="text"] { min-width: 10rem; }
+
+/* Methods text */
+.methods-body { max-height: 55vh; overflow-y: auto; border: 1px solid var(--rule); border-radius: var(--radius); padding: .4rem .9rem; margin: .5rem 0 .8rem; }
+.refs-list { padding-left: 1.1rem; font-size: .88rem; }
+.refs-list li { margin-bottom: .25rem; }

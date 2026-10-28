@@ -53,6 +53,7 @@ const server = {
     return waitForJob(job, onProgress);
   },
   aggregate: (body) => request("/api/aggregate", json(body)),
+  methods: (runs) => request("/api/methods", json({ runs })),
   saveTable: (table) => request("/api/growth-tables", json(table)),
   deleteTable: (species, tooth) =>
     request(`/api/growth-tables/${encodeURIComponent(species)}/${encodeURIComponent(tooth)}`, { method: "DELETE" }),
@@ -179,6 +180,7 @@ const browser = {
   analyze: analyzeInParallel,
   simulate: (body, onProgress) => python("simulate", body, onProgress),
   aggregate: (body) => python("aggregate", body),
+  methods: (runs) => python("methods", { runs }),
   saveTable: (table) => python("save_table", table),
   deleteTable: (species, tooth) => python("delete_table", { species, tooth }),
   calibrate: (body) => python("calibrate", body),

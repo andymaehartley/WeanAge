@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__, config, service
 from .schema import GrowthTable
-from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, SimulateBoneIn, SimulateIn
+from .service import AggregateIn, AnalyzeIn, BoneAnalyzeIn, CalibrateIn, MethodsIn, SimulateBoneIn, SimulateIn
 
 app = FastAPI(title="WeanAge", version=__version__)
 
@@ -151,6 +151,11 @@ def bone_simulate_in_background(body: SimulateBoneIn):
 @app.post("/api/jobs/simulate")
 def simulate_in_background(body: SimulateIn):
     return start_job("simulate", lambda progress: service.run_planner(body, progress))
+
+
+@app.post("/api/methods")
+def methods_text(body: MethodsIn):
+    return checked(service.methods, body)
 
 
 @app.post("/api/aggregate")

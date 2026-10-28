@@ -217,6 +217,35 @@ function addZoom(svg, plot, area, xs, onZoom) {
   svg.addEventListener("dblclick", () => onZoom(null));
 }
 
+/**
+ * Ages in one life, one row per kind of evidence.
+ * rows: [{label, items: [{from, to, at, text}]}]: a bar from–to and/or a dot at `at` (ages already in the display unit).
+ */
+export function timelineChart(box, rows, { title, xLabel, palette = theme() }) {
+  const items = rows.flatMap((r) => r.items);
+  const desc = rows.map((r) => `${r.label}: ${r.items.map((i) => i.text).join("; ")}`).join(". ");
+  const { svg, area } = newChart(box, 760, 64 + 40 * Math.max(rows.length, 1), { l: 190, r: 24, t: 10, b: 54 }, title, desc);
+  const values = items.flatMap((i) => [i.from, i.to, i.at]).filter((v) => v != null && isFinite(v));
+  if (!values.length) return svg;
+  const ticks = niceTicks(Math.min(0, ...values), Math.max(...values));
+  const xs = scale(ticks[0], ticks.at(-1), area.left, area.right);
+  xAxis(el("g", { class: "axes" }, svg), area, xs, ticks, xLabel);
+  rows.forEach((row, i) => {
+    const y = area.top + 40 * (i + 0.5);
+    const colour = color(["logistic", "piecewise", "exponential", "two_phase", "elbow"][i % 5], palette);
+    el("text", { x: area.left - 10, y: y + 4, "text-anchor": "end", class: "row-label" }, svg).textContent = row.label;
+    el("line", { x1: area.left, x2: area.right, y1: y, y2: y, class: "grid" }, svg);
+    for (const item of row.items) {
+      if (item.from != null && item.to != null) {
+        hover(box, el("rect", { x: xs(item.from), y: y - 7, width: Math.max(xs(item.to) - xs(item.from), 2), height: 14, rx: 3,
+          fill: colour, "fill-opacity": 0.45, stroke: colour }, svg), esc(item.text));
+      }
+      if (item.at != null) hover(box, marker("circle", xs(item.at), y, 5.5, { fill: colour, class: "pt-group" }, svg), esc(item.text));
+    }
+  });
+  return svg;
+}
+
 /** Forest plot: one row per group with its interval, mean (square) and specimens (dots). */
 export function forestChart(box, groups, xTitle) {
   const desc = groups.map((g) => `${g.label}: mean ${num(g.mean, 1)}`).join("; ");

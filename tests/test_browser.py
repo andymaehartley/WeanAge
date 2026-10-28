@@ -169,6 +169,15 @@ def test_whole_workflow(page):
         assert run_text in page.text_content(f"#view-{mode}-results")
         assert page.is_visible(f"#view-{mode}-results svg")
     assert page.is_visible("#mobility-chart svg") and page.is_visible("#calc-tabs")
+    # Everything about one individual, and the methods paragraph for all that was run.
+    click(page, '.step[data-view="individuals"]')
+    page.wait_for_selector("#view-individuals.active")
+    assert page.text_content("#individual-title") and "open" in page.text_content("#individual-findings")
+    click(page, "#btn-methods")
+    page.wait_for_selector("#methods-dialog[open]")
+    methods = page.text_content("#methods-body")
+    assert "Weaning ages were estimated" in methods and "Payne S (1973)" in methods and "Moorrees" in methods
+    page.keyboard.press("Escape")
     click(page, '.step[data-view="data"]')
     page.click("text=Tooth calculation")
     assert not page.is_disabled('.step[data-view="compare"]') and page.is_visible("#specimens-card")
