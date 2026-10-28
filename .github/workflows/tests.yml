@@ -10,6 +10,13 @@ jobs:
       - run: pip install -e . ruff mypy pandas-stubs
       - run: ruff check src tests scripts
       - run: mypy src
+  js:  # the web app's pure functions (individual pages, dental-age hand-offs, methods text inputs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: node --test "tests/js/*.test.mjs"
   pytest:
     runs-on: ubuntu-latest
     strategy:

@@ -2,6 +2,7 @@
 import { api } from "./api.js";
 import { lineChart } from "./chart.js";
 import { $, $$, ageNum, ageText, color, esc, MODEL_STYLE, num, percent, progressBar, table, toast, toUnit, unitWord } from "./util.js";
+import { figure } from "./figures.js";
 
 const SWEEPS = {
   "": "No sweep (single scenario)",
@@ -113,8 +114,8 @@ export function renderPlan(state) {
   const box = $("#pl-chart");
   if (param && plan.runs.length > 1) {
     const models = [...new Set(rows.map((r) => r.model))];
-    lineChart(
-      box,
+    figure(box, (chartBox) => lineChart(
+      chartBox,
       models.map((m) => ({
         name: m,
         color: color(m),
@@ -122,7 +123,7 @@ export function renderPlan(state) {
         points: rows.filter((r) => r.model === m).map((r) => ({ x: r.x, y: AGE_METRICS.has(metric) ? toUnit(r[metric]) : r[metric] })),
       })),
       { xLabel: SWEEPS[param], yLabel: METRICS()[metric], title: `${METRICS()[metric]} by ${SWEEPS[param]}`, yMin: metric === "bias" ? undefined : 0 }
-    );
+    ));
   } else {
     box.innerHTML = '<p class="muted">Choose a setting to sweep to see a chart.</p>';
   }

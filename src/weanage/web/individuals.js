@@ -2,6 +2,7 @@
 // The gathering functions are pure (state in, plain objects out), so they are unit-tested in tests/js.
 import { timelineChart } from "./chart.js";
 import { $, ageText, esc, num, plural, toUnit, unitWord } from "./util.js";
+import { figure } from "./figures.js";
 
 const LABELS = { tooth: "Tooth (dentine δ¹⁵N)", bone: "Bone calculation", enamel: "Enamel (cattle)", dental: "Dental age",
   leh: "Enamel hypoplasia", lifetable: "Life tables", mobility: "Mobility", mixing: "Diet mixing", killoff: "Kill-off" };
@@ -159,8 +160,8 @@ export function renderIndividuals() {
   $("#individual-meta").textContent = `${person.site ?? ""} · in ${plural(person.calcs.length, "calculation")}: ${person.calcs.map((c) => LABELS[c]).join(", ")}`;
   $("#individual-chart").hidden = !rows.length;
   if (rows.length) {
-    timelineChart($("#individual-chart"), rows.map((r) => ({ ...r, items: r.items.map((i) => ({ ...i, from: toUnit(i.from), to: toUnit(i.to), at: toUnit(i.at) })) })),
-      { title: `What happened at what age: ${person.id}`, xLabel: `Age (${unitWord()})` });
+    figure($("#individual-chart"), (box) => timelineChart(box, rows.map((r) => ({ ...r, items: r.items.map((i) => ({ ...i, from: toUnit(i.from), to: toUnit(i.to), at: toUnit(i.at) })) })),
+      { title: `What happened at what age: ${person.id}`, xLabel: `Age (${unitWord()})` }));
   }
   $("#individual-findings").innerHTML = findings.map((f) => `<dt>${esc(f.label)}</dt><dd>${esc(f.text)}
     <button class="link small" type="button" data-open="${f.calc}">open</button></dd>`).join("");

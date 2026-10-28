@@ -3,6 +3,7 @@
 import { api } from "./api.js";
 import { forestChart } from "./chart.js";
 import { $, $$, ageNum, ageText, esc, help, labelScrollBoxes, num, percent, pIs, pval, table, toast, toUnit, unitWord } from "./util.js";
+import { figure } from "./figures.js";
 
 let state;
 const capital = (s) => s[0].toUpperCase() + s.slice(1);
@@ -42,14 +43,14 @@ export async function refreshCompare() {
     const groupName = (row) => group_by.map((g) => row[g] ?? "—").join(" · ");
     const rows = state.estimates.filter((e) => (model ? e.model === model : e.is_best));
     const means = Object.fromEntries(out.tests.groups.map((g) => [g.group, g]));
-    forestChart($("#cmp-chart"), out.summary.map((s) => ({
+    figure($("#cmp-chart"), (box) => forestChart(box, out.summary.map((s) => ({
       label: groupName(s),
       mean: toUnit(means[groupName(s)]?.mean),
       lo: toUnit(means[groupName(s)]?.ci_low),
       hi: toUnit(means[groupName(s)]?.ci_high),
       values: rows.filter((r) => groupName(r) === groupName(s) && r[milestone] != null)
         .map((r) => ({ v: toUnit(r[milestone]), label: `${esc(r.specimen_id)}: ${ageText(r[milestone])} (${r.model})` })),
-    })), `Weaning ${milestone} (${unitWord()}): random-effects mean ± 95% interval, dots = specimens`);
+    })), `Weaning ${milestone} (${unitWord()}): random-effects mean ± 95% interval, dots = specimens`));
     table($("#cmp-table"), [
       ...group_by.map((g) => ({ label: capital(g), key: g })),
       { label: "Estimates", key: "model" },

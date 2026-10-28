@@ -2,6 +2,7 @@
 import { oneTableCalc } from "./calc.js";
 import { biplotChart } from "./chart.js";
 import { $, download, esc, num, plural, readEditTable, renderIssues, renderReady, renderWarnings, table, toast, toCsv, writeEditTable } from "./util.js";
+import { figure } from "./figures.js";
 
 const pct = (v) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 const SOURCE_KEYS = { name: "Name", d13C: "δ13C", d13C_sd: "δ13C SD", d15N: "δ15N", d15N_sd: "δ15N SD", d34S: "δ34S", d34S_sd: "δ34S SD",
@@ -68,13 +69,13 @@ function renderResults({ output }) {
   const { results, groups, sources, offsets, placeholder } = output;
   const names = sources.map((s) => s.name);
   $("#mixing-placeholder").hidden = !placeholder;
-  biplotChart($("#mixing-biplot"), {
+  figure($("#mixing-biplot"), (box) => biplotChart(box, {
     title: "Collagen δ13C and δ15N with the food groups plus offsets",
     points: results.map((r) => ({ x: r.d13C, y: r.d15N, group: [r.site, r.species].filter(Boolean).join(" · "),
       label: `${esc(r.specimen_id)}: δ¹³C ${num(r.d13C)}‰, δ¹⁵N ${num(r.d15N)}‰` })),
     sources: sources.map((s) => ({ name: s.name, x: s.d13C + offsets.d13C.mean, y: s.d15N + offsets.d15N.mean,
       sdx: Math.hypot(s.d13C_sd, offsets.d13C.sd || 0), sdy: Math.hypot(s.d15N_sd, offsets.d15N.sd || 0) })),
-  });
+  }), { caption: `Points are individuals (n = ${results.length}); crosses are food groups shifted by the diet-to-collagen offsets (${num(offsets.d13C.mean, 1)}‰ δ¹³C, ${num(offsets.d15N.mean, 1)}‰ δ¹⁵N), with ±1 SD.` });
   table($("#mixing-group-table"), [
     { label: "Group", key: "group" },
     { label: "Samples", key: "n", cls: "num" },

@@ -2,7 +2,7 @@
 // * local app (`weanage`): requests go to the Python server on this computer.
 // * browser version: Python runs inside the page (pyworker.js), with no server at all.
 // The browser build marks its page with <meta name="weanage-mode" content="browser">.
-const IN_BROWSER = document.querySelector('meta[name="weanage-mode"]')?.content === "browser";
+const IN_BROWSER = globalThis.document?.querySelector('meta[name="weanage-mode"]')?.content === "browser";
 
 async function request(path, options = {}) {
   const res = await fetch(path, options);

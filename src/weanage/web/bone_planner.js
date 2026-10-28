@@ -2,6 +2,7 @@
 import { api } from "./api.js";
 import { lineChart } from "./chart.js";
 import { $, ageNum, ageText, color, esc, fromUnit, num, percent, plural, progressBar, table, toast, toUnit, unitWord } from "./util.js";
+import { figure } from "./figures.js";
 
 // Settings that can be compared; `age` ones are typed in the chosen unit.
 const SWEEPS = {
@@ -126,8 +127,8 @@ export function renderBonePlan(state) {
   ], rows);
   const metric = $("#bp-metric").value;
   if (param && rows.length > 1) {
-    lineChart($("#bp-chart"), [{ name: METRICS()[metric], color: color("logistic"), points: rows.map((r) => ({ x: xOf(r), y: shown(metric, r[metric]) })) }],
-      { xLabel: sweep.label + (sweep.age ? ` (${unitWord()})` : ""), yLabel: METRICS()[metric], title: `${METRICS()[metric]} by ${sweep.label}`, yMin: metric === "bias" ? undefined : 0 });
+    figure($("#bp-chart"), (box) => lineChart(box, [{ name: METRICS()[metric], color: color("logistic"), points: rows.map((r) => ({ x: xOf(r), y: shown(metric, r[metric]) })) }],
+      { xLabel: sweep.label + (sweep.age ? ` (${unitWord()})` : ""), yLabel: METRICS()[metric], title: `${METRICS()[metric]} by ${sweep.label}`, yMin: metric === "bias" ? undefined : 0 }));
   } else {
     $("#bp-chart").innerHTML = '<p class="muted">Choose a setting to compare to see a chart.</p>';
   }

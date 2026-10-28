@@ -169,6 +169,11 @@ def test_whole_workflow(page):
         assert run_text in page.text_content(f"#view-{mode}-results")
         assert page.is_visible(f"#view-{mode}-results svg")
     assert page.is_visible("#mobility-chart svg") and page.is_visible("#calc-tabs")
+    # Every chart downloads as a figure: light colours on white, with its caption.
+    with page.expect_download() as download:
+        page.click('#mobility-chart [data-figure="svg"]')
+    figure = download.value.path().read_text()
+    assert figure.startswith("<svg") and 'fill="#ffffff"' in figure and "fall outside the local range" in figure
     # Everything about one individual, and the methods paragraph for all that was run.
     click(page, '.step[data-view="individuals"]')
     page.wait_for_selector("#view-individuals.active")

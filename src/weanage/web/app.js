@@ -14,6 +14,7 @@ import { curveChart, curveOptions, forestChart, lineChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { compareRequest, initCompare, refreshCompare, renderGroupChoices } from "./compare.js";
+import { figure, initFigures } from "./figures.js";
 import { hasIndividuals, initIndividuals, renderIndividuals } from "./individuals.js";
 import { initMethods } from "./methods.js";
 import { initPlanner, renderPlan } from "./planner.js";
@@ -135,19 +136,27 @@ function setMode(mode, save = true) {
 /** The Data page's list of calculations: what each needs, and whether the loaded file can feed it. */
 function renderCalcList() {
   const found = state.detected?.calculations;
-  let group = null;
-  $("#calc-list").innerHTML = CALC_INFO.map((c) => {
+  const option = (c) => {
     const d = found?.[c.name];
     const chosen = state.chosen.includes(c.name);
     const usable = !found || d.rows > 0;
     const status = !found ? "" : d.rows
       ? `<small class="calc-status ok">${plural(d.rows, "row")} can be used${d.row_errors ? ` · ${plural(d.row_errors, "problem")}` : ""}</small>`
       : `<small class="calc-status">Not with this file: ${esc(d.problem)}</small>`;
-    const heading = c.group !== group ? `<p class="calc-group">${esc((group = c.group))}</p>` : "";
-    return `${heading}<label class="calc-option${usable ? "" : " unusable"}">
+    return `<label class="calc-option${usable ? "" : " unusable"}">
       <input type="checkbox" name="calc" value="${c.name}" ${chosen ? "checked" : ""} ${usable || chosen ? "" : "disabled"}>
       <span><strong>${esc(c.label)}</strong><small>${c.blurb}</small>${status}</span></label>`;
-  }).join("");
+  };
+  const grouped = (list) => {
+    let group = null;
+    return list.map((c) => `${c.group !== group ? `<p class="calc-group">${esc((group = c.group))}</p>` : ""}${option(c)}`).join("");
+  };
+  // With a file loaded, the calculations it can't feed are folded away (a ticked one stays in view).
+  const shown = CALC_INFO.filter((c) => !found || found[c.name].rows > 0 || state.chosen.includes(c.name));
+  const folded = CALC_INFO.filter((c) => !shown.includes(c));
+  $("#calc-list").innerHTML = grouped(shown) + (folded.length ? `<details class="calc-folded"${shown.length ? "" : " open"}>
+    <summary>${plural(folded.length, "other calculation")} can't use this file</summary>
+    <div class="calc-list">${grouped(folded)}</div></details>` : "");
   const usableCount = found ? Object.values(found).filter((d) => d.rows).length : 0;
   $("#calc-hint").textContent = !found
     ? "Load a file to see which calculations it can be used for, or tick one to type data in or load its example."
@@ -479,8 +488,8 @@ function renderMilkShare(res) {
   const series = [line("estimate", (p) => p.milk, "Breast milk", color("logistic"), null),
     line("ci_low", (p) => p.milk, "95% lower", color("logistic"), "3 3"), line("ci_high", (p) => p.milk, "95% upper", color("logistic"), "3 3")];
   if (m.other_food) series.push(line("estimate", (p) => p.other, m.other_food, color("piecewise"), "9 4"));
-  lineChart($("#milk-chart"), series,
-    { xLabel: `Age (${unitWord()})`, yLabel: "Share of the diet (%)", title: `Breast-milk share at each increment: ${res.specimen_id}`, yMin: 0 });
+  figure($("#milk-chart"), (box) => lineChart(box, series,
+    { xLabel: `Age (${unitWord()})`, yLabel: "Share of the diet (%)", title: `Breast-milk share at each increment: ${res.specimen_id}`, yMin: 0 }));
 }
 
 function renderBaselines() {
@@ -548,7 +557,7 @@ function renderResults() {
   $("#res-summary").innerHTML = summaryText(res, milestone);
   if (res.points.length) {
     const onZoom = (range) => { state.zoom = range; renderResults(); };
-    curveChart($("#res-chart"), curveOptions(res, { visible: state.visible, milestone, xRange: state.zoom, showD13C: $("#opt-show13c").checked, onZoom }));
+    figure($("#res-chart"), (box) => curveChart(box, curveOptions(res, { visible: state.visible, milestone, xRange: state.zoom, showD13C: $("#opt-show13c").checked, onZoom })));
   } else {
     $("#res-chart").innerHTML = '<p class="muted">No data points to plot.</p>';
   }
@@ -885,6 +894,7 @@ async function init() {
   for (const calc of Object.values(CALCS)) calc.init(state, { show, autosave, refreshNav: enableResults });
   initIndividuals(state, { open: openIndividual });
   initCompare(state);
+  initFigures();
   initMethods(state, CALCS);
   fillExampleChoice();
   setMode("tooth", false);

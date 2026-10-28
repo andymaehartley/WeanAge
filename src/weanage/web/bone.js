@@ -4,6 +4,7 @@ import { api } from "./api.js";
 import { offscreen } from "./report.js";
 import { ageMarker, curveChart } from "./chart.js";
 import { $, ageNum, ageText, ci, color, download, esc, fromUnit, help, num, percent, pIs, plural, progressBar, readout, renderIssues, renderReady, renderWarnings, SAID_IN_SUMMARY, table, tbdBadge, toast, toCsv, toUnit, unitWord } from "./util.js";
+import { figure } from "./figures.js";
 
 // Bone settings and the form box that holds each (all numbers).
 const FIELDS = ["max_weaning_age_months", "enrichment_prior_mean", "enrichment_prior_sd", "newborn_offset_mean",
@@ -244,7 +245,7 @@ export function renderBoneResults() {
   $("#bone-res-title").textContent = res.group;
   $("#bone-res-meta").innerHTML = `${plural(res.n_young, "young animal")} fitted · turnover: ${esc(res.turnover || "none")}`;
   $("#bone-res-summary").innerHTML = summary(res);
-  if (res.curve) curveChart($("#bone-res-chart"), chartOptions(res));
+  if (res.curve) figure($("#bone-res-chart"), (box) => curveChart(box, chartOptions(res)));
   else $("#bone-res-chart").innerHTML = `<p class="muted">${esc(res.message)}</p>`;
   renderWarnings("#bone-warnings-box", "#bone-warnings-summary", "#bone-res-warnings", res.warnings.filter((w) => !SAID_IN_SUMMARY.test(w)),
     (w) => (isNote(w) ? "info" : "warning"));

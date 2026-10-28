@@ -105,18 +105,24 @@ export function initGlossary() {
 }
 
 const TOUR = [
-  { view: "data", sel: "#dropzone", title: "1 · Load your data", text: "Drop a CSV or Excel file, then tick the calculations to run with it below: WeanAge shows which ones the table can be used for. Or choose an example and press 'Load example'." },
+  { view: "data", sel: "#dropzone", title: "1 · Load your data", text: "Drop in a CSV or Excel file. WeanAge reads it and works out which calculations the table can be used for." },
+  { view: "data", sel: "#calc-list", title: "Choose calculations", text: "Tick the calculations to run with the file. Those it can't feed are folded away below, with the reason. Each calculation keeps its own settings and results, and the buttons above the pages switch between them." },
+  { view: "data", sel: "#btn-example", title: "Or try an example", text: "The examples are published datasets (with their sources), so you can see each calculation working before using your own data." },
   { view: "data", sel: "#manual-form", mode: "tooth", title: "Or type samples in", text: "Specimen details are remembered between entries and the position steps forward automatically." },
   { view: "settings", sel: "#model-options", mode: "tooth", title: "2 · Choose curve models", text: "Every model is fitted to every specimen so you can see how much the method matters. Leave them all on if unsure." },
   { view: "settings", sel: "#growth-list", mode: "tooth", title: "Age models", text: "These convert tooth position to age. Yellow ones are placeholders: edit them, calibrate them from reference data, or save your own." },
   { view: "settings", sel: "#btn-run", mode: "tooth", title: "Run the analysis", text: "A progress bar shows while curves are fitted." },
+  { view: null, sel: '.step[data-view="settings"]', mode: "!tooth", title: "2 · Settings, then run", text: "Every calculation has its own settings, each with a ? that explains it. The defaults are sensible; the run button is at the bottom." },
   { view: "plan", sel: "#plan-form", mode: "tooth", title: "Plan your sampling", text: "Before cutting teeth, simulate how accurate different sampling intervals or numbers of animals would be." },
-  { view: null, sel: "#btn-save", title: "Save your work", text: "Save the whole project (data, settings and results) to a file and reopen it later. Your work is also kept in this browser automatically." },
-  { view: null, sel: "#btn-help", title: "Need a reminder?", text: "Press ? next to any term for a plain-language explanation. The Help menu reopens this tour and links to the user guide." },
+  { view: null, sel: '.step[data-view="individuals"]', title: "Individuals", text: "After a run, see everything the calculations found for one person or animal (weaning, stress, age at death, mobility, diet) on one timeline." },
+  { view: null, sel: "#btn-methods", title: "Methods text", text: "A methods paragraph, with references, for every calculation you ran and the settings you used, ready to paste into a paper." },
+  { view: null, sel: "#btn-save", title: "Save your work", text: "Save the whole project (data, settings and results) to a file and reopen it later. Your work is also kept in this browser automatically. Every chart has a Figure button for SVG or PNG downloads." },
+  { view: null, sel: "#btn-help", title: "Need a reminder?", text: "Press ? next to any term for a plain-language explanation. The Help menu reopens this tour and links to the user guide; ages in years, light mode and larger text are under View." },
 ];
 
 export function startTour(show, mode = "tooth") {
-  const steps = TOUR.filter((step) => !step.mode || step.mode === mode); // bone mode hides the tooth-only parts
+  // Tooth-only steps are hidden for the other calculations, and "!tooth" steps for the tooth one.
+  const steps = TOUR.filter((step) => !step.mode || step.mode === mode || (step.mode === "!tooth" && mode !== "tooth"));
   let i = 0;
   const overlay = document.createElement("div");
   overlay.className = "tour";

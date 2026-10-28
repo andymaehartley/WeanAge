@@ -2,6 +2,7 @@
 import { oneTableCalc } from "./calc.js";
 import { lineChart } from "./chart.js";
 import { $, color, download, esc, help, num, plural, renderIssues, renderReady, renderWarnings, table, toCsv } from "./util.js";
+import { figure } from "./figures.js";
 
 const pct = (v) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 const withRange = (v, show = (x) => num(x, 1)) => (v == null ? "—"
@@ -57,7 +58,8 @@ function renderResults({ output }) {
     ...(g.siler ? [{ name: `${g.group} (Siler)`, color: color(PALETTE[i % 4]), dash: "5 4", markers: false,
       points: g.siler.curve_age.filter((_, k) => k % 8 === 0).map((x, k) => ({ x, y: 100 * g.siler.curve_survival[k * 8] })) }] : []),
   ]);
-  lineChart($("#lifetable-chart"), series, { xLabel: "Age (years)", yLabel: "Still alive (%)", title: "Survivorship by group", yMin: 0 });
+  figure($("#lifetable-chart"), (box) => lineChart(box, series, { xLabel: "Age (years)", yLabel: "Still alive (%)", title: "Survivorship by group", yMin: 0 }),
+    { caption: `Survivorship (l) from skeletal ages at death${results.some((g) => g.siler) ? "; dashed lines are fitted Siler models" : ""} (${results.map((g) => `${g.group}: n = ${g.n}`).join("; ")}).` });
   table($("#lifetable-summary"), [
     { label: "Group", key: "group" },
     { label: "Skeletons", key: "n", cls: "num" },

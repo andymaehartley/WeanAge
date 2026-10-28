@@ -21,6 +21,7 @@ git clone https://github.com/andymaehartley/WeanAge.git weanage
 cd weanage
 pip install -e . pytest httpx playwright ruff mypy pandas-stubs
 pytest -q                      # all tests (the browser test needs Playwright's Chromium)
+node --test "tests/js/*.test.mjs"   # the web app's pure functions (Node 20+)
 ruff check src tests scripts   # style
 mypy src                       # types
 weanage                        # run the app

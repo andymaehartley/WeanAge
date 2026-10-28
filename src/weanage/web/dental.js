@@ -6,6 +6,7 @@ import { oneTableCalc } from "./calc.js";
 import { forestChart } from "./chart.js";
 import { lifetable } from "./lifetable.js";
 import { $, ageNum, ageText, download, esc, plural, renderIssues, renderReady, renderWarnings, table, toast, toCsv, toUnit, unitWord } from "./util.js";
+import { figure } from "./figures.js";
 
 export const dental = oneTableCalc({
   name: "dental",
@@ -49,10 +50,11 @@ function renderResults({ output }) {
   $("#dental-placeholder").hidden = !placeholder;
   const dated = results.filter((r) => r.estimate_months != null).sort((a, b) => a.estimate_months - b.estimate_months);
   $("#dental-chart").innerHTML = dated.length ? "" : '<p class="muted">No individual could be aged.</p>';
-  if (dated.length) forestChart($("#dental-chart"), dated.map((r) => ({
+  if (dated.length) figure($("#dental-chart"), (box) => forestChart(box, dated.map((r) => ({
     label: r.specimen_id, mean: toUnit(r.estimate_months), lo: toUnit(r.age_min_months), hi: toUnit(r.age_max_months),
     values: r.teeth.filter((t) => t.estimate != null).map((t) => ({ v: toUnit(t.estimate), label: `${esc(t.tooth)} ${esc(t.stage)}: ${ageText(t.estimate)}` })),
-  })), `Age at death (${unitWord()}): squares = estimate, bars = range passed on, dots = single teeth`);
+  })), `Age at death (${unitWord()}): squares = estimate, bars = range passed on, dots = single teeth`),
+    { caption: `Ages of ${dated.length} individuals from tooth formation stages.` });
   table($("#dental-results"), [
     { label: "Individual", key: "specimen_id" },
     { label: "Site", key: "site" },
@@ -71,8 +73,8 @@ function ageRows({ results }) {
     teeth: r.teeth.map((t) => `${t.tooth} ${t.stage}`).join("; "), warnings: r.warnings.join(" | ") }));
 }
 
-/** Give individuals with the same specimen ID in another calculation these ages at death. */
-async function passOn(output, samples, update, check, apply, where) {
+/** Samples with the same specimen ID as an aged individual, given that individual's ages (pure, unit-tested). */
+export function matchAges(output, samples, update) {
   const ages = new Map(output.results.filter((r) => r.age_min_months != null).map((r) => [r.specimen_id, r]));
   let matched = 0;
   const changed = samples.map((s) => {
@@ -82,6 +84,23 @@ async function passOn(output, samples, update, check, apply, where) {
     matched += 1;
     return { ...s, ...values };
   });
+  return { changed, matched };
+}
+
+/** Ages for the bone calculation: young animals only, in months; an open-ended range gets one month. */
+export const boneAges = (s, r) => s.age_class !== "adult" && {
+  age_months: null, age_min_months: r.age_min_months, age_max_months: r.age_max_months ?? r.age_min_months + 1,
+};
+
+/** Ages for life tables, in years (open-ended stays open). */
+export const lifeTableAges = (s, r) => ({
+  age_min_years: r.age_min_months / 12, age_max_years: r.age_max_months == null ? null : r.age_max_months / 12,
+  age_min_months: null, age_max_months: null,
+});
+
+/** Give individuals with the same specimen ID in another calculation these ages at death. */
+async function passOn(output, samples, update, check, apply, where) {
+  const { changed, matched } = matchAges(output, samples, update);
   if (!matched) return toast(`No samples in ${where} have the same specimen IDs as these individuals.`);
   try {
     apply(await check(changed), true);
@@ -92,14 +111,9 @@ async function passOn(output, samples, update, check, apply, where) {
 }
 
 function useInBone(output, appState) {
-  passOn(output, appState.bone.samples, (s, r) => s.age_class !== "adult" && {
-    age_months: null, age_min_months: r.age_min_months, age_max_months: r.age_max_months ?? r.age_min_months + 1,
-  }, api.boneRecords, setBoneReport, "the bone calculation");
+  passOn(output, appState.bone.samples, boneAges, api.boneRecords, setBoneReport, "the bone calculation");
 }
 
 function useInLifeTables(output, appState) {
-  passOn(output, appState.lifetable.samples, (s, r) => ({
-    age_min_years: r.age_min_months / 12, age_max_years: r.age_max_months == null ? null : r.age_max_months / 12,
-    age_min_months: null, age_max_months: null,
-  }), (rows) => api.calcRecords("lifetable", rows), lifetable.setReport, "the life tables");
+  passOn(output, appState.lifetable.samples, lifeTableAges, (rows) => api.calcRecords("lifetable", rows), lifetable.setReport, "the life tables");
 }

@@ -2,6 +2,7 @@
 import { oneTableCalc } from "./calc.js";
 import { biplotChart } from "./chart.js";
 import { $, download, esc, num, plural, readEditTable, renderIssues, renderReady, renderWarnings, table, toCsv, writeEditTable } from "./util.js";
+import { figure } from "./figures.js";
 
 const REGION_KEYS = { name: "Place", sr87_86: "87Sr/86Sr", sr_sd: "87Sr/86Sr SD", d18O_dw: "drinking water δ18O", d18O_dw_sd: "δ18O SD" };
 const writeRegions = (rows) => writeEditTable($("#mobility-regions tbody"), REGION_KEYS, rows, "place");
@@ -55,7 +56,7 @@ function renderResults({ output }) {
   const both = results.filter((r) => r.d18O_dw && r.sr87_86 != null);
   const site = sites.find((s) => s.sr_range && s.d18O_dw_range);
   $("#mobility-chart").innerHTML = both.length ? "" : '<p class="muted">The plot needs samples with both δ¹⁸O and ⁸⁷Sr/⁸⁶Sr.</p>';
-  if (both.length) biplotChart($("#mobility-chart"), {
+  if (both.length) figure($("#mobility-chart"), (box) => biplotChart(box, {
     title: "Drinking-water δ18O and 87Sr/86Sr of each person, with the local range",
     xLabel: "Drinking water δ¹⁸O (‰ VSMOW)", yLabel: "Enamel ⁸⁷Sr/⁸⁶Sr",
     points: both.map((r) => ({ x: r.d18O_dw.estimate, y: r.sr87_86, group: r.non_local ? "non-local" : "local",
@@ -63,7 +64,7 @@ function renderResults({ output }) {
     sources: site ? [{ name: `local range (${site.site})`, x: (site.d18O_dw_range[0] + site.d18O_dw_range[1]) / 2,
       y: (site.sr_range[0] + site.sr_range[1]) / 2, sdx: (site.d18O_dw_range[1] - site.d18O_dw_range[0]) / 2,
       sdy: (site.sr_range[1] - site.sr_range[0]) / 2 }] : [],
-  });
+  }), { caption: `Enamel ⁸⁷Sr/⁸⁶Sr against drinking-water δ¹⁸O for ${both.length} people; ${both.filter((r) => r.non_local).length} fall outside the local range${site ? ` of ${site.site} (box)` : ""}.` });
   table($("#mobility-sites"), [
     { label: "Site", key: "site" },
     { label: "People", key: "n", cls: "num" },

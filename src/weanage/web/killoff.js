@@ -2,6 +2,7 @@
 import { oneTableCalc } from "./calc.js";
 import { lineChart } from "./chart.js";
 import { $, color, download, esc, help, num, plural, renderIssues, renderReady, renderWarnings, table, toCsv } from "./util.js";
+import { figure } from "./figures.js";
 
 const pct = (v) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 const withRange = (v) => (v == null ? "—" : `${pct(v.estimate)}${v.ci_low != null ? ` <small class="muted">(${pct(v.ci_low)}–${pct(v.ci_high)})</small>` : ""}`);
@@ -59,10 +60,11 @@ function renderResults({ output }) {
   const palette = ["logistic", "piecewise", "exponential", "two_phase"];
   const dashes = [null, "9 4", "2 3", "10 3 2 3"];
   const oneSpecies = new Set(results.map((g) => g.species)).size === 1; // then the legend can leave it out
-  lineChart($("#killoff-survival-chart"), results.map((g, i) => ({
+  figure($("#killoff-survival-chart"), (box) => lineChart(box, results.map((g, i) => ({
     name: oneSpecies ? [g.site, g.period].filter(Boolean).join(" · ") : g.group, color: color(palette[i % 4]), dash: dashes[i % 4],
     points: [{ x: g.classes[0].from_months, y: 100 }, ...g.classes.map((c) => ({ x: c.to_months, y: 100 * c.survival.estimate }))],
-  })), { xLabel: "Age (months)", yLabel: "Still alive (%)", title: "Survivorship by group", yMin: 0 });
+  })), { xLabel: "Age (months)", yLabel: "Still alive (%)", title: "Survivorship by group", yMin: 0 }),
+    { caption: `Share of each group's animals still alive at each age, from mandibles aged by tooth wear (${results.map((g) => `${g.group}: n = ${num(g.n, 0)}`).join("; ")}). Ages of each stage are spread over its age range.` });
   table($("#killoff-summary-table"), [
     { label: "Group", key: "group" },
     { label: "Mandibles", cls: "num", render: (g) => num(g.n, 0) },

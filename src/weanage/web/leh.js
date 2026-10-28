@@ -3,6 +3,7 @@
 import { oneTableCalc } from "./calc.js";
 import { forestChart } from "./chart.js";
 import { $, ageNum, ageText, download, esc, num, plural, renderIssues, renderReady, renderWarnings, table, toCsv, toUnit, unitWord } from "./util.js";
+import { figure } from "./figures.js";
 
 export const leh = oneTableCalc({
   name: "leh",
@@ -53,12 +54,12 @@ function renderResults({ output }) {
   $("#leh-summary").innerHTML = share == null
     ? "<p>No defect could be set against a weaning interval: run the tooth calculation for the same individuals first.</p>"
     : `<p><strong>${Math.round(share * 100)}%</strong> of the defects that can be compared formed during weaning (between the onset and completion of the δ¹⁵N fall).</p>`;
-  forestChart($("#leh-chart"), individuals.map((p) => ({
+  figure($("#leh-chart"), (box) => forestChart(box, individuals.map((p) => ({
     label: p.specimen_id,
     mean: toUnit(p.weaning?.midpoint), lo: toUnit(p.weaning?.onset), hi: toUnit(p.weaning?.completion),
     values: results.filter((r) => r.specimen_id === p.specimen_id)
       .map((r) => ({ v: toUnit(r.age.estimate), label: `${esc(r.tooth)} defect at ${num(r.defect_mm, 1)} mm: ${ageText(r.age.estimate)}` })),
-  })), `Age (${unitWord()}): dots = defects; bar = weaning in the dentine, square = its midpoint`);
+  })), `Age (${unitWord()}): dots = defects; bar = weaning in the dentine, square = its midpoint`));
   table($("#leh-results"), [
     { label: "Individual", key: "specimen_id" },
     { label: "Tooth", key: "tooth" },

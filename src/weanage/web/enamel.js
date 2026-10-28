@@ -3,6 +3,7 @@
 import { oneTableCalc } from "./calc.js";
 import { forestChart, profileChart } from "./chart.js";
 import { $, download, esc, help, num, plural, renderIssues, renderReady, renderWarnings, table, toCsv } from "./util.js";
+import { figure } from "./figures.js";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const teeth = (n) => `${n} ${n === 1 ? "tooth" : "teeth"}`;
@@ -175,28 +176,28 @@ function drawCharts(res) {
   const curve = (fit) => (fit?.curve_x?.length ? { xs: fit.curve_x, ys: fit.curve_y } : null);
   $("#enamel-o-chart").hidden = !oxygen.length;
   $("#enamel-c-chart").hidden = !carbon.length;
-  if (oxygen.length) profileChart($("#enamel-o-chart"), {
+  if (oxygen.length) figure($("#enamel-o-chart"), (box) => profileChart(box, {
     points: oxygen.map(point("d18O")), curve: curve(s), yLabel: "Enamel δ¹⁸O (‰ VPDB)", title: `Enamel δ18O along the crown: ${res.specimen_id}`,
     marks: s?.birth_index ? [{ x: s.x0_mm, label: `δ¹⁸O maximum ${num(s.x0_mm, 1)} mm` }] : [],
-  });
-  if (carbon.length) profileChart($("#enamel-c-chart"), {
+  }));
+  if (carbon.length) figure($("#enamel-c-chart"), (box) => profileChart(box, {
     points: carbon.map(point("d13C")), curve: curve(r), yLabel: "Enamel δ¹³C (‰ VPDB)", title: `Enamel δ13C along the crown: ${res.specimen_id}`,
     marks: r?.detected ? [{ x: r.transition_mm.estimate, lo: r.transition_mm.ci_low, hi: r.transition_mm.ci_high, label: `rumen transition ${num(r.transition_mm.estimate, 1)} mm` }] : [],
-  });
+  }));
   $("#enamel-sr-chart").hidden = !sr.length;
-  if (sr.length) profileChart($("#enamel-sr-chart"), {
+  if (sr.length) figure($("#enamel-sr-chart"), (box) => profileChart(box, {
     points: sr.map(point("sr87_86")), yLabel: "Enamel ⁸⁷Sr/⁸⁶Sr", title: `Enamel 87Sr/86Sr along the crown: ${res.specimen_id}`,
     marks: (res.strontium?.shifts || []).map((s) => ({ x: s.position, lo: s.between[1], hi: s.between[0], label: `shift ${num(s.position, 1)} mm` })),
-  });
+  }));
 }
 
 function renderGroups(groups) {
   const dated = groups.filter((g) => g.n_index);
   $("#enamel-group-chart").innerHTML = dated.length ? "" : '<p class="muted">No tooth has a birth index.</p>';
-  if (dated.length) forestChart($("#enamel-group-chart"), dated.map((g) => ({
+  if (dated.length) figure($("#enamel-group-chart"), (box) => forestChart(box, dated.map((g) => ({
     label: g.group, mean: g.mean_index, lo: NaN, hi: NaN,
     values: g.teeth.map((t) => ({ v: t.birth_index, label: `${esc(t.specimen_id)}: ${num(t.birth_index, 2)}` })),
-  })), "Birth index (x₀/X): squares = circular mean, dots = teeth");
+  })), "Birth index (x₀/X): squares = circular mean, dots = teeth"));
   table($("#enamel-group-table"), [
     { label: "Group", key: "group" },
     { label: "Teeth", key: "n", cls: "num" },
