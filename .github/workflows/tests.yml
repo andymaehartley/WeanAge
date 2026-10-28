@@ -4,7 +4,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -e . ruff mypy pandas-stubs
@@ -13,7 +13,7 @@ jobs:
   js:  # the web app's pure functions (individual pages, dental-age hand-offs, methods text inputs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       - run: node --test "tests/js/*.test.mjs"
@@ -23,7 +23,7 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: { python-version: "${{ matrix.python-version }}" }
       - run: pip install -e . pytest httpx playwright
@@ -32,7 +32,7 @@ jobs:
   browser-version:  # Python running inside the page (Pyodide), downloaded from its CDN
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -e . pytest playwright
