@@ -131,8 +131,9 @@
                 <p class="hint">After Balasse et al. (2012), Towers et al. (2014) and Bentley (2006); see the user guide for the sources.</p>
               </div>
               <p class="hint" data-mode="killoff" hidden>Required columns: <code>specimen_id, site, species</code>, and either
-                <code>payne_stage</code> (A–I, or a range such as <code>D/E</code>; sheep and goats) or
-                <code>age_min_months</code> and <code>age_max_months</code> (any species).</p>
+                <code>payne_stage</code> (A–I, or a range such as <code>D/E</code>; sheep and goats), <code>wear_stage</code>
+                (another system, with its stage ages in Settings), or <code>age_min_months</code> and
+                <code>age_max_months</code> (any species).</p>
               <div data-mode="killoff" hidden>
                 <h3>How kill-off profiles work</h3>
                 <ol class="steps-list">
@@ -732,7 +733,14 @@
           <label>Class boundaries (months)<input id="killoff-class_bounds_months" type="text" inputmode="decimal"
             aria-describedby="killoff-bounds-hint"></label>
           <p id="killoff-bounds-hint" class="hint">The default boundaries are Payne's (1973) stages A–I. Other boundaries
-            (e.g. for cattle) need mandibles given as age ranges.</p>
+            (e.g. for cattle) need mandibles given as age ranges or in another wear-stage system.</p>
+        </article>
+        <article class="card">
+          <h2>Another wear-stage system <span data-helpslot="wear_stages"></span></h2>
+          <label>Stage ages (one per line: stage: from–to months)
+            <textarea id="killoff-stage-table" rows="6" spellcheck="false" placeholder="e.g. B: 1-8"></textarea></label>
+          <label>Source of these ages<input id="killoff-stage_source" type="text" placeholder="publication"></label>
+          <p class="hint">For mandibles given as <code>wear_stage</code>. Enter the ages from the publication you follow.</p>
         </article>
         <article class="card">
           <h2>Uncertainty</h2>
@@ -755,11 +763,14 @@
         <h2>Food groups <span data-helpslot="mixing"></span></h2>
         <p class="hint">Mean and SD (‰) of each food group's protein as eaten, from plants and animals of the same site and
           period. Leave δ³⁴S empty to use δ¹³C and δ¹⁵N only. Two to six groups; with more groups than isotopes + 1 the shares
-          stay uncertain.</p>
+          stay uncertain. Fill in % C, % N (and % S) for every food to mix each isotope by the element each food supplies;
+          leave them empty to mix by food share.</p>
         <div class="table-wrap">
           <table id="mixing-sources" class="edit-table">
             <thead><tr><th scope="col">Name</th><th scope="col">δ¹³C</th><th scope="col">SD</th><th scope="col">δ¹⁵N</th>
-              <th scope="col">SD</th><th scope="col">δ³⁴S</th><th scope="col">SD</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+              <th scope="col">SD</th><th scope="col">δ³⁴S</th><th scope="col">SD</th>
+              <th scope="col">% C <span data-helpslot="concentration"></span></th><th scope="col">% N</th><th scope="col">% S</th>
+              <th scope="col">Prior weight <span data-helpslot="mix_prior"></span></th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -801,8 +812,12 @@
             values are rounded placeholders: replace them with a published standard before using the ages.</p>
         </article>
         <article class="card">
-          <h2>Ranges and checks</h2>
+          <h2>Method and ranges</h2>
           <div class="form-grid">
+            <label>Method <span data-helpslot="transition"></span>
+              <select id="dental-method"><option value="transition">Transition analysis</option><option value="midpoint">Stage midpoints</option></select></label>
+            <label>A child's teeth are
+              <select id="dental-teeth"><option value="independent">independent given age</option><option value="dependent">one tooth's worth of evidence</option></select></label>
             <label>Range passed on: estimate ± this many SD<input id="dental-interval_z" type="number" min="0.5" max="4" step="0.01"></label>
             <label>Flag a tooth this many SD away<input id="dental-discordance_z" type="number" min="0.5" max="5" step="0.1"></label>
           </div>
@@ -847,6 +862,12 @@
           <p id="lifetable-bounds-hint" class="hint">Single years up to 5 show deaths around weaning. An open-ended adult age
             (e.g. 50+) is spread up to the last boundary.</p>
           <label class="check"><input id="lifetable-siler" type="checkbox"> Also fit a Siler hazard model <span data-helpslot="siler"></span></label>
+          <label>Group by site and<select id="lifetable-group"><option value="period">period</option><option value="sex">sex</option><option value="">nothing else</option></select></label>
+        </article>
+        <article class="card">
+          <h2>Missing infants <span data-helpslot="infant_correction"></span></h2>
+          <label>Expected share of deaths under 1 year<input id="lifetable-expected_infant_share" type="number" min="0.01" max="0.79" step="0.01" placeholder="no correction"></label>
+          <p class="hint">From a comparable population or a model life table. Leave empty for no correction.</p>
         </article>
         <article class="card">
           <h2>Uncertainty</h2>
@@ -885,6 +906,22 @@
             the people themselves.</p>
         </article>
       </div>
+      <article class="card">
+        <h2>Possible origins <span data-helpslot="origins"></span></h2>
+        <p class="hint">Places a non-local person may have come from, with their expected ⁸⁷Sr/⁸⁶Sr and drinking-water δ¹⁸O
+          (mean and SD), e.g. from an isoscape or published local baselines.</p>
+        <div class="table-wrap">
+          <table id="mobility-regions" class="edit-table">
+            <thead><tr><th scope="col">Place</th><th scope="col">⁸⁷Sr/⁸⁶Sr</th><th scope="col">SD</th>
+              <th scope="col">Drinking water δ¹⁸O</th><th scope="col">SD</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="row gap wrap">
+          <button id="btn-mobility-add-region" class="secondary" type="button">Add a place</button>
+          <label class="check"><input id="mobility-origins_from_sites" type="checkbox"> Also use the other sites in the table</label>
+        </div>
+      </article>
       <div class="run-bar">
         <div id="mobility-progress" class="progress-wrap" hidden></div>
         <button id="btn-mobility-run" class="primary">Check for incomers</button>

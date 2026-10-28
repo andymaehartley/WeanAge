@@ -381,12 +381,14 @@ PAYNE_BOUNDS = [0.0, 2, 6, 12, 24, 36, 48, 72, 96, 120]
 
 
 class KilloffSample(Sample):
-    """One aged mandible (or loose tooth). Give a Payne wear stage, or an age range in months.
+    """One aged mandible (or loose tooth). Give a Payne wear stage, a stage of another system (wear_stage,
+    with its ages in the settings), or an age range in months.
 
-    A stage may span several, written "D/E" or "D-E": the mandible could be either.
+    A Payne stage may span several, written "D/E" or "D-E"; a wear_stage range is written "C/D".
     """
 
     payne_stage: str | None = None
+    wear_stage: str | None = None
     age_min_months: float | None = Field(default=None, ge=0, le=600)
     age_max_months: float | None = Field(default=None, gt=0, le=600)
 
@@ -401,8 +403,10 @@ class KilloffSample(Sample):
                 self.age_min_months = float(PAYNE_STAGES[first][0])
             if self.age_max_months is None:
                 self.age_max_months = float(PAYNE_STAGES[last][1])
+        if self.wear_stage and self.age_min_months is None:
+            return self  # its ages come from the stage table in the settings
         if self.age_min_months is None or self.age_max_months is None:
-            raise ValueError("each mandible needs payne_stage, or age_min_months and age_max_months")
+            raise ValueError("each mandible needs payne_stage, wear_stage, or age_min_months and age_max_months")
         if self.age_min_months >= self.age_max_months:
             raise ValueError("age_min_months must be smaller than age_max_months")
         return self
@@ -412,6 +416,9 @@ class KilloffOptions(BaseModel):
     """Settings of the kill-off profiles."""
 
     class_bounds_months: list[float] = Field(default=PAYNE_BOUNDS, min_length=3, max_length=20)
+    # Another wear-stage system (e.g. for cattle or pigs): stage -> [from, to] months, with its published source.
+    stage_ages: dict[str, tuple[float, float]] = {}
+    stage_source: str = ""
     bootstrap_draws: int = Field(default=1000, ge=0, le=10000)
     permutations: int = Field(default=1000, ge=0, le=10000)
     random_seed: int | None = 42
@@ -442,6 +449,13 @@ class DietSource(BaseModel):
     d15N_sd: float = Field(gt=0)
     d34S: float | None = None
     d34S_sd: float | None = Field(default=None, gt=0)
+    # Element concentrations of the food (e.g. % C, % N, % S of dry weight). When given for every food,
+    # each isotope is mixed in proportion to the element each food supplies (Phillips & Koch 2002).
+    conc_C: float | None = Field(default=None, gt=0, le=100)
+    conc_N: float | None = Field(default=None, gt=0, le=100)
+    conc_S: float | None = Field(default=None, gt=0, le=100)
+    # Prior weight of this food (Dirichlet concentration): 1 = no preference; larger = expected to be more of the diet.
+    prior: float = Field(default=1.0, gt=0, le=100)
 
 
 class MixingOptions(BaseModel):
@@ -515,6 +529,12 @@ class DentalSample(Sample):
 class DentalOptions(BaseModel):
     """Settings of the dental age estimate. Formation ages come from data/dental_stages.json."""
 
+    # transition: probability of each stage at each age, combined over teeth (Boldsen et al. 2002);
+    # midpoint: the middle of each stage's age span, averaged over teeth.
+    method: Literal["transition", "midpoint"] = "transition"
+    # Transition analysis: "independent" multiplies the teeth's likelihoods (conditional independence, as in
+    # Boldsen et al. 2002); "dependent" counts all the teeth of a child as one tooth's worth of evidence.
+    teeth: Literal["independent", "dependent"] = "independent"
     interval_z: float = Field(default=1.96, gt=0, le=4)  # age range given to the bone calculation: estimate ± z·SD
     discordance_z: float = Field(default=2.0, gt=0, le=5)  # teeth further than this many SDs from the estimate are flagged
     random_seed: int | None = 42
@@ -591,6 +611,8 @@ class LifeTableOptions(BaseModel):
     permutations: int = Field(default=1000, ge=0, le=10000)
     siler: bool = True  # also fit a Siler hazard model to the age ranges
     group_by: list[str] = Field(default=["site", "period"], min_length=1, max_length=3)  # site, period, sex or a kept column
+    # Missing infants: if set, infants are added to each table until they make up this share of the deaths.
+    expected_infant_share: float | None = Field(default=None, gt=0, lt=0.8)
     random_seed: int | None = 42
 
     @field_validator("class_bounds_years")
@@ -627,6 +649,16 @@ class MobilitySample(Sample):
         return self
 
 
+class OriginRegion(BaseModel):
+    """A place a non-local person may have come from: its expected 87Sr/86Sr and drinking-water δ18O (mean, SD)."""
+
+    name: str = Field(min_length=1)
+    sr87_86: float | None = Field(default=None, ge=0.69, le=0.75)
+    sr_sd: float = Field(default=0.0005, gt=0, le=0.02)
+    d18O_dw: float | None = Field(default=None, ge=-30, le=10)
+    d18O_dw_sd: float = Field(default=1.0, gt=0, le=5)
+
+
 class MobilityOptions(BaseModel):
     # SD of a drinking-water value predicted from enamel (regression error); Pollard et al. 2011 argue it can be larger.
     drinking_water_sd: float = Field(default=1.0, ge=0, le=5)
@@ -635,4 +667,7 @@ class MobilityOptions(BaseModel):
     local_sr_min: float | None = Field(default=None, ge=0.69, le=0.75)  # overrides the baseline samples
     local_sr_max: float | None = Field(default=None, ge=0.69, le=0.75)
     baseline_sd_multiplier: float = Field(default=2.0, gt=0, le=4)  # local Sr = baseline mean ± this × SD
+    # Possible origins of non-local people: places entered here, and the other sites in the table (their local people).
+    regions: list[OriginRegion] = Field(default=[], max_length=30)
+    origins_from_sites: bool = True
     random_seed: int | None = 42

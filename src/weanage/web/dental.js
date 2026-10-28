@@ -12,6 +12,11 @@ export const dental = oneTableCalc({
   plural: "scored teeth",
   working: "Estimating ages",
   fields: ["interval_z", "discordance_z"],
+  readSettings: (out) => ({ ...out, method: $("#dental-method").value, teeth: $("#dental-teeth").value }),
+  writeSettings: (o) => {
+    if (o.method) $("#dental-method").value = o.method;
+    if (o.teeth) $("#dental-teeth").value = o.teeth;
+  },
   init: (calc) => {
     $("#btn-dental-csv").addEventListener("click", () => download("weanage_dental_ages.csv", new Blob([toCsv(ageRows(calc.own().output))], { type: "text/csv" })));
     $("#btn-dental-to-bone").addEventListener("click", () => useInBone(calc.own().output, calc.app()));

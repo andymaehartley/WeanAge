@@ -14,6 +14,11 @@ A Siler (1979) hazard, h(t) = a1·e^(−b1·t) + a2 + a3·e^(b3·t), can also be
 by maximum likelihood, treating each range as interval-censored, which avoids splitting skeletons
 over classes.
 
+Missing infants. Infant burials are often lost or never excavated. With an expected share of deaths
+in the first year (from a comparable population or a model life table), each group is also given a
+corrected table in which infant deaths are added until they reach that share; nothing else changes.
+The correction is only as good as the expected share.
+
 A life table describes a population only if it was stationary (no growth, no migration) and the
 dead are a fair sample of who died; selective mortality and hidden frailty (the osteological
 paradox, Wood et al. 1992) and the frequent loss of infant burials (Bocquet-Appel & Masset 1982)
@@ -133,6 +138,18 @@ def siler_summary(params, top):
             "curve_hazard": [round(float(v), 6) for v in hazard]}
 
 
+def infant_correction(shares, bounds, target):
+    """Add infant deaths (spread over the first year) until they are `target` of all deaths."""
+    infant = np.asarray(spread([(0, 1)], bounds))[0]
+    have = float(shares.sum(axis=0) @ infant)  # deaths under 1 already in the table
+    others = shares.sum() - have
+    needed = max(target * others / (1 - target) - have, 0.0)
+    columns, summary = table(np.vstack([shares, infant * needed]), bounds)
+    rows = [{"from_years": bounds[k], "to_years": bounds[k + 1], **{col: float(v[k]) for col, v in columns.items()}}
+            for k in range(len(bounds) - 1)]
+    return {"added_infants": needed, "target_share": target, "summary": summary, "rows": rows}
+
+
 def analyze_group(name, members, options, rng):
     bounds = options.class_bounds_years
     ranges = [(s.age_min_years, s.age_max_years) for s in members]
@@ -155,6 +172,8 @@ def analyze_group(name, members, options, rng):
     if summary["infant_share"] < 0.1:
         out["warnings"].append(f"Infants are {summary['infant_share']:.0%} of the dead; pre-modern populations usually "
                                "lost far more in the first year, so infant burials are probably missing (Bocquet-Appel & Masset 1982)")
+    if options.expected_infant_share:
+        out["corrected"] = infant_correction(shares, bounds, options.expected_infant_share)
     if options.siler and len(members) >= 20:
         params = fit_siler(ranges, bounds[-1])
         if params is not None:

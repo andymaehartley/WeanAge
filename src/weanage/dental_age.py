@@ -9,11 +9,24 @@ of one child develop together and are not independent, the combined SD is not na
 (it is the SD of a typical single tooth). Teeth far from the combined age are flagged: they may be
 mis-scored, or from another individual.
 
+Transition analysis (the default; after Boldsen et al. 2002) instead asks, for every age on a grid,
+how likely each tooth is to be in the stage it was scored in: a child reaches each stage at an age
+spread around its mean, so P(stage | age) = P(reached this stage) − P(reached the next). The teeth's
+likelihoods are multiplied with a flat prior over age, which avoids taking on the age structure of
+a reference sample (Konigsberg & Frankenberg 1992), and the median and 95% interval of the result
+are reported. A finished tooth then simply says "at least this old" without a separate rule. As in
+Boldsen et al. (2002) the teeth are treated as independent given age, which makes the interval too
+narrow if a child's teeth are all early or all late; `teeth = "dependent"` instead raises their joint
+likelihood to the power 1/n, giving an interval as wide as one tooth's.
+
 The bundled formation ages are placeholders until replaced by a published standard (e.g. AlQahtani
 et al. 2010; Smith 1991), so the ages are illustrative.
 """
 
 import math
+
+import numpy as np
+from scipy.stats import norm
 
 from . import config
 from .ingest import check_rows, column_lookup, match_columns
@@ -93,6 +106,35 @@ def estimate_individual(teeth, options, table):
     return out
 
 
+AGE_GRID = np.arange(-9.0, 300.0, 0.25)  # months: from before birth to 25 years
+
+
+def spread_sd(age, table):
+    return max(table["sd"]["fraction"] * abs(age), table["sd"]["minimum_months"])
+
+
+def stage_likelihood(tooth, stage, table):
+    """P(the tooth is in this stage | age) on AGE_GRID: reached this stage but not yet the next."""
+    ages = stage_ages(tooth, table)
+    i = MOORREES_STAGES.index(stage)
+    reached = lambda s: norm.cdf((AGE_GRID - ages[s]) / spread_sd(ages[s], table))  # noqa: E731
+    if i == len(MOORREES_STAGES) - 1:
+        return reached(stage)
+    return np.clip(reached(stage) - reached(MOORREES_STAGES[i + 1]), 1e-300, None)
+
+
+def transition_estimate(teeth, options, table):
+    """Median and 95% interval of age given all the teeth's stages (flat prior over AGE_GRID)."""
+    log_like = sum(np.log(stage_likelihood(s.tooth, s.stage, table)) for s in teeth)
+    if options.teeth == "dependent":
+        log_like = log_like / len(teeth)
+    posterior = np.exp(log_like - log_like.max())
+    cumulative = np.cumsum(posterior) / posterior.sum()
+    level = 2 * norm.cdf(options.interval_z) - 1
+    at = lambda q: float(np.interp(q, cumulative, AGE_GRID))  # noqa: E731
+    return at(0.5), at((1 - level) / 2), at((1 + level) / 2)
+
+
 def analyze_dental(samples, options=None, progress=None):
     options = options or DentalOptions()
     table = config.dental_stages()
@@ -101,7 +143,15 @@ def analyze_dental(samples, options=None, progress=None):
         people.setdefault(s.specimen_id, []).append(s)
     results = []
     for i, teeth in enumerate(people.values()):
-        results.append(estimate_individual(teeth, options, table))
+        result = estimate_individual(teeth, options, table)
+        result["method"] = options.method
+        if options.method == "transition":
+            middle, low, high = transition_estimate(teeth, options, table)
+            open_ended = high >= AGE_GRID[-1] - 1  # the teeth only say "at least this old"
+            result.update(estimate_months=None if open_ended else middle, age_min_months=max(low, 0.0),
+                          age_max_months=None if open_ended else high,
+                          sd_months=None if open_ended else (high - low) / (2 * options.interval_z))
+        results.append(result)
         if progress:
             progress(i + 1, len(people))
     return {"results": results, "placeholder": bool(table.get("placeholder")), "stages": MOORREES_STAGES}

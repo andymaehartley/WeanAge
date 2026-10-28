@@ -3,14 +3,19 @@
 Collagen δ13C, δ15N (and optionally δ34S) are a mix of the foods eaten, shifted by a collagen-diet
 offset. With food groups s, diet shares p (summing to 1) and offsets Δ, each isotope's expected
 value is Σ p_s·μ_s + Δ, with variance Σ p_s²·σ_s² + σ_Δ² + σ_measurement² (as in FRUITS,
-Fernandes et al. 2014; and MixSIAR-style models, Stock et al. 2018). The shares get a flat
-Dirichlet prior; the posterior is found by drawing many diets from the prior and weighting each by
-how well it explains the sample (importance sampling).
+Fernandes et al. 2014; and MixSIAR-style models, Stock et al. 2018). The shares get a Dirichlet
+prior, flat by default; a food's `prior` weight above 1 favours it. The posterior is found by
+drawing many diets from the prior and weighting each by how well it explains the sample
+(importance sampling).
+
+Concentration dependence (Phillips & Koch 2002). Foods differ in how much carbon, nitrogen or sulphur
+they hold: meat supplies far more nitrogen than the same amount of cereal. When the element
+concentrations of every food are given, each isotope is mixed by the share of the element each food
+supplies, w_s = p_s·c_s / Σ p·c, instead of by the food shares p_s themselves.
 
 Limits, as for every mixing model (Phillips et al. 2014): with more food groups than isotopes + 1,
-the shares are not fixed by the data and the intervals stay wide; foods are mixed by their protein
-only (no concentration dependence); and the answer can be no better than the food values and
-offsets, which are placeholders until measured locally.
+the shares are not fixed by the data and the intervals stay wide; and the answer can be no better
+than the food values and offsets, which are placeholders until measured locally.
 """
 
 import math
@@ -29,6 +34,7 @@ ALIASES = {
 }
 LOOKUP = column_lookup(MixingSample, ALIASES)
 ISOTOPES = ["d13C", "d15N", "d34S"]
+ELEMENT = {"d13C": "conc_C", "d15N": "conc_N", "d34S": "conc_S"}
 MIN_ESS = 200  # fewer effective draws than this and the intervals are rough
 
 
@@ -55,14 +61,23 @@ def weighted_interval(values, weights):
     return [float(values[order][np.searchsorted(cumulative, q * cumulative[-1])]) for q in (0.025, 0.975)]
 
 
-def analyze_sample(sample, isotopes, shares, means, variances, offsets, names):
+def element_shares(shares, concentrations):
+    """The share of an element each food supplies, from the food shares (rows) and its concentrations."""
+    if concentrations is None:
+        return shares
+    supplied = shares * concentrations
+    return supplied / supplied.sum(axis=1, keepdims=True)
+
+
+def analyze_sample(sample, isotopes, shares, means, variances, offsets, names, concentrations):
     """Posterior diet shares of one sample, from the prior draws `shares` (draws × sources)."""
     log_like = np.zeros(len(shares))
     worst_z = np.zeros(len(shares))
     for iso in isotopes:
         observed = getattr(sample, iso)
-        expected = shares @ means[iso] + offsets[iso][0]
-        variance = (shares ** 2) @ variances[iso] + offsets[iso][1] ** 2
+        w = element_shares(shares, concentrations[iso])
+        expected = w @ means[iso] + offsets[iso][0]
+        variance = (w ** 2) @ variances[iso] + offsets[iso][1] ** 2
         z = (observed - expected) / np.sqrt(variance)
         log_like += -0.5 * z ** 2 - 0.5 * np.log(variance)
         worst_z = np.maximum(worst_z, np.abs(z))
@@ -89,18 +104,20 @@ def analyze_mixing(samples, options=None, progress=None):
     sources = options.sources
     names = [s.name for s in sources]
     rng = np.random.default_rng(options.random_seed)
-    shares = rng.dirichlet(np.ones(len(sources)), options.draws)
+    shares = rng.dirichlet([s.prior for s in sources], options.draws)
     measurement = options.measurement_sd_permil ** 2
     usable = [iso for iso in ISOTOPES if all(getattr(s, iso) is not None for s in sources)
               and getattr(options, f"offset_{iso}") is not None]
     means = {iso: np.array([getattr(s, iso) for s in sources]) for iso in usable}
     variances = {iso: np.array([getattr(s, f"{iso}_sd") or 0.0 for s in sources]) ** 2 for iso in usable}
+    concentrations = {iso: np.array([getattr(s, ELEMENT[iso]) for s in sources])
+                      if all(getattr(s, ELEMENT[iso]) is not None for s in sources) else None for iso in usable}
     offsets = {iso: (getattr(options, f"offset_{iso}"), math.sqrt((getattr(options, f"offset_{iso}_sd") or 0) ** 2 + measurement))
                for iso in usable}
     results = []
     for i, sample in enumerate(samples):
         isotopes = [iso for iso in usable if getattr(sample, iso) is not None]
-        result = analyze_sample(sample, isotopes, shares, means, variances, offsets, names)
+        result = analyze_sample(sample, isotopes, shares, means, variances, offsets, names, concentrations)
         if len(sources) > len(isotopes) + 1:
             result["warnings"].append(f"{len(sources)} food groups but {len(isotopes)} isotopes: the shares are not "
                                       "fixed by the data alone, so read the intervals, not the means (Phillips et al. 2014)")
@@ -112,7 +129,9 @@ def analyze_mixing(samples, options=None, progress=None):
     return {"results": results, "groups": group_means(results, names), "sources": [s.model_dump() for s in sources],
             "offsets": {iso: {"mean": getattr(options, f"offset_{iso}"), "sd": getattr(options, f"offset_{iso}_sd")}
                         for iso in ISOTOPES},
-            "isotopes_used": usable, "placeholder": placeholder}
+            "isotopes_used": usable, "placeholder": placeholder,
+            "concentration_dependent": [iso for iso in usable if concentrations[iso] is not None],
+            "prior": {s.name: s.prior for s in sources}}
 
 
 def group_means(results, names):

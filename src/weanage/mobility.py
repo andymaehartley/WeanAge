@@ -17,12 +17,21 @@ finds only the most unusual people and needs at least 8 of them.
 
 First molars and deciduous teeth form partly while the child is breastfed, and breast milk is richer in
 18O than the water the mother drinks, so their δ18O can be raised (Wright & Schwarcz 1998).
+
+Where from? For each non-local person the candidate places (entered in Settings, and the other sites
+of the table, described by their local people) are compared: the likelihood of the person's values
+under each place's mean and SD, normalised over the places with equal prior weight, gives each a
+probability. If even the best place is more than 2.5 SD away in any isotope, none fits. Many places
+share the same strontium and oxygen values, so this narrows the possibilities; it does not identify a
+birthplace (Bentley 2006).
 """
+
+import math
 
 import numpy as np
 
 from .ingest import check_rows, column_lookup, match_columns
-from .schema import MobilityOptions, MobilitySample
+from .schema import MobilityOptions, MobilitySample, OriginRegion
 
 ALIASES = {
     "specimen_id": ["individual", "individualid", "skeleton", "burial", "sampleid"],
@@ -111,6 +120,49 @@ def analyze_site(site, rows, options):
     return out, results
 
 
+def site_regions(summaries, results):
+    """Each site as a possible origin, from the mean and SD of its local people."""
+    regions = []
+    for s in summaries:
+        local = [r for r in results if r["site"] == s["site"] and not r["non_local"]]
+        sr = [r["sr87_86"] for r in local if r["sr87_86"] is not None]
+        dw = [r["d18O_dw"]["estimate"] for r in local if r["d18O_dw"]]
+        if len(sr) >= 3 or len(dw) >= 3:
+            regions.append(OriginRegion(
+                name=s["site"], sr87_86=float(np.mean(sr)) if len(sr) >= 3 else None,
+                sr_sd=max(float(np.std(sr, ddof=1)), 0.0002) if len(sr) >= 3 else 0.0005,
+                d18O_dw=float(np.mean(dw)) if len(dw) >= 3 else None,
+                d18O_dw_sd=max(float(np.std(dw, ddof=1)), 0.3) if len(dw) >= 3 else 1.0))
+    return regions
+
+
+def origins(result, regions, options):
+    """Probabilities of the candidate places for one person (not their own site), best first."""
+    scored = []
+    for region in regions:
+        if region.name == result["site"]:
+            continue
+        log_like, worst, used = 0.0, 0.0, 0
+        if region.sr87_86 is not None and result["sr87_86"] is not None:
+            z = (result["sr87_86"] - region.sr87_86) / region.sr_sd
+            log_like += -0.5 * z ** 2 - math.log(region.sr_sd)
+            worst, used = max(worst, abs(z)), used + 1
+        if region.d18O_dw is not None and result["d18O_dw"]:
+            sd = math.hypot(region.d18O_dw_sd, options.drinking_water_sd)
+            z = (result["d18O_dw"]["estimate"] - region.d18O_dw) / sd
+            log_like += -0.5 * z ** 2 - math.log(sd)
+            worst, used = max(worst, abs(z)), used + 1
+        if used:
+            scored.append((region.name, log_like, worst))
+    if not scored:
+        return None
+    top = max(s[1] for s in scored)
+    total = sum(math.exp(s[1] - top) for s in scored)
+    ranked = sorted(({"region": n, "probability": math.exp(ll - top) / total, "fits": w <= 2.5} for n, ll, w in scored),
+                    key=lambda o: -o["probability"])
+    return {"candidates": ranked[:5], "none_fit": not any(o["fits"] for o in ranked)}
+
+
 def analyze_mobility(samples, options=None, progress=None):
     options = options or MobilityOptions()
     sites: dict[str, list] = {}
@@ -123,5 +175,8 @@ def analyze_mobility(samples, options=None, progress=None):
         results += rows_out
         if progress:
             progress(i + 1, len(sites))
-    return {"results": results, "sites": summaries,
+    regions = list(options.regions) + (site_regions(summaries, results) if options.origins_from_sites else [])
+    for r in results:
+        r["origins"] = origins(r, regions, options) if r["non_local"] and regions else None
+    return {"results": results, "sites": summaries, "regions": [g.model_dump() for g in regions],
             "warnings": [w for s in summaries for w in s.pop("warnings")]}

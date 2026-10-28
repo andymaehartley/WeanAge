@@ -15,6 +15,10 @@ herding aims Payne (1973) modelled (see also Vigne & Helmer 2007): many deaths b
 and many survivors past 4 years (wool, hair, breeding or traction). A profile seldom fits one aim,
 and taphonomy removes young mandibles first, so these are prompts, not verdicts.
 
+Other wear-stage systems (for cattle or pigs, e.g. Grant 1982 mandible wear stages or Halstead 1985)
+can be used by giving each stage's age range in months in the settings, from the publication; WeanAge
+does not bundle them, because their ages vary between studies.
+
 Groups are compared with a permutation test: how often does shuffling the mandibles between the
 two groups give class shares at least as different as those observed?
 """
@@ -27,7 +31,8 @@ from .schema import PAYNE_BOUNDS, KilloffOptions, KilloffSample
 
 ALIASES = {
     "specimen_id": ["specimen", "specimenid", "mandible", "mandibleid", "sampleid"],
-    "payne_stage": ["stage", "payne", "wearstage", "mws"],
+    "payne_stage": ["stage", "payne", "paynestage"],
+    "wear_stage": ["wearstage", "mws", "grant", "halstead"],
     "age_min_months": ["agemin", "minage", "agefrom"],
     "age_max_months": ["agemax", "maxage", "ageto"],
 }
@@ -149,9 +154,23 @@ def compare(a, b, options, rng):
     return {"difference": observed, "p_value": p}
 
 
+def with_stage_ages(sample, options):
+    """A mandible scored in another wear-stage system, given the ages of its stage(s) from the settings."""
+    if not sample.wear_stage or sample.age_min_months is not None:
+        return sample
+    stages = [s.strip() for s in sample.wear_stage.split("/")]
+    table = {k.strip().lower(): v for k, v in options.stage_ages.items()}
+    missing = [s for s in stages if s.lower() not in table]
+    if missing:
+        raise ValueError(f"wear stage {', '.join(missing)} of {sample.specimen_id} is not in the stage table (Settings)")
+    ranges = [table[s.lower()] for s in stages]
+    return sample.model_copy(update={"age_min_months": min(r[0] for r in ranges), "age_max_months": max(r[1] for r in ranges)})
+
+
 def analyze_killoff(samples, options=None, progress=None):
     options = options or KilloffOptions()
     rng = np.random.default_rng(options.random_seed)
+    samples = [with_stage_ages(s, options) for s in samples]
     groups: dict[str, list] = {}
     for s in samples:
         groups.setdefault(group_name(s), []).append(s)

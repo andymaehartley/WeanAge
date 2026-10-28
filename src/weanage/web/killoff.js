@@ -11,8 +11,13 @@ export const killoff = oneTableCalc({
   plural: "mandibles",
   working: "Building profiles",
   fields: ["bootstrap_draws", "permutations"],
-  readSettings: (out) => ({ ...out, class_bounds_months: $("#killoff-class_bounds_months").value.split(/[,;\s]+/).filter(Boolean).map(Number) }),
-  writeSettings: (o) => { if (o.class_bounds_months) $("#killoff-class_bounds_months").value = o.class_bounds_months.join(", "); },
+  readSettings: (out) => ({ ...out, class_bounds_months: $("#killoff-class_bounds_months").value.split(/[,;\s]+/).filter(Boolean).map(Number),
+    stage_ages: readStageTable($("#killoff-stage-table").value), stage_source: $("#killoff-stage_source").value.trim() }),
+  writeSettings: (o) => {
+    if (o.class_bounds_months) $("#killoff-class_bounds_months").value = o.class_bounds_months.join(", ");
+    if (o.stage_ages) $("#killoff-stage-table").value = Object.entries(o.stage_ages).map(([k, [a, b]]) => `${k}: ${a}-${b}`).join("\n");
+    if ("stage_source" in o) $("#killoff-stage_source").value = o.stage_source;
+  },
   init: (calc) => {
     $("#btn-killoff-csv").addEventListener("click", () => download("weanage_killoff_profiles.csv", new Blob([toCsv(profileRows(calc.own().output))], { type: "text/csv" })));
     $("#btn-killoff-json").addEventListener("click", () => download("weanage_killoff_results.json",
@@ -21,6 +26,16 @@ export const killoff = oneTableCalc({
   renderData,
   renderResults,
 });
+
+/** "B: 1-8" lines -> {B: [1, 8]}; lines that do not parse are skipped. */
+export function readStageTable(text) {
+  const table = {};
+  for (const line of text.split("\n")) {
+    const m = line.match(/^\s*([^:,]+?)\s*[:,]\s*(\d+(?:\.\d+)?)\s*[-–,]\s*(\d+(?:\.\d+)?)\s*$/);
+    if (m) table[m[1]] = [Number(m[2]), Number(m[3])];
+  }
+  return table;
+}
 
 function renderData({ report, samples }) {
   const groups = report?.groups || [];

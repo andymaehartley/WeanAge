@@ -1,10 +1,11 @@
 // Collagen diet mixing: the share of each food group in the diet, from δ13C, δ15N and δ34S.
 import { oneTableCalc } from "./calc.js";
 import { biplotChart } from "./chart.js";
-import { $, $$, download, esc, num, plural, renderIssues, renderReady, renderWarnings, table, toast, toCsv } from "./util.js";
+import { $, download, esc, num, plural, readEditTable, renderIssues, renderReady, renderWarnings, table, toast, toCsv, writeEditTable } from "./util.js";
 
 const pct = (v) => (v == null ? "—" : `${Math.round(v * 100)}%`);
-const SOURCE_KEYS = { name: "Name", d13C: "δ13C", d13C_sd: "δ13C SD", d15N: "δ15N", d15N_sd: "δ15N SD", d34S: "δ34S", d34S_sd: "δ34S SD" };
+const SOURCE_KEYS = { name: "Name", d13C: "δ13C", d13C_sd: "δ13C SD", d15N: "δ15N", d15N_sd: "δ15N SD", d34S: "δ34S", d34S_sd: "δ34S SD",
+  conc_C: "% C", conc_N: "% N", conc_S: "% S", prior: "Prior weight" };
 const MAX_SOURCES = 6;
 
 export const mixing = oneTableCalc({
@@ -21,11 +22,11 @@ export const mixing = oneTableCalc({
       writeSources([...sources, { name: `Food ${sources.length + 1}` }]);
     });
     $("#mixing-sources").addEventListener("click", (e) => {
-      const row = e.target.closest("[data-remove-source]");
+      const row = e.target.closest("[data-remove-row]");
       if (!row) return;
       const sources = readSources();
       if (sources.length <= 2) return toast("At least two food groups are needed.");
-      sources.splice(Number(row.dataset.removeSource), 1);
+      sources.splice(Number(row.dataset.removeRow), 1);
       writeSources(sources);
     });
     $("#btn-mixing-csv").addEventListener("click", () => download("weanage_diet_shares.csv", new Blob([toCsv(shareRows(calc.own().output))], { type: "text/csv" })));
@@ -38,20 +39,10 @@ export const mixing = oneTableCalc({
 
 // Food groups, edited as a table of inputs
 function writeSources(sources) {
-  const cell = (i, key, value) => `<td><input data-source="${i}" data-key="${key}" aria-label="${SOURCE_KEYS[key]} of food group ${i + 1}"
-    ${key === "name" ? 'type="text"' : 'type="number" step="0.1"'} value="${esc(value ?? "")}"></td>`;
-  $("#mixing-sources tbody").innerHTML = sources.map((s, i) => `<tr>${Object.keys(SOURCE_KEYS).map((key) => cell(i, key, s[key])).join("")}
-    <td><button class="ghost tiny" type="button" data-remove-source="${i}" aria-label="Remove food group ${i + 1}">Remove</button></td></tr>`).join("");
+  writeEditTable($("#mixing-sources tbody"), SOURCE_KEYS, sources.map((s) => ({ prior: 1, ...s })), "food group");
 }
 
-function readSources() {
-  const rows = {};
-  for (const input of $$("#mixing-sources input")) {
-    const value = input.value.trim();
-    (rows[input.dataset.source] ??= {})[input.dataset.key] = input.dataset.key === "name" ? value : value === "" ? null : Number(value);
-  }
-  return Object.values(rows);
-}
+const readSources = () => readEditTable($("#mixing-sources tbody")).map((s) => ({ ...s, prior: s.prior ?? 1 }));
 
 // Data
 function renderData({ report, samples }) {

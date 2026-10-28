@@ -165,3 +165,21 @@ export const readout = (value, what) => (value?.estimate == null ? "" :
   `<p class="readout"><span class="figure">${ageValue(value)}</span><span class="unit">${unitWord()}</span>
     <span class="what">${what}${value.beyond ? ` · ${value.beyond === "after" ? "later than the last" : "earlier than the first"} sample, so no exact age`
       : value.ci_low != null ? ` · 95% interval ${ci(value)}` : ""}</span></p>`);
+
+// Editable tables: one row of inputs per item (food groups, candidate origins).
+// columns: {key: label}; keys in textKeys are text, the rest numbers (blank = null).
+export function writeEditTable(tbody, columns, rows, noun, textKeys = ["name"]) {
+  const cell = (i, key, value) => `<td><input data-row="${i}" data-key="${key}" aria-label="${esc(columns[key])} of ${noun} ${i + 1}"
+    ${textKeys.includes(key) ? 'type="text"' : 'type="number" step="any"'} value="${esc(value ?? "")}"></td>`;
+  tbody.innerHTML = rows.map((r, i) => `<tr>${Object.keys(columns).map((key) => cell(i, key, r[key])).join("")}
+    <td><button class="ghost tiny" type="button" data-remove-row="${i}" aria-label="Remove ${noun} ${i + 1}">Remove</button></td></tr>`).join("");
+}
+
+export function readEditTable(tbody, textKeys = ["name"]) {
+  const rows = {};
+  for (const input of $$("input", tbody)) {
+    const value = input.value.trim();
+    (rows[input.dataset.row] ??= {})[input.dataset.key] = textKeys.includes(input.dataset.key) ? value : value === "" ? null : Number(value);
+  }
+  return Object.values(rows);
+}
