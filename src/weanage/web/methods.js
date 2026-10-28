@@ -15,7 +15,8 @@ export function methodRuns(state, calcs) {
   for (const calc of Object.values(calcs)) {
     const own = calc.own();
     if (!own?.output) continue;
-    runs[calc.name] = { options: own.options, n: own.output.results?.length ?? own.samples.length };
+    // Dental and enamel results are per individual or tooth; for the others, count the rows (skeletons, samples, defects).
+    runs[calc.name] = { options: own.options, n: ["dental", "enamel"].includes(calc.name) ? own.output.results.length : own.samples.length };
     if (calc.name === "mobility") {
       const results = own.output.results;
       runs.mobility.details = { d18O: results.some((r) => r.d18O != null), sr: results.some((r) => r.sr87_86 != null),
