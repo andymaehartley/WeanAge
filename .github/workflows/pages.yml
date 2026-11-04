@@ -27,7 +27,7 @@ jobs:
       # Check the real browser version works (Python running in the page) before publishing it.
       - run: WEANAGE_TEST_PYODIDE=1 pytest -q tests/test_browser.py -k browser_version
       - run: python scripts/build_browser.py
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with: { path: dist/browser }
   deploy:
     needs: build
