@@ -218,6 +218,65 @@ WRITERS = {"tooth": tooth, "bone": bone, "enamel": enamel, "killoff": killoff, "
            "leh": leh, "lifetable": lifetable, "mobility": mobility}
 
 
+def default_options(name):
+    """The settings the app starts with for a calculation (as in its Settings page before any change)."""
+    if name == "tooth":
+        return config.default_options().model_dump()
+    if name == "bone":
+        return BoneOptions().model_dump()
+    from .service import CALCULATIONS, defaults  # here, as service imports this module
+
+    return defaults(CALCULATIONS[name])
+
+CALC_NAMES = {"tooth": "tooth calculation", "bone": "bone calculation", "enamel": "enamel", "killoff": "kill-off profiles",
+              "mixing": "diet mixing", "dental": "dental age", "leh": "enamel hypoplasia", "lifetable": "life tables",
+              "mobility": "mobility"}
+SCALAR = (int, float, str, bool, type(None))
+
+
+def shown(value):
+    if isinstance(value, list):
+        return ", ".join(shown(v) for v in value) or "none"
+    if isinstance(value, float):
+        return f"{value:g}"
+    return "none" if value in (None, "") else str(value)
+
+
+def same(a, b):
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b, strict=True))
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a == b
+    if isinstance(a, int | float) and isinstance(b, int | float):
+        return abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
+    return (a in (None, "")) and (b in (None, "")) or a == b
+
+
+def changed_settings(name, options):
+    """Settings that differ from WeanAge's defaults, as "bootstrap draws 500 (default 1000)".
+
+    Only plain values and lists of plain values are compared; tables (food groups, places, growth tables) are not.
+    """
+    defaults = default_options(name)
+    out = []
+
+    def compare(label, value, default):
+        plain = (isinstance(value, SCALAR) or (isinstance(value, list) and all(isinstance(v, SCALAR) for v in value)))
+        if plain and (isinstance(default, SCALAR) or isinstance(default, list)) and not same(value, default):
+            out.append(f"{label.replace('_', ' ')} {shown(value)} (default {shown(default)})")
+
+    for key, value in (options or {}).items():
+        if key not in defaults:
+            continue
+        if isinstance(value, dict) and isinstance(defaults[key], dict):
+            for sub, v in value.items():
+                if sub in defaults[key]:
+                    compare(f"{key} {sub}", v, defaults[key][sub])
+        else:
+            compare(key, value, defaults[key])
+    return out
+
+
 def write_methods(runs):
     """runs: {calculation: {"options": {...}, "n": count, "details": {...}}} for each calculation that was run."""
     unknown = [name for name in runs if name not in WRITERS]
@@ -229,6 +288,11 @@ def write_methods(runs):
             text, refs = WRITERS[name](runs[name])
             paragraphs.append(text)
             cited += [r for r in refs if r not in cited]
+    changes = {name: changed_settings(name, runs[name].get("options")) for name in WRITERS if name in runs}
+    changes = {name: items for name, items in changes.items() if items}
+    if changes:
+        paragraphs.append("Settings changed from WeanAge's defaults: " + "; ".join(
+            f"{CALC_NAMES[name]}: {', '.join(items)}" for name, items in changes.items()) + ".")
     areas = {area for name in runs for area in PLACEHOLDER_AREAS.get(name, ())}
     tables_used = set(runs.get("tooth", {}).get("details", {}).get("growth_tables") or [])
 
@@ -242,5 +306,5 @@ def write_methods(runs):
         paragraphs.append(f"{len(placeholders)} values used were provisional (marked TBD-LAB in WeanAge): "
                           + "; ".join(item["label"] for item in placeholders) + ".")
     references = sorted((REFERENCES[r] for r in cited), key=str.lower)
-    return {"paragraphs": paragraphs, "references": references, "placeholders": placeholders,
+    return {"paragraphs": paragraphs, "references": references, "placeholders": placeholders, "changed": changes,
             "text": "\n\n".join(paragraphs) + "\n\nReferences\n\n" + "\n".join(references)}

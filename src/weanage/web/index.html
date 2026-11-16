@@ -32,10 +32,17 @@
       <button class="step aside" data-view="individuals" disabled>Individuals</button>
     </nav>
     <div class="actions">
-      <label class="button ghost" title="Open a saved project file">Open<input id="project-input" type="file" accept=".json,.weanage" hidden></label>
-      <button id="btn-save" class="ghost" title="Save data, settings and results to a file">Save</button>
-      <button id="btn-report" class="ghost" disabled title="Download a reproducible HTML report">Report</button>
-      <button id="btn-methods" class="ghost" disabled title="A methods paragraph, with references, for the calculations run">Methods text</button>
+      <button id="btn-tbd" class="tbd-pill" type="button" aria-controls="tbd-banner" aria-expanded="false" hidden></button>
+      <div class="menu-wrap">
+        <button id="btn-project" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="project-menu">Project <span aria-hidden="true">▾</span></button>
+        <ul id="project-menu" class="menu" hidden>
+          <li><button type="button" id="btn-open">Open a saved project…</button></li>
+          <li><button type="button" id="btn-save">Save project</button></li>
+          <li><button type="button" id="btn-report" disabled>Download report (HTML)</button></li>
+          <li><button type="button" id="btn-methods" disabled>Methods text</button></li>
+        </ul>
+        <input id="project-input" type="file" accept=".json,.weanage" hidden>
+      </div>
       <span class="divider" aria-hidden="true"></span>
       <div class="menu-wrap">
         <button id="btn-view" class="ghost" aria-haspopup="true" aria-expanded="false" aria-controls="view-menu">View <span aria-hidden="true">▾</span></button>
@@ -50,9 +57,9 @@
         <ul id="help-menu" class="menu" hidden>
           <li><button type="button" id="menu-tour">Take the guided tour</button></li>
           <li><a id="menu-guide" href="guide/WeanAge_user_guide.pdf" target="_blank" rel="noopener">User guide (PDF)</a></li>
+          <li><button type="button" id="btn-about">About WeanAge and how to cite it</button></li>
         </ul>
       </div>
-      <button id="btn-about" class="ghost">About</button>
     </div>
   </header>
 
@@ -194,6 +201,12 @@
           </article>
         </div>
         <div class="column">
+          <article class="card" id="data-guide">
+            <h2>What a table needs</h2>
+            <p class="hint">One row per sample, as CSV or Excel. Column names are matched loosely (<code>δ15N (‰)</code> works
+              for <code>d15N</code>), and other columns are kept. Each template has every column, with an example row.</p>
+            <div class="table-wrap"><table id="data-guide-table"></table></div>
+          </article>
           <article class="card" data-mode="bone" hidden>
             <h2>Add animals by hand <span data-helpslot="bone_model"></span></h2>
             <form id="bone-form" class="form-grid" novalidate>

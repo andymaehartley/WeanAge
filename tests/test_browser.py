@@ -77,6 +77,11 @@ def test_whole_workflow(page):
     click(page, "#btn-tooth")
     assert "Cusp apex" in page.text_content("#tooth-dialog")
     page.keyboard.press("Escape")
+    # Open, Save, Report and Methods text are in the Project menu; the placeholders are a badge that opens their list.
+    page.click("#btn-project")
+    assert page.is_visible("#btn-save") and page.is_disabled("#btn-report")
+    page.keyboard.press("Escape")
+    assert "placeholder" in page.text_content("#btn-tbd") and page.is_visible("#data-guide")
     # The Next button, bottom right, is named after the next tab and stays dark until the page is complete.
     assert page.text_content("#btn-next") == "Next: Settings" and page.is_disabled("#btn-next")
     # Drop a file: the calculations it can feed are offered, and ticked ones get its rows.
@@ -90,7 +95,7 @@ def test_whole_workflow(page):
     page.check('input[name="calc"][value="mixing"]')
     page.wait_for_selector("#mixing-samples-card:not([hidden])")
     assert page.is_visible("#calc-tabs") and page.is_hidden("#specimens-card")
-    click(page, '#calc-tabs [data-calc="tooth"]')
+    page.select_option("#calc-switch", "tooth")
     page.wait_for_selector("#specimens-card:not([hidden])")
     click(page, '.step[data-view="settings"]')
     page.evaluate("document.querySelector('.baseline-block').closest('details').open = true")
@@ -156,9 +161,14 @@ def test_whole_workflow(page):
     # Enamel: season of birth and rumen development.
     click(page, '.step[data-view="data"]')
     load_example(page, "enamel:synthetic_enamel", "#enamel-teeth-card")
-    assert page.is_hidden("#bone-groups-card") and page.is_disabled('.step[data-view="plan"]')
+    assert page.is_hidden("#bone-groups-card") and page.is_hidden('.step[data-view="plan"]')  # steps that don't apply are hidden
+    assert page.is_hidden('.step[data-view="compare"]')
+    assert "this example is for" in page.text_content("#calc-hint").lower()  # an example is listed like a file
     click(page, "#btn-next")
+    assert "All settings are the defaults" in page.text_content("#view-enamel-settings [data-changed-count]")
     page.fill("#enamel-draws", "100")
+    assert page.is_visible("#view-enamel-settings .changed-mark")  # a changed setting is marked, and counted
+    assert "1 setting changed" in page.text_content("#view-enamel-settings [data-changed-count]")
     click(page, "#btn-next")
     page.wait_for_selector("#view-enamel-results.active", timeout=120000)
     summary = page.text_content("#enamel-res-summary")
@@ -194,9 +204,10 @@ def test_whole_workflow(page):
     page.wait_for_selector("#methods-dialog[open]")
     methods = page.text_content("#methods-body")
     assert "Weaning ages were estimated" in methods and "Payne S (1973)" in methods and "Moorrees" in methods
+    assert "Settings changed from WeanAge's defaults: enamel: draws 100 (default 1000)." in methods  # the one setting the test changed
     page.keyboard.press("Escape")
     click(page, '.step[data-view="data"]')
-    page.click("text=Tooth calculation")
+    page.select_option("#calc-switch", "tooth")
     assert not page.is_disabled('.step[data-view="compare"]') and page.is_visible("#specimens-card")
 
 

@@ -34,3 +34,14 @@ def test_api():
     client = TestClient(app)
     assert "WeanAge" in client.post("/api/methods", json={"runs": {"lifetable": {"options": {}}}}).json()["text"]
     assert client.post("/api/methods", json={"runs": {"nothing": {}}}).status_code == 400
+
+
+def test_changed_settings_are_listed_with_their_defaults():
+    from weanage.methods import changed_settings, default_options
+
+    for name in ["tooth", "bone", "enamel", "killoff", "mixing", "dental", "leh", "lifetable", "mobility"]:
+        assert changed_settings(name, default_options(name)) == [], name  # the defaults are not "changed"
+    options = {**default_options("killoff"), "bootstrap_draws": 500}
+    assert changed_settings("killoff", options) == ["bootstrap draws 500 (default 1000)"]
+    text = write_methods({"killoff": {"options": options, "n": 42}})["text"]
+    assert "Settings changed from WeanAge's defaults: kill-off profiles: bootstrap draws 500 (default 1000)." in text

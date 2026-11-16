@@ -113,11 +113,11 @@ const TOUR = [
   { view: "settings", sel: "#model-options", mode: "tooth", title: "2 · Choose curve models", text: "Every model is fitted to every specimen so you can see how much the method matters. Leave them all on if unsure." },
   { view: "settings", sel: "#growth-list", mode: "tooth", title: "Age models", text: "These convert tooth position to age. Yellow ones are placeholders: edit them, calibrate them from reference data, or save your own." },
   { view: "settings", sel: "#btn-next", mode: "tooth", title: "Run the analysis", text: "Next: Results, in the bottom right corner, runs the analysis; a progress bar shows while curves are fitted." },
-  { view: null, sel: '.step[data-view="settings"]', mode: "!tooth", title: "2 · Settings, then run", text: "Every calculation has its own settings, each with a ? that explains it. The defaults are sensible. Next: Results, in the bottom right corner, runs the calculation." },
+  { view: null, sel: '.step[data-view="settings"]', mode: "!tooth", title: "2 · Settings, then run", text: "Every calculation has its own settings, each with a ? that explains it. The defaults are sensible; any you change are marked, and Reset to defaults puts them back. Next: Results, in the bottom right corner, runs the calculation." },
   { view: "plan", sel: "#plan-form", mode: "tooth", title: "Plan your sampling", text: "Before cutting teeth, simulate how accurate different sampling intervals or numbers of animals would be." },
   { view: null, sel: '.step[data-view="individuals"]', title: "Individuals", text: "After a run, see everything the calculations found for one person or animal (weaning, stress, age at death, mobility, diet) on one timeline." },
-  { view: null, sel: "#btn-methods", title: "Methods text", text: "A methods paragraph, with references, for every calculation you ran and the settings you used, ready to paste into a paper." },
-  { view: null, sel: "#btn-save", title: "Save your work", text: "Save the whole project (data, settings and results) to a file and reopen it later. Your work is also kept in this browser automatically. Every chart has a Figure button for SVG or PNG downloads." },
+  { view: null, sel: "#btn-project", title: "Project menu", text: "Open and save the whole project (data, settings and results), download a report, and get a methods paragraph with references for every calculation you ran, ready to paste into a paper. Your work is also kept in this browser automatically. Every chart has Figure links for SVG or PNG downloads." },
+  { view: null, sel: "#btn-tbd", title: "Placeholders", text: "Values still waiting on lab work. Press this to see the list; results are illustrative until they are filled in." },
   { view: null, sel: "#btn-help", title: "Need a reminder?", text: "Press ? next to any term for a plain-language explanation. The Help menu reopens this tour and links to the user guide; ages in years, light mode and larger text are under View." },
 ];
 
@@ -202,7 +202,7 @@ const GUIDE_PDF = "guide/WeanAge_user_guide.pdf";
 
 /** A drop-down menu opened by `button`: arrow keys move, Escape closes, choosing an item closes it. */
 export function bindMenu(button, menu) {
-  const items = () => [...menu.querySelectorAll("button, a[href]")];
+  const items = () => [...menu.querySelectorAll("button:not(:disabled), a[href]")];
   const close = (refocus) => {
     menu.hidden = true;
     button.setAttribute("aria-expanded", "false");
@@ -231,6 +231,7 @@ export function bindMenu(button, menu) {
 export function initHelpMenu(show, mode) {
   bindMenu($("#btn-help"), $("#help-menu"));
   bindMenu($("#btn-view"), $("#view-menu"));
+  bindMenu($("#btn-project"), $("#project-menu"));
   $("#menu-tour").addEventListener("click", () => startTour(show, mode()));
   markGuideIfMissing();
 }

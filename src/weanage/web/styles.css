@@ -245,7 +245,7 @@ label.tbd { padding: .3rem .4rem; border-radius: var(--radius); color: var(--tbd
 .calc-option.unusable { border-style: dashed; cursor: default; }
 .calc-option.unusable strong { color: var(--muted); }
 .file-status { margin: .2rem 0 .6rem; font-weight: 600; }
-.calc-tabs { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 .8rem; }
+.calc-tabs { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; margin: 0 0 .8rem; }
 .calc-tabs button { min-height: 32px; }
 .calc-tabs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .calc-option { display: flex; flex-direction: row; gap: .6rem; align-items: flex-start; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
@@ -389,3 +389,18 @@ td.num, th.num, .age, .readout, .pill { font-variant-numeric: tabular-nums; }
 .refs-list li { margin-bottom: .25rem; }
 
 .view.active [aria-invalid="true"] { border-color: var(--error); box-shadow: 0 0 0 1px var(--error); }
+
+/* The calculation shown, when several are ticked. */
+.calc-switch { display: flex; align-items: center; gap: .5rem; font-weight: 700; }
+.calc-switch select { width: auto; min-width: 16rem; font-weight: 400; }
+/* Placeholders still in use, as a badge in the header that opens the list. */
+.actions .tbd-pill { min-height: 32px; padding: .2rem .7rem; border-radius: 999px; background: var(--tbd-bg); color: var(--tbd-ink);
+  border: 1px solid var(--tbd-border); font-size: .82rem; font-weight: 700; }
+.actions .tbd-pill:hover { filter: brightness(1.1); }
+/* Settings that differ from the defaults. */
+.reset-row { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: .3rem .8rem; margin: 0 0 var(--s2); }
+.changed-mark { display: inline-block; align-self: flex-start; width: max-content; margin: .2rem 0 0; padding: 0 .4rem; border-radius: var(--radius); font-size: .72rem; font-weight: 700;
+  color: var(--accent-ink); background: var(--accent); vertical-align: middle; }
+label.changed { color: var(--text); }
+#data-guide td { vertical-align: top; font-size: .88rem; }
+#data-guide code { white-space: normal; }

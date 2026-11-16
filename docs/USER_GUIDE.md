@@ -65,6 +65,14 @@ real, it leaves the list.
 
 ## 3. Load your data
 
+**Finding your way around.** *Project* in the header opens, saves and reports on the whole project and
+writes the methods text; *View* and *Help* (with *About*) sit beside it. The yellow *placeholders* badge
+counts the lab values still needed: press it to see the list (it is shown in full on the first visit).
+When several calculations are ticked, *Calculation shown* at the top of each page switches between them
+and says which have results. Tabs that do not apply to the calculation shown (Compare, Plan sampling)
+are hidden. Before anything is loaded, *What a table needs* lists the columns each calculation needs,
+with a template for each.
+
 A bar along the bottom of every page has *Back* on the left and, in the bottom right corner, a *Next*
 button named after the tab it leads to (*Next: Settings*, *Next: Results*, *Next: Compare*,
 *Next: Individuals*). Next stays dark and cannot be pressed until the page has what the next step needs:
@@ -253,6 +261,10 @@ In the tooth calculation, Results also lists **stress episodes** (δ¹⁵N above
 thresholds are under Settings → Advanced.
 
 ## 4. Choose the curve models
+
+Any setting you change from WeanAge's default is marked *changed*, and the top of each Settings page
+counts them, with *Reset to defaults* to put them all back. The methods text lists the changed settings
+with their defaults.
 
 All five weaning-curve shapes are fitted, so you can see how much the choice of model
 changes the answer. Each has its own colour and line pattern.

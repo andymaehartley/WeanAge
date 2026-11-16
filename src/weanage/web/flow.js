@@ -97,6 +97,8 @@ function update() {
   set($("#btn-back"), "hidden", !current.back);
   if (current.back) set($("#btn-back"), "textContent", `Back: ${TAB[current.back]}`);
   set($("#flow-hint"), "textContent", current.hint);
+  // The Data page's "What a table needs" shows until the calculation shown has its data.
+  set($("#data-guide"), "hidden", !$("#data-ready").hidden);
 }
 
 /** Update the bar soon (once, however many changes come in together). */

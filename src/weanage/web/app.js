@@ -14,6 +14,7 @@ import { curveChart, curveOptions, forestChart, lineChart } from "./chart.js";
 import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { compareRequest, initCompare, refreshCompare, renderGroupChoices } from "./compare.js";
+import { convertDefault, initDefaults, markChanged, rememberDefaults } from "./defaults.js";
 import { figure, initFigures } from "./figures.js";
 import { initFlow } from "./flow.js";
 import { hasIndividuals, initIndividuals, renderIndividuals } from "./individuals.js";
@@ -49,15 +50,15 @@ const oneTable = () => CALCS[state.mode];
 
 // Every calculation offered on the Data page, in the order shown.
 const CALC_INFO = [
-  { name: "tooth", group: "Weaning", label: "Tooth calculation", blurb: "δ¹⁵N in slices along a tooth: one individual's own weaning curve." },
-  { name: "bone", group: "Weaning", label: "Bone calculation", blurb: "Bone δ¹⁵N of many young individuals who died at different ages, after WARN." },
-  { name: "dental", group: "People", label: "Dental age", blurb: "Children's age at death from tooth formation stages (Moorrees et al. 1963)." },
-  { name: "leh", group: "People", label: "Enamel hypoplasia timing", blurb: "When enamel defects formed, set against weaning and stress in the dentine." },
-  { name: "lifetable", group: "People", label: "Life tables", blurb: "Deaths, survivorship and life expectancy from skeletal ages at death." },
-  { name: "mobility", group: "People", label: "Mobility (bulk enamel)", blurb: "Enamel δ¹⁸O as drinking water, and ⁸⁷Sr/⁸⁶Sr against the local range." },
-  { name: "mixing", group: "Diet", label: "Diet mixing", blurb: "Bone collagen δ¹³C, δ¹⁵N (and δ³⁴S): the share of each food group in the diet." },
-  { name: "enamel", group: "Animals", label: "Enamel: season and rumen", blurb: "δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr along a cattle molar: season of birth, rumen, diet and moves." },
-  { name: "killoff", group: "Animals", label: "Kill-off profiles", blurb: "Aged mandibles: at what ages a herd's animals were killed, after Payne (1973)." },
+  { name: "tooth", group: "Weaning", label: "Tooth calculation", blurb: "δ¹⁵N in slices along a tooth: one individual's own weaning curve.", needs: "specimen_id, site, species, tooth, position_mm, d15N" },
+  { name: "bone", group: "Weaning", label: "Bone calculation", blurb: "Bone δ¹⁵N of many young individuals who died at different ages, after WARN.", needs: "specimen_id, site, species, d15N; for the young, age_months or age_min_months + age_max_months" },
+  { name: "dental", group: "People", label: "Dental age", blurb: "Children's age at death from tooth formation stages (Moorrees et al. 1963).", needs: "specimen_id, site, species, tooth, stage" },
+  { name: "leh", group: "People", label: "Enamel hypoplasia timing", blurb: "When enamel defects formed, set against weaning and stress in the dentine.", needs: "specimen_id, site, species, tooth, defect_mm, crown_height_mm" },
+  { name: "lifetable", group: "People", label: "Life tables", blurb: "Deaths, survivorship and life expectancy from skeletal ages at death.", needs: "specimen_id, site, species, age_min_years (and age_max_years)" },
+  { name: "mobility", group: "People", label: "Mobility (bulk enamel)", blurb: "Enamel δ¹⁸O as drinking water, and ⁸⁷Sr/⁸⁶Sr against the local range.", needs: "specimen_id, site, species, and d18O and/or sr87_86" },
+  { name: "mixing", group: "Diet", label: "Diet mixing", blurb: "Bone collagen δ¹³C, δ¹⁵N (and δ³⁴S): the share of each food group in the diet.", needs: "specimen_id, site, species, d13C, d15N (d34S optional)" },
+  { name: "enamel", group: "Animals", label: "Enamel: season and rumen", blurb: "δ¹⁸O, δ¹³C and ⁸⁷Sr/⁸⁶Sr along a cattle molar: season of birth, rumen, diet and moves.", needs: "specimen_id, site, species, tooth, erj_distance_mm, and d18O, d13C and/or sr87_86" },
+  { name: "killoff", group: "Animals", label: "Kill-off profiles", blurb: "Aged mandibles: at what ages a herd's animals were killed, after Payne (1973).", needs: "specimen_id, site, species, and payne_stage, wear_stage or age_min_months + age_max_months" },
 ];
 const calcLabel = (name) => CALC_INFO.find((c) => c.name === name).label;
 
@@ -87,6 +88,7 @@ function show(view) {
     refreshCompare();
   }
   if (view === "individuals") renderIndividuals();
+  markChanged(); // settings may have been filled in from a project file
   window.scrollTo({ top: 0 });
 }
 
@@ -98,11 +100,13 @@ function enableResults() {
     b.disabled = !tooth || !state.results;
     b.title = tooth ? "" : "Tooth calculation only";
   }
+  $('.step[data-view="compare"]').hidden = !tooth; // only the tooth calculation compares groups
   const plan = $('.step[data-view="plan"]');
   plan.disabled = Boolean(oneTable());
-  plan.title = oneTable() ? "Tooth and bone calculations only" : "";
+  plan.hidden = Boolean(oneTable()); // planners exist for the tooth and bone calculations
   $('.step[data-view="individuals"]').disabled = !hasIndividuals(state);
   $("#btn-methods").disabled = !(state.results || state.bone?.results || Object.values(CALCS).some((c) => c.hasResults()));
+  if (state.chosen.length > 1) renderCalcTabs(); // "results ready" in the calculation menu
 }
 
 /** From the Individuals page: show one calculation's result for this individual. */
@@ -137,6 +141,7 @@ function setMode(mode, save = true) {
 /** The Data page's list of calculations: what each needs, and whether the loaded file can feed it. */
 function renderCalcList() {
   const found = state.detected?.calculations;
+  const example = !found && state.example; // an example loaded: its calculation is listed first, like a file's
   const option = (c) => {
     const d = found?.[c.name];
     const chosen = state.chosen.includes(c.name);
@@ -152,25 +157,38 @@ function renderCalcList() {
     let group = null;
     return list.map((c) => `${c.group !== group ? `<p class="calc-group">${esc((group = c.group))}</p>` : ""}${option(c)}`).join("");
   };
-  // With a file loaded, the calculations it can't feed are folded away (a ticked one stays in view).
-  const shown = CALC_INFO.filter((c) => !found || found[c.name].rows > 0 || state.chosen.includes(c.name));
+  // With a file loaded, the calculations it can't feed are folded away (a ticked one stays in view); with an
+  // example, those it is not for.
+  const shown = CALC_INFO.filter((c) => (found ? found[c.name].rows > 0 : !example) || state.chosen.includes(c.name));
   const folded = CALC_INFO.filter((c) => !shown.includes(c));
+  const why = found ? "can't use this file" : "(not what this example is for; tick one to add it)";
   $("#calc-list").innerHTML = grouped(shown) + (folded.length ? `<details class="calc-folded"${shown.length ? "" : " open"}>
-    <summary>${plural(folded.length, "other calculation")} can't use this file</summary>
+    <summary>${plural(folded.length, "other calculation")} ${why}</summary>
     <div class="calc-list">${grouped(folded)}</div></details>` : "");
   const usableCount = found ? Object.values(found).filter((d) => d.rows).length : 0;
-  $("#calc-hint").textContent = !found
-    ? "Load a file to see which calculations it can be used for, or tick one to type data in or load its example."
+  $("#calc-hint").textContent = example
+    ? `This example is for ${calcLabel(example)}. Tick another calculation below to add it.`
+    : !found ? "Load a file to see which calculations it can be used for, or tick one to type data in or load its example."
     : usableCount ? "Tick the calculations to run with this file. Each keeps its own settings and results."
       : "No calculation can use this file: check the column names under Columns, template and more.";
 }
 
 /** Above every page when more than one calculation is ticked: which one is shown. */
+/** The Data page's guide while nothing is loaded: the columns each calculation needs, and its template. */
+function renderDataGuide() {
+  const template = (name) => ({ tooth: api.templateUrl, bone: api.boneTemplateUrl }[name] || api.calcTemplateUrl(name));
+  $("#data-guide-table").innerHTML = `<thead><tr><th scope="col">Calculation</th><th scope="col">Columns needed</th>
+    <th scope="col"><span class="sr-only">Template</span></th></tr></thead><tbody>${CALC_INFO.map((c) => `<tr><td>${esc(c.label)}</td>
+    <td><code>${esc(c.needs)}</code></td><td><a href="${template(c.name)}" download>template</a></td></tr>`).join("")}</tbody>`;
+}
+
 function renderCalcTabs() {
   const nav = $("#calc-tabs");
   nav.hidden = state.chosen.length < 2;
-  nav.innerHTML = `<span class="muted small">Showing:</span>${state.chosen.map((name) =>
-    `<button type="button" class="secondary calc-tab" data-calc="${name}" aria-pressed="${name === state.mode}">${esc(calcLabel(name))}</button>`).join("")}`;
+  const done = (name) => (name === "tooth" ? Boolean(state.results) : name === "bone" ? Boolean(state.bone.results) : CALCS[name].hasResults());
+  nav.innerHTML = `<label class="inline calc-switch">Calculation shown <select id="calc-switch">${state.chosen.map((name) =>
+    `<option value="${name}"${name === state.mode ? " selected" : ""}>${esc(calcLabel(name))}${done(name) ? " · results ready" : ""}</option>`).join("")}
+    </select></label><span class="muted small">${plural(state.chosen.length, "calculation")} ticked on the Data page</span>`;
 }
 
 function switchCalc(name) {
@@ -201,7 +219,7 @@ async function toggleCalc(name, on) {
 
 async function loadExample(value) {
   const [name, example] = value.split(":");
-  Object.assign(state, { file: null, detected: null });
+  Object.assign(state, { file: null, detected: null, example: name });
   $("#file-status").hidden = true;
   if (!state.chosen.includes(name)) state.chosen.push(name);
   setMode(name);
@@ -227,7 +245,16 @@ function fillExampleChoice() {
 function renderTbd() {
   const items = state.config.tbd;
   const ids = new Set(items.map((i) => i.id));
-  $("#tbd-banner").hidden = !items.length;
+  let seen = false;
+  try {
+    seen = localStorage.getItem("weanage-tbd-seen") === "1";
+    localStorage.setItem("weanage-tbd-seen", "1");
+  } catch {}
+  $("#tbd-banner").hidden = !items.length || seen;
+  $("#btn-tbd").hidden = !items.length;
+  $("#btn-tbd").textContent = `${plural(items.length, "placeholder")}`;
+  $("#btn-tbd").title = "Lab values still needed: show the list";
+  $("#btn-tbd").setAttribute("aria-expanded", String(!$("#tbd-banner").hidden));
   $("#tbd-count").textContent = `${plural(items.length, "placeholder value")} ${items.length === 1 ? "is" : "are"}`;
   $("#tbd-list").innerHTML = items.map((i) => `<li><strong>${esc(i.area)}:</strong> ${esc(i.label)} — ${esc(i.note)} <code>${esc(i.file)}</code></li>`).join("");
   for (const node of $$("[data-tbd]")) {
@@ -312,7 +339,7 @@ async function loadFile(file) {
   } catch (e) {
     return toast(e.message);
   }
-  Object.assign(state, { file, detected });
+  Object.assign(state, { file, detected, example: null });
   const found = detected.calculations;
   const usable = CALC_INFO.filter((c) => found[c.name].rows).map((c) => c.name);
   // With nothing ticked yet and only one calculation that fits, tick that one.
@@ -736,7 +763,7 @@ function bind() {
   zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("over"); e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]); });
   zone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#csv-input").click(); } });
   on("#calc-list", "change", (e) => e.target.name === "calc" && toggleCalc(e.target.value, e.target.checked));
-  on("#calc-tabs", "click", (e) => { const b = e.target.closest("[data-calc]"); if (b) switchCalc(b.dataset.calc); });
+  on("#calc-tabs", "change", (e) => e.target.id === "calc-switch" && switchCalc(e.target.value));
   on("#btn-example", "click", () => loadExample($("#example-choice").value));
   on("#btn-clear", "click", () => {
     if (state.mode === "bone") {
@@ -816,6 +843,14 @@ function bind() {
     }
   });
   on("#btn-report", "click", makeReport);
+  on("#btn-open", "click", () => $("#project-input").click());
+  on("#btn-tbd", "click", () => {
+    const banner = $("#tbd-banner");
+    banner.hidden = !banner.hidden;
+    banner.open = !banner.hidden;
+    $("#btn-tbd").setAttribute("aria-expanded", String(!banner.hidden));
+    if (!banner.hidden) banner.querySelector("summary").focus();
+  });
   initHelpMenu(show, () => state.mode);
   on("#btn-theme", "click", () => setLook("theme", document.documentElement.dataset.theme === "light" ? "dark" : "light"));
   on("#btn-text", "click", () => setLook("text", document.documentElement.dataset.text === "large" ? "normal" : "large"));
@@ -858,6 +893,7 @@ function convertAgeInputs(factor) {
   const convert = (text) => text.split(/[,;\s]+/).filter(Boolean).map((v) => +(Number(v) * factor).toFixed(3)).join(", ");
   for (const input of $$("input[data-age]")) if (input.value !== "") input.value = convert(input.value);
   for (const input of $$("input[data-age-list]")) input.value = convert(input.value);
+  for (const input of $$("input[data-age], input[data-age-list]")) convertDefault(input, convert);
 }
 
 function showUnits() {
@@ -898,6 +934,7 @@ async function init() {
   initFlow({ show, mode: () => state.mode, chosen: () => state.chosen.includes(state.mode) });
   initMethods(state, CALCS);
   fillExampleChoice();
+  renderDataGuide();
   setMode("tooth", false);
   initAbout(state.config);
   initPlanner(state);
@@ -910,6 +947,8 @@ async function init() {
   showLook();
   showUnits();
   if (getAgeUnit() === "years") convertAgeInputs(1 / 12); // the page's starting values are in months
+  rememberDefaults(); // every setting now holds its default: "changed" marks compare against these
+  initDefaults();
   renderData();
   offerRestore();
   if (!tourSeen()) startTour(show, state.mode);

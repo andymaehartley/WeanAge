@@ -9,6 +9,14 @@
   (data loaded and a calculation ticked; every setting filled in and in range, with the first wrong one
   named and outlined), then lights up. *Next: Results* runs the calculation, replacing the run buttons
   at the foot of each Settings page and the *Next: settings* button on the Data page.
+* *Calculation shown*: one menu, saying which calculations have results, replaces the row of buttons.
+* An example is listed like a dropped file: its calculation first and ticked, the others folded away.
+* Tabs that do not apply to the calculation shown (Compare, Plan sampling) are hidden, not greyed out.
+* Open, Save, Report and Methods text are in a *Project* menu; About is under Help.
+* The placeholder list is shown in full on the first visit, then as a badge in the header that opens it.
+* *What a table needs* on the Data page, until data are loaded: the columns of each calculation, with templates.
+* Settings changed from the defaults are marked, counted per page, with *Reset to defaults*; the methods
+  text lists them with their default values.
 
 ## 0.3.0 (2026-10-28)
 
