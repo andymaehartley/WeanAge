@@ -97,8 +97,7 @@
               <p id="calc-hint" class="hint">Load a file to see which calculations it can be used for, or tick one to type data in by hand.</p>
               <div id="calc-list" class="calc-list"></div>
             </fieldset>
-            <p id="data-ready" class="data-ready" hidden><span id="data-ready-text"></span>
-              <button id="btn-next-settings" type="button">Next: settings</button></p>
+            <p id="data-ready" class="data-ready" hidden><span id="data-ready-text"></span></p>
             <details class="advanced">
               <summary>Columns, template and more</summary>
               <div class="advanced-body">
@@ -465,7 +464,7 @@
       <div class="run-bar">
         <div id="run-progress" class="progress-wrap" hidden></div>
         <span id="run-msg" class="inline-msg" role="status" aria-live="polite"></span>
-        <button id="btn-run" class="primary">Run analysis</button>
+        <button id="btn-run" class="primary" hidden>Run analysis</button>
       </div>
     </section>
 
@@ -536,7 +535,7 @@
 
       <div class="run-bar">
         <div id="bone-progress" class="progress-wrap" hidden></div>
-        <button id="btn-bone-run" class="primary">Run bone analysis</button>
+        <button id="btn-bone-run" class="primary" hidden>Run bone analysis</button>
       </div>
     </section>
 
@@ -608,7 +607,7 @@
       </div>
       <div class="run-bar">
         <div id="enamel-progress" class="progress-wrap" hidden></div>
-        <button id="btn-enamel-run" class="primary">Run enamel analysis</button>
+        <button id="btn-enamel-run" class="primary" hidden>Run enamel analysis</button>
       </div>
     </section>
 
@@ -758,7 +757,7 @@
       </div>
       <div class="run-bar">
         <div id="killoff-progress" class="progress-wrap" hidden></div>
-        <button id="btn-killoff-run" class="primary">Build kill-off profiles</button>
+        <button id="btn-killoff-run" class="primary" hidden>Build kill-off profiles</button>
       </div>
     </section>
 
@@ -804,7 +803,7 @@
       </div>
       <div class="run-bar">
         <div id="mixing-progress" class="progress-wrap" hidden></div>
-        <button id="btn-mixing-run" class="primary">Estimate diets</button>
+        <button id="btn-mixing-run" class="primary" hidden>Estimate diets</button>
       </div>
     </section>
 
@@ -831,7 +830,7 @@
       </div>
       <div class="run-bar">
         <div id="dental-progress" class="progress-wrap" hidden></div>
-        <button id="btn-dental-run" class="primary">Estimate ages</button>
+        <button id="btn-dental-run" class="primary" hidden>Estimate ages</button>
       </div>
     </section>
 
@@ -854,7 +853,7 @@
       </div>
       <div class="run-bar">
         <div id="leh-progress" class="progress-wrap" hidden></div>
-        <button id="btn-leh-run" class="primary">Date the defects</button>
+        <button id="btn-leh-run" class="primary" hidden>Date the defects</button>
       </div>
     </section>
 
@@ -885,7 +884,7 @@
       </div>
       <div class="run-bar">
         <div id="lifetable-progress" class="progress-wrap" hidden></div>
-        <button id="btn-lifetable-run" class="primary">Build life tables</button>
+        <button id="btn-lifetable-run" class="primary" hidden>Build life tables</button>
       </div>
     </section>
 
@@ -930,7 +929,7 @@
       </article>
       <div class="run-bar">
         <div id="mobility-progress" class="progress-wrap" hidden></div>
-        <button id="btn-mobility-run" class="primary">Check for incomers</button>
+        <button id="btn-mobility-run" class="primary" hidden>Check for incomers</button>
       </div>
     </section>
 
@@ -1446,10 +1445,17 @@
     </div>
   </dialog>
 
-  <footer class="statusbar" aria-label="Status">
-    <span id="sb-data">No data loaded</span>
-    <span id="sb-mode"></span>
-  </footer>
+  <div class="bottom-dock">
+    <nav id="flow-bar" class="flow-bar" aria-label="Next step">
+      <button id="btn-back" class="secondary" type="button" hidden>Back</button>
+      <span id="flow-hint" class="flow-hint" role="status" aria-live="polite"></span>
+      <button id="btn-next" class="primary" type="button" disabled>Next: Settings</button>
+    </nav>
+    <footer class="statusbar" aria-label="Status">
+      <span id="sb-data">No data loaded</span>
+      <span id="sb-mode"></span>
+    </footer>
+  </div>
   <div id="toast" class="toast" role="region" aria-label="Message" hidden><span id="toast-text"></span>
     <button type="button" id="toast-close" class="ghost tiny">Close</button></div>
   <div id="toast-live" class="sr-only" aria-live="polite"></div>

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+* A bar along the bottom of every page: *Back* on the left and, always in the bottom right corner, a
+  *Next* button named after the tab it leads to (*Next: Settings*, *Next: Results*, *Next: Compare*,
+  *Next: Individuals*, *Next: Methods text*). It stays dark until the page has what the next step needs
+  (data loaded and a calculation ticked; every setting filled in and in range, with the first wrong one
+  named and outlined), then lights up. *Next: Results* runs the calculation, replacing the run buttons
+  at the foot of each Settings page and the *Next: settings* button on the Data page.
+
 ## 0.3.0 (2026-10-28)
 
 ### Added

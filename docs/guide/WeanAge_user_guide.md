@@ -443,9 +443,10 @@ model; with placeholder turnover it shows relative, not absolute, precision.
 *Figure 10. The Data tab with the cattle example loaded (left) and the Compare tab (right).*
 
 1. **Data.** Drop a file, then tick the calculations it can feed (or load an example, or type
-   samples in). Problems are listed with their row numbers.
+   samples in). Problems are listed with their row numbers. The *Next* button in the bottom right
+   corner is named after the tab it leads to, and stays dark until the page is complete.
 2. **Settings.** The main choices are shown; less used ones are under *Advanced settings*. The
-   defaults suit a first run.
+   defaults suit a first run. *Next: Results* runs the calculation.
 3. **Results.** Pick a specimen or group on the left. The headline gives the reported age and its
    95% interval; the chart, the model table and the warnings explain it. Results can be exported
    as CSV, JSON or SVG, and the whole run as an HTML report.

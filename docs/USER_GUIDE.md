@@ -65,6 +65,13 @@ real, it leaves the list.
 
 ## 3. Load your data
 
+A bar along the bottom of every page has *Back* on the left and, in the bottom right corner, a *Next*
+button named after the tab it leads to (*Next: Settings*, *Next: Results*, *Next: Compare*,
+*Next: Individuals*). Next stays dark and cannot be pressed until the page has what the next step needs:
+data loaded and a calculation ticked on Data, every setting filled in and in range on Settings (a wrong
+one is outlined in red and named beside the button). It lights up as soon as the page is complete. On
+Settings, *Next: Results* runs the calculation.
+
 First drop a CSV or Excel file on the dashed box (common spellings such as `δ15N (‰)`, `C:N`
 or `Animal` are recognised). WeanAge checks the table against every calculation and lists them
 below the box: those it can feed show how many rows they can use; the others say what is missing
@@ -296,7 +303,7 @@ The age uncertainty is carried into every interval, so set it realistically.
 
 ![Optional corrections](guide/08_options.png)
 
-Press *Run analysis* at the bottom of Settings. A progress bar follows each specimen.
+Press *Next: Results* in the bottom right corner. It runs the analysis, and a progress bar follows each specimen.
 
 ## 8. Read a specimen's result
 

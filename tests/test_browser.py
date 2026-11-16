@@ -77,6 +77,8 @@ def test_whole_workflow(page):
     click(page, "#btn-tooth")
     assert "Cusp apex" in page.text_content("#tooth-dialog")
     page.keyboard.press("Escape")
+    # The Next button, bottom right, is named after the next tab and stays dark until the page is complete.
+    assert page.text_content("#btn-next") == "Next: Settings" and page.is_disabled("#btn-next")
     # Drop a file: the calculations it can feed are offered, and ticked ones get its rows.
     page.set_input_files("#csv-input", str(TEST_DATA / "synthetic_example.csv"))
     page.wait_for_selector("#file-status:not([hidden])")
@@ -84,6 +86,7 @@ def test_whole_workflow(page):
     assert "Not with this file" in page.text_content("#calc-list")
     page.check('input[name="calc"][value="tooth"]')
     page.wait_for_selector("#specimens-card:not([hidden])")
+    page.wait_for_selector("#btn-next:enabled")
     page.check('input[name="calc"][value="mixing"]')
     page.wait_for_selector("#mixing-samples-card:not([hidden])")
     assert page.is_visible("#calc-tabs") and page.is_hidden("#specimens-card")
@@ -92,8 +95,17 @@ def test_whole_workflow(page):
     click(page, '.step[data-view="settings"]')
     page.evaluate("document.querySelector('.baseline-block').closest('details').open = true")
     page.fill('.baseline-row[data-key="Site A:cattle"] .bl-mean', "6.5")  # adult females: gives the milk share
-    click(page, "#btn-run")
+    assert page.text_content("#btn-next") == "Next: Results" and page.text_content("#btn-back") == "Back: Data"
+    draws = page.input_value("#opt-draws")
+    page.evaluate("document.querySelector('#opt-draws').closest('details').open = true")
+    page.fill("#opt-draws", "-5")  # a setting out of range: Next goes dark and says which one
+    page.wait_for_selector("#btn-next:disabled")
+    assert "Fill in or correct" in page.text_content("#flow-hint")
+    page.fill("#opt-draws", draws)
+    page.wait_for_selector("#btn-next:enabled")
+    click(page, "#btn-next")
     page.wait_for_selector("#view-results.active", timeout=60000)
+    page.wait_for_function("document.querySelector('#btn-next').textContent === 'Next: Compare'")
     assert "Best-supported model" in page.text_content("#res-summary")
     assert "Breast milk" in page.text_content("#milk-summary") and page.is_visible("#milk-chart svg")
     click(page, '.step[data-view="compare"]')
@@ -109,12 +121,12 @@ def test_whole_workflow(page):
     assert page.is_hidden("#manual-form")
     assert page.is_hidden("#specimens-card")  # the tooth table does not show under the bone data
     assert "Wharram Percy" in page.text_content("#bone-group-table")
-    click(page, "#btn-next-settings")
+    click(page, "#btn-next")
     assert page.evaluate("document.querySelector('#qc-card').closest('section').id") == "view-bone-settings"
     page.click("#view-bone-settings details.advanced > summary")  # the sampler settings are under Advanced
     page.fill("#bone-warmup", "500")
     page.fill("#bone-keep", "500")
-    click(page, "#btn-bone-run")
+    click(page, "#btn-next")
     page.wait_for_selector("#view-bone-results.active", timeout=120000)
     assert "suckling ends" in page.text_content("#bone-res-summary .readout")
     assert page.is_disabled('.step[data-view="compare"]')
@@ -145,9 +157,9 @@ def test_whole_workflow(page):
     click(page, '.step[data-view="data"]')
     load_example(page, "enamel:synthetic_enamel", "#enamel-teeth-card")
     assert page.is_hidden("#bone-groups-card") and page.is_disabled('.step[data-view="plan"]')
-    click(page, "#btn-next-settings")
+    click(page, "#btn-next")
     page.fill("#enamel-draws", "100")
-    click(page, "#btn-enamel-run")
+    click(page, "#btn-next")
     page.wait_for_selector("#view-enamel-results.active", timeout=120000)
     summary = page.text_content("#enamel-res-summary")
     assert "birth index" in summary and "Rumen development" in summary and "C3 diet" in summary
@@ -163,8 +175,8 @@ def test_whole_workflow(page):
         click(page, '.step[data-view="data"]')
         example = page.eval_on_selector(f'#example-choice option[value^="{mode}:"]', "o => o.value")
         load_example(page, example, card)
-        click(page, "#btn-next-settings")
-        click(page, f"#btn-{mode}-run")
+        click(page, "#btn-next")
+        click(page, "#btn-next")
         page.wait_for_selector(f"#view-{mode}-results.active", timeout=120000)
         assert run_text in page.text_content(f"#view-{mode}-results")
         assert page.is_visible(f"#view-{mode}-results svg")
@@ -215,7 +227,7 @@ def test_browser_version():
             click(page, '.step[data-view="settings"]')
             page.click("#view-settings .grid-3 > article:first-child details.advanced > summary")  # draws are under Advanced
             page.fill("#opt-draws", "100")
-            click(page, "#btn-run")  # 11 specimens: shared between several engines on a multi-core machine
+            click(page, "#btn-next")  # 11 specimens: shared between several engines on a multi-core machine
             page.wait_for_selector("#view-results.active", timeout=600000)
             assert "Best-supported model" in page.text_content("#res-summary")
             ids = page.eval_on_selector_all("#result-list [data-specimen]", "els => els.map(e => e.dataset.specimen)")

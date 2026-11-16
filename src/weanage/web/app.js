@@ -15,6 +15,7 @@ import { bindGrowthEditor, renderGrowthList } from "./growth.js";
 import { initGlossary, initHelpMenu, startTour, tourSeen } from "./help.js";
 import { compareRequest, initCompare, refreshCompare, renderGroupChoices } from "./compare.js";
 import { figure, initFigures } from "./figures.js";
+import { initFlow } from "./flow.js";
 import { hasIndividuals, initIndividuals, renderIndividuals } from "./individuals.js";
 import { initMethods } from "./methods.js";
 import { initPlanner, renderPlan } from "./planner.js";
@@ -727,7 +728,6 @@ async function makeReport() {
 function bind() {
   const on = (selector, event, handler) => $(selector).addEventListener(event, handler);
   for (const b of $$(".step")) b.addEventListener("click", () => show(b.dataset.view));
-  on("#btn-next-settings", "click", () => show("settings"));
 
   const zone = $("#dropzone");
   on("#csv-input", "change", (e) => e.target.files[0] && loadFile(e.target.files[0]));
@@ -895,6 +895,7 @@ async function init() {
   initIndividuals(state, { open: openIndividual });
   initCompare(state);
   initFigures();
+  initFlow({ show, mode: () => state.mode, chosen: () => state.chosen.includes(state.mode) });
   initMethods(state, CALCS);
   fillExampleChoice();
   setMode("tooth", false);
